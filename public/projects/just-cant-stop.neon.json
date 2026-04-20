@@ -1,0 +1,2416 @@
+{
+  "format": "neon-studio-project",
+  "formatVersion": 1,
+  "portable": true,
+  "id": "just-cant-stop",
+  "name": "Just Cant Stop",
+  "createdAt": "2026-04-19T00:00:00.000Z",
+  "updatedAt": "2026-04-19T00:00:00.000Z",
+  "description": "Original dark trap/festival production following the supplied walkthrough techniques without copying the commercial song.",
+  "keyCenter": "F minor / Ab major",
+  "assets": [
+    {
+      "trackId": "sample-bass-synth",
+      "file": "/api/audio/just_cant_stop_sample_bass_synth.wav"
+    },
+    {
+      "trackId": "analog-bass",
+      "file": "/api/audio/just_cant_stop_analog_bass.wav"
+    },
+    {
+      "trackId": "room-layer",
+      "file": "/api/audio/just_cant_stop_room_layer.wav"
+    },
+    {
+      "trackId": "clap-stack",
+      "file": "/api/audio/just_cant_stop_clap_stack.wav"
+    },
+    {
+      "trackId": "breaths",
+      "file": "/api/audio/just_cant_stop_breaths.wav"
+    },
+    {
+      "trackId": "vocal-chops",
+      "file": "/api/audio/just_cant_stop_vocal_chops.wav"
+    },
+    {
+      "trackId": "risers",
+      "file": "/api/audio/just_cant_stop_risers.wav"
+    },
+    {
+      "trackId": "prebuild-drums",
+      "file": "/api/audio/just_cant_stop_prebuild_drums.wav"
+    },
+    {
+      "trackId": "rave-generator",
+      "file": "/api/audio/just_cant_stop_rave_generator.wav"
+    },
+    {
+      "trackId": "lead-tease",
+      "file": "/api/audio/just_cant_stop_lead_tease.wav"
+    },
+    {
+      "trackId": "random-filler",
+      "file": "/api/audio/just_cant_stop_random_filler.wav"
+    },
+    {
+      "trackId": "drop-drums",
+      "file": "/api/audio/just_cant_stop_drop_drums.wav"
+    },
+    {
+      "trackId": "drop-vocals",
+      "file": "/api/audio/just_cant_stop_drop_vocals.wav"
+    },
+    {
+      "trackId": "drop-lead",
+      "file": "/api/audio/just_cant_stop_drop_lead.wav"
+    },
+    {
+      "trackId": "sub",
+      "file": "/api/audio/just_cant_stop_sub.wav"
+    },
+    {
+      "trackId": "crash-layers",
+      "file": "/api/audio/just_cant_stop_crash_layers.wav"
+    },
+    {
+      "trackId": "glitch-tail",
+      "file": "/api/audio/just_cant_stop_glitch_tail.wav"
+    },
+    {
+      "trackId": "second-drop-synths",
+      "file": "/api/audio/just_cant_stop_second_drop_synths.wav"
+    },
+    {
+      "trackId": "sirens-lasers",
+      "file": "/api/audio/just_cant_stop_sirens_lasers.wav"
+    },
+    {
+      "trackId": "transition-fx",
+      "file": "/api/audio/just_cant_stop_transition_fx.wav"
+    }
+  ],
+  "snapshot": {
+    "version": 3,
+    "bpm": 150,
+    "swing": 12,
+    "snap": "1/8",
+    "loopEnabled": true,
+    "loopStartBar": 32,
+    "loopEndBar": 48,
+    "tracks": [
+      {
+        "id": "sample-bass-synth",
+        "name": "Sample Bass Synth",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_sample_bass_synth.wav",
+        "color": "#5de1b2",
+        "gain": 0.72,
+        "pan": -0.04,
+        "steps": [
+          0,
+          3,
+          7,
+          10
+        ],
+        "instrument": "Granular one-note bass-synth sample",
+        "clips": [
+          {
+            "id": "sample_bass_synth-0",
+            "name": "Pre-intro and intro bass-synth line",
+            "startBar": 0,
+            "bars": 24,
+            "lane": "sample-bass-synth",
+            "color": "#5de1b2",
+            "type": "audio"
+          },
+          {
+            "id": "sample_bass_synth-48",
+            "name": "Second-part bass-synth callback",
+            "startBar": 48,
+            "bars": 8,
+            "lane": "sample-bass-synth",
+            "color": "#5de1b2",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "sample-loop",
+            "name": "Long Sample Loop Stretch",
+            "active": true,
+            "amount": 0.72
+          },
+          {
+            "id": "filter-drive",
+            "name": "Driven Lowpass Filter",
+            "active": true,
+            "amount": 0.66
+          },
+          {
+            "id": "multiband",
+            "name": "Dank Sauce Multiband",
+            "active": true,
+            "amount": 0.58
+          }
+        ]
+      },
+      {
+        "id": "analog-bass",
+        "name": "Analog Bass",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_analog_bass.wav",
+        "color": "#8ad8a0",
+        "gain": 0.54,
+        "pan": 0.02,
+        "steps": [
+          0,
+          7,
+          10
+        ],
+        "instrument": "Simple analog hardware bass layer",
+        "clips": [
+          {
+            "id": "analog_bass-0",
+            "name": "Analog support under sample bass",
+            "startBar": 0,
+            "bars": 24,
+            "lane": "analog-bass",
+            "color": "#8ad8a0",
+            "type": "audio"
+          },
+          {
+            "id": "analog_bass-48",
+            "name": "Analog callback",
+            "startBar": 48,
+            "bars": 8,
+            "lane": "analog-bass",
+            "color": "#8ad8a0",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "super-six",
+            "name": "Super Six Analog Layer",
+            "active": true,
+            "amount": 0.62
+          },
+          {
+            "id": "lowpass",
+            "name": "Warm Lowpass",
+            "active": true,
+            "amount": 0.52
+          }
+        ]
+      },
+      {
+        "id": "room-layer",
+        "name": "Dark Room Layer",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_room_layer.wav",
+        "color": "#a88cff",
+        "gain": 0.5,
+        "pan": -0.12,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "instrument": "Dark Omnisphere-style room/delay layer",
+        "clips": [
+          {
+            "id": "room_layer-8",
+            "name": "Dark intro harmony room",
+            "startBar": 8,
+            "bars": 16,
+            "lane": "room-layer",
+            "color": "#a88cff",
+            "type": "audio"
+          },
+          {
+            "id": "room_layer-48",
+            "name": "Second section room layer",
+            "startBar": 48,
+            "bars": 8,
+            "lane": "room-layer",
+            "color": "#a88cff",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "omni",
+            "name": "Omnisphere Sonic Extension Layer",
+            "active": true,
+            "amount": 0.66
+          },
+          {
+            "id": "room",
+            "name": "Springy Room Reverb",
+            "active": true,
+            "amount": 0.58
+          },
+          {
+            "id": "delay",
+            "name": "Stereo Delay",
+            "active": true,
+            "amount": 0.46
+          }
+        ]
+      },
+      {
+        "id": "clap-stack",
+        "name": "Same Clap Stack",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_clap_stack.wav",
+        "color": "#ff9a72",
+        "gain": 0.7,
+        "pan": 0.04,
+        "steps": [
+          4,
+          12
+        ],
+        "instrument": "Layered random claps reused through the song",
+        "clips": [
+          {
+            "id": "clap_stack-8",
+            "name": "Intro and bridge claps",
+            "startBar": 8,
+            "bars": 16,
+            "lane": "clap-stack",
+            "color": "#ff9a72",
+            "type": "audio"
+          },
+          {
+            "id": "clap_stack-32",
+            "name": "Drop clap stack",
+            "startBar": 32,
+            "bars": 16,
+            "lane": "clap-stack",
+            "color": "#ff9a72",
+            "type": "audio"
+          },
+          {
+            "id": "clap_stack-64",
+            "name": "Second drop clap stack",
+            "startBar": 64,
+            "bars": 8,
+            "lane": "clap-stack",
+            "color": "#ff9a72",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "same-claps",
+            "name": "Same Claps Throughout",
+            "active": true,
+            "amount": 1.0
+          },
+          {
+            "id": "room",
+            "name": "Valhalla Room Layer",
+            "active": true,
+            "amount": 0.42
+          }
+        ]
+      },
+      {
+        "id": "breaths",
+        "name": "Stereo Breaths",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_breaths.wav",
+        "color": "#d8ecff",
+        "gain": 0.6,
+        "pan": 0.0,
+        "steps": [
+          2,
+          7,
+          11,
+          15
+        ],
+        "instrument": "Random wide breath texture",
+        "clips": [
+          {
+            "id": "breaths-2",
+            "name": "Intro breath spread",
+            "startBar": 2,
+            "bars": 22,
+            "lane": "breaths",
+            "color": "#d8ecff",
+            "type": "audio"
+          },
+          {
+            "id": "breaths-46",
+            "name": "Background breath fills",
+            "startBar": 46,
+            "bars": 18,
+            "lane": "breaths",
+            "color": "#d8ecff",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "wide",
+            "name": "Stereo Spread",
+            "active": true,
+            "amount": 0.82
+          },
+          {
+            "id": "air",
+            "name": "High Air Shelf",
+            "active": true,
+            "amount": 0.58
+          }
+        ]
+      },
+      {
+        "id": "vocal-chops",
+        "name": "Fresh Vocal Chops",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_vocal_chops.wav",
+        "color": "#f6a6d7",
+        "gain": 0.68,
+        "pan": 0.0,
+        "steps": [
+          0,
+          2,
+          5,
+          8,
+          10,
+          13
+        ],
+        "instrument": "Synthetic vocal loop and chopped bright vocal bits",
+        "clips": [
+          {
+            "id": "vocal_chops-12",
+            "name": "Looped and chopped vocal prebuild",
+            "startBar": 12,
+            "bars": 20,
+            "lane": "vocal-chops",
+            "color": "#f6a6d7",
+            "type": "audio"
+          },
+          {
+            "id": "vocal_chops-56",
+            "name": "Second build chopped vocal",
+            "startBar": 56,
+            "bars": 16,
+            "lane": "vocal-chops",
+            "color": "#f6a6d7",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "fresh-air",
+            "name": "Fresh Air Mid/High Brightener",
+            "active": true,
+            "amount": 0.86
+          },
+          {
+            "id": "pingpong",
+            "name": "Left/Right Delay",
+            "active": true,
+            "amount": 0.72
+          },
+          {
+            "id": "chorus",
+            "name": "Chorus Tag Brightener",
+            "active": true,
+            "amount": 0.36
+          }
+        ]
+      },
+      {
+        "id": "risers",
+        "name": "Dynamic Risers",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_risers.wav",
+        "color": "#d885ff",
+        "gain": 0.72,
+        "pan": 0.0,
+        "steps": [
+          0,
+          8,
+          12,
+          15
+        ],
+        "instrument": "Dynamic risers, sweeps, and downlifters",
+        "clips": [
+          {
+            "id": "risers-0",
+            "name": "Dramatic pre-intro sweeps",
+            "startBar": 0,
+            "bars": 8,
+            "lane": "risers",
+            "color": "#d885ff",
+            "type": "audio"
+          },
+          {
+            "id": "risers-22",
+            "name": "Build risers",
+            "startBar": 22,
+            "bars": 10,
+            "lane": "risers",
+            "color": "#d885ff",
+            "type": "audio"
+          },
+          {
+            "id": "risers-54",
+            "name": "Second build risers",
+            "startBar": 54,
+            "bars": 10,
+            "lane": "risers",
+            "color": "#d885ff",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "transit",
+            "name": "Transit-style Macro Rise",
+            "active": true,
+            "amount": 0.78
+          },
+          {
+            "id": "noise-up",
+            "name": "White Noise Up",
+            "active": true,
+            "amount": 0.68
+          }
+        ]
+      },
+      {
+        "id": "prebuild-drums",
+        "name": "Build Loop",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_prebuild_drums.wav",
+        "color": "#ffb45a",
+        "gain": 0.72,
+        "pan": 0.0,
+        "steps": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14
+        ],
+        "instrument": "Hype prebuild loop with trap snares and hats",
+        "clips": [
+          {
+            "id": "prebuild_drums-24",
+            "name": "Green-room style build loop",
+            "startBar": 24,
+            "bars": 8,
+            "lane": "prebuild-drums",
+            "color": "#ffb45a",
+            "type": "audio"
+          },
+          {
+            "id": "prebuild_drums-56",
+            "name": "Second build loop",
+            "startBar": 56,
+            "bars": 8,
+            "lane": "prebuild-drums",
+            "color": "#ffb45a",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "chants",
+            "name": "Chant/Trap Snare Loop",
+            "active": true,
+            "amount": 0.56
+          },
+          {
+            "id": "white-noise",
+            "name": "Big Snare White Noise",
+            "active": true,
+            "amount": 0.52
+          }
+        ]
+      },
+      {
+        "id": "rave-generator",
+        "name": "Rave Generator",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_rave_generator.wav",
+        "color": "#ffdf6e",
+        "gain": 0.64,
+        "pan": 0.0,
+        "steps": [
+          0,
+          4,
+          8,
+          11
+        ],
+        "instrument": "Old-school rave stab fourth/fifth/seventh color",
+        "clips": [
+          {
+            "id": "rave_generator-16",
+            "name": "Beat and bloody pulp-style stabs",
+            "startBar": 16,
+            "bars": 16,
+            "lane": "rave-generator",
+            "color": "#ffdf6e",
+            "type": "audio"
+          },
+          {
+            "id": "rave_generator-56",
+            "name": "Second build old-school stabs",
+            "startBar": 56,
+            "bars": 8,
+            "lane": "rave-generator",
+            "color": "#ffdf6e",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "ott",
+            "name": "OTT-style Multiband",
+            "active": true,
+            "amount": 0.58
+          },
+          {
+            "id": "crystalline",
+            "name": "Crystalline Metallic Reverb",
+            "active": true,
+            "amount": 0.48
+          }
+        ]
+      },
+      {
+        "id": "lead-tease",
+        "name": "Lead Tease",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_lead_tease.wav",
+        "color": "#8bd3ff",
+        "gain": 0.58,
+        "pan": 0.0,
+        "steps": [
+          0,
+          2,
+          4,
+          7,
+          10,
+          12
+        ],
+        "instrument": "Drop lead teased in the build",
+        "clips": [
+          {
+            "id": "lead_tease-28",
+            "name": "First drop lead preview",
+            "startBar": 28,
+            "bars": 4,
+            "lane": "lead-tease",
+            "color": "#8bd3ff",
+            "type": "audio"
+          },
+          {
+            "id": "lead_tease-60",
+            "name": "Second drop lead preview",
+            "startBar": 60,
+            "bars": 4,
+            "lane": "lead-tease",
+            "color": "#8bd3ff",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "og-trap",
+            "name": "OG Trap Lead Tease",
+            "active": true,
+            "amount": 0.66
+          },
+          {
+            "id": "delay",
+            "name": "Bouncing Delay",
+            "active": true,
+            "amount": 0.52
+          }
+        ]
+      },
+      {
+        "id": "random-filler",
+        "name": "Random Filler",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_random_filler.wav",
+        "color": "#c9ff7a",
+        "gain": 0.54,
+        "pan": 0.0,
+        "steps": [
+          1,
+          5,
+          9,
+          13
+        ],
+        "instrument": "Low background space-filler sounds",
+        "clips": [
+          {
+            "id": "random_filler-24",
+            "name": "Build wacky filler",
+            "startBar": 24,
+            "bars": 8,
+            "lane": "random-filler",
+            "color": "#c9ff7a",
+            "type": "audio"
+          },
+          {
+            "id": "random_filler-48",
+            "name": "Humanoid/vocoder-style background",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "random-filler",
+            "color": "#c9ff7a",
+            "type": "audio"
+          },
+          {
+            "id": "random_filler-68",
+            "name": "Outro filler chaos",
+            "startBar": 68,
+            "bars": 4,
+            "lane": "random-filler",
+            "color": "#c9ff7a",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "humanoid",
+            "name": "Humanoid Vocoder Texture",
+            "active": true,
+            "amount": 0.54
+          },
+          {
+            "id": "mono-space",
+            "name": "Low Space Filler",
+            "active": true,
+            "amount": 0.42
+          }
+        ]
+      },
+      {
+        "id": "drop-drums",
+        "name": "Drop Drums",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_drop_drums.wav",
+        "color": "#ff704f",
+        "gain": 0.86,
+        "pan": 0.0,
+        "steps": [
+          0,
+          2,
+          4,
+          8,
+          12,
+          14
+        ],
+        "instrument": "Clicky kick, trap hats, snares",
+        "clips": [
+          {
+            "id": "drop_drums-32",
+            "name": "First drop drums",
+            "startBar": 32,
+            "bars": 16,
+            "lane": "drop-drums",
+            "color": "#ff704f",
+            "type": "audio"
+          },
+          {
+            "id": "drop_drums-64",
+            "name": "Second drop drums",
+            "startBar": 64,
+            "bars": 8,
+            "lane": "drop-drums",
+            "color": "#ff704f",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "pultec",
+            "name": "Pultec-style Kick Low Boost",
+            "active": true,
+            "amount": 0.64
+          },
+          {
+            "id": "tiny-hat-eq",
+            "name": "Tiny Hat Highpass 474 Hz",
+            "active": true,
+            "amount": 0.74
+          },
+          {
+            "id": "brute-force",
+            "name": "Brute Force Drum Stack",
+            "active": true,
+            "amount": 0.62
+          }
+        ]
+      },
+      {
+        "id": "drop-vocals",
+        "name": "Drop Vocals",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_drop_vocals.wav",
+        "color": "#ff82c0",
+        "gain": 0.74,
+        "pan": 0.0,
+        "steps": [
+          0,
+          3,
+          6,
+          9,
+          12
+        ],
+        "instrument": "Hectic vocal rhythm and call-response breaks",
+        "clips": [
+          {
+            "id": "drop_vocals-32",
+            "name": "Top-of-session drop vocal rhythm",
+            "startBar": 32,
+            "bars": 16,
+            "lane": "drop-vocals",
+            "color": "#ff82c0",
+            "type": "audio"
+          },
+          {
+            "id": "drop_vocals-64",
+            "name": "Second drop vocal tags",
+            "startBar": 64,
+            "bars": 8,
+            "lane": "drop-vocals",
+            "color": "#ff82c0",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "hectic-delay",
+            "name": "Hectic Ping-Pong Delay",
+            "active": true,
+            "amount": 0.82
+          },
+          {
+            "id": "call-response",
+            "name": "Call Response Breaks",
+            "active": true,
+            "amount": 0.64
+          }
+        ]
+      },
+      {
+        "id": "drop-lead",
+        "name": "Drop Lead",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_drop_lead.wav",
+        "color": "#62c8ff",
+        "gain": 0.78,
+        "pan": 0.0,
+        "steps": [
+          0,
+          2,
+          5,
+          8,
+          11,
+          14
+        ],
+        "instrument": "Wave-shaped lead group with sizzle and low cuts",
+        "clips": [
+          {
+            "id": "drop_lead-32",
+            "name": "First drop lead up octave",
+            "startBar": 32,
+            "bars": 16,
+            "lane": "drop-lead",
+            "color": "#62c8ff",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "wave-shaper",
+            "name": "Melda-style Wave Shaper",
+            "active": true,
+            "amount": 0.76
+          },
+          {
+            "id": "clipper",
+            "name": "Clipper",
+            "active": true,
+            "amount": 0.54
+          },
+          {
+            "id": "low-cut",
+            "name": "EQ Low Cut",
+            "active": true,
+            "amount": 0.72
+          },
+          {
+            "id": "snapheap",
+            "name": "Snap Heap Phase Distortion",
+            "active": true,
+            "amount": 0.58
+          },
+          {
+            "id": "crystalline",
+            "name": "Crystalline Metallic Reverb",
+            "active": true,
+            "amount": 0.42
+          }
+        ]
+      },
+      {
+        "id": "sub",
+        "name": "Driven Sub",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_sub.wav",
+        "color": "#45d18e",
+        "gain": 0.82,
+        "pan": 0.0,
+        "steps": [
+          0,
+          8
+        ],
+        "instrument": "Triangle/saw sub with white-noise filter drive",
+        "clips": [
+          {
+            "id": "sub-32",
+            "name": "Long drawn-out sub under wamps",
+            "startBar": 32,
+            "bars": 16,
+            "lane": "sub",
+            "color": "#45d18e",
+            "type": "audio"
+          },
+          {
+            "id": "sub-64",
+            "name": "Second drop sub continuity",
+            "startBar": 64,
+            "bars": 8,
+            "lane": "sub",
+            "color": "#45d18e",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "triangle",
+            "name": "Triangle/Saw Sub Core",
+            "active": true,
+            "amount": 0.64
+          },
+          {
+            "id": "bright-white",
+            "name": "Bright White Into Filter Drive",
+            "active": true,
+            "amount": 0.74
+          },
+          {
+            "id": "sidechain",
+            "name": "Sidechain",
+            "active": true,
+            "amount": 0.64
+          }
+        ]
+      },
+      {
+        "id": "crash-layers",
+        "name": "Crash Layers",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_crash_layers.wav",
+        "color": "#f0f7a8",
+        "gain": 0.68,
+        "pan": 0.0,
+        "steps": [
+          0,
+          8
+        ],
+        "instrument": "Open hats, slow-attack snare, operator noise crash stack",
+        "clips": [
+          {
+            "id": "crash_layers-32",
+            "name": "Drop crash stack",
+            "startBar": 32,
+            "bars": 16,
+            "lane": "crash-layers",
+            "color": "#f0f7a8",
+            "type": "audio"
+          },
+          {
+            "id": "crash_layers-64",
+            "name": "Second drop crash stack",
+            "startBar": 64,
+            "bars": 8,
+            "lane": "crash-layers",
+            "color": "#f0f7a8",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "open-hat",
+            "name": "Pitched-down Open Hat",
+            "active": true,
+            "amount": 0.48
+          },
+          {
+            "id": "snare-crash",
+            "name": "Slow Attack Snare Crash",
+            "active": true,
+            "amount": 0.42
+          },
+          {
+            "id": "operator-noise",
+            "name": "Operator White Noise",
+            "active": true,
+            "amount": 0.62
+          }
+        ]
+      },
+      {
+        "id": "glitch-tail",
+        "name": "Glitch Tail",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_glitch_tail.wav",
+        "color": "#cfa6ff",
+        "gain": 0.62,
+        "pan": 0.12,
+        "steps": [
+          3,
+          7,
+          11,
+          15
+        ],
+        "instrument": "Chopped lead reverb tail and trashy glitch fill",
+        "clips": [
+          {
+            "id": "glitch_tail-35",
+            "name": "Chopped reverb-tail fills",
+            "startBar": 35,
+            "bars": 12,
+            "lane": "glitch-tail",
+            "color": "#cfa6ff",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "trash",
+            "name": "Trash Glitch Chop",
+            "active": true,
+            "amount": 0.58
+          },
+          {
+            "id": "reverb-tail",
+            "name": "Frozen Reverb Tail",
+            "active": true,
+            "amount": 0.66
+          }
+        ]
+      },
+      {
+        "id": "second-drop-synths",
+        "name": "Second Drop Synths",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_second_drop_synths.wav",
+        "color": "#7fa7ff",
+        "gain": 0.82,
+        "pan": -0.02,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "instrument": "Huge preset-style second drop synths",
+        "clips": [
+          {
+            "id": "second_drop_synths-64",
+            "name": "Big nuke second drop synth",
+            "startBar": 64,
+            "bars": 8,
+            "lane": "second-drop-synths",
+            "color": "#7fa7ff",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "big-nuke",
+            "name": "Big Nuke Preset Layer",
+            "active": true,
+            "amount": 0.76
+          },
+          {
+            "id": "polysat",
+            "name": "PolySaturator Harmonics",
+            "active": true,
+            "amount": 0.58
+          },
+          {
+            "id": "serum-fx",
+            "name": "Serum FX Preset Chain",
+            "active": true,
+            "amount": 0.54
+          },
+          {
+            "id": "soothe",
+            "name": "Soothe Resonance Ducking",
+            "active": true,
+            "amount": 0.42
+          },
+          {
+            "id": "eq250",
+            "name": "Low Cut at 250",
+            "active": true,
+            "amount": 0.66
+          }
+        ]
+      },
+      {
+        "id": "sirens-lasers",
+        "name": "Sirens Lasers",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_sirens_lasers.wav",
+        "color": "#ff5f71",
+        "gain": 0.64,
+        "pan": 0.0,
+        "steps": [
+          3,
+          7,
+          11,
+          15
+        ],
+        "instrument": "Old-trap siren and laser accents",
+        "clips": [
+          {
+            "id": "sirens_lasers-44",
+            "name": "First drop siren answer",
+            "startBar": 44,
+            "bars": 4,
+            "lane": "sirens-lasers",
+            "color": "#ff5f71",
+            "type": "audio"
+          },
+          {
+            "id": "sirens_lasers-64",
+            "name": "Second drop lasers",
+            "startBar": 64,
+            "bars": 8,
+            "lane": "sirens-lasers",
+            "color": "#ff5f71",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "pitch-rise",
+            "name": "Quick Pitch Rise/Fall",
+            "active": true,
+            "amount": 0.82
+          },
+          {
+            "id": "mono",
+            "name": "Mono Utility",
+            "active": true,
+            "amount": 0.44
+          },
+          {
+            "id": "vintage-verb",
+            "name": "VintageVerb Color Now",
+            "active": true,
+            "amount": 0.46
+          }
+        ]
+      },
+      {
+        "id": "transition-fx",
+        "name": "Transit Macro FX",
+        "kind": "audio",
+        "file": "/api/audio/just_cant_stop_transition_fx.wav",
+        "color": "#d885ff",
+        "gain": 0.74,
+        "pan": 0.0,
+        "steps": [
+          0,
+          15
+        ],
+        "instrument": "Transit/Endless Smile transition processing",
+        "clips": [
+          {
+            "id": "transition_fx-0",
+            "name": "Intro reverse and impact drama",
+            "startBar": 0,
+            "bars": 8,
+            "lane": "transition-fx",
+            "color": "#d885ff",
+            "type": "audio"
+          },
+          {
+            "id": "transition_fx-24",
+            "name": "First build transition macro",
+            "startBar": 24,
+            "bars": 8,
+            "lane": "transition-fx",
+            "color": "#d885ff",
+            "type": "audio"
+          },
+          {
+            "id": "transition_fx-56",
+            "name": "Second build transition macro",
+            "startBar": 56,
+            "bars": 8,
+            "lane": "transition-fx",
+            "color": "#d885ff",
+            "type": "audio"
+          },
+          {
+            "id": "transition_fx-70",
+            "name": "Ending transition",
+            "startBar": 70,
+            "bars": 2,
+            "lane": "transition-fx",
+            "color": "#d885ff",
+            "type": "audio"
+          }
+        ],
+        "effects": [
+          {
+            "id": "transit2",
+            "name": "Transit 2 Gritty Delays",
+            "active": true,
+            "amount": 0.84
+          },
+          {
+            "id": "macro",
+            "name": "Highpass/Lowpass/Notch Macro",
+            "active": true,
+            "amount": 0.78
+          }
+        ]
+      }
+    ],
+    "controls": {
+      "sample-bass-synth": {
+        "gain": 0.72,
+        "pan": -0.04,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "analog-bass": {
+        "gain": 0.54,
+        "pan": 0.02,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "room-layer": {
+        "gain": 0.5,
+        "pan": -0.12,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "clap-stack": {
+        "gain": 0.7,
+        "pan": 0.04,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "breaths": {
+        "gain": 0.6,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "vocal-chops": {
+        "gain": 0.68,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "risers": {
+        "gain": 0.72,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "prebuild-drums": {
+        "gain": 0.72,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "rave-generator": {
+        "gain": 0.64,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "lead-tease": {
+        "gain": 0.58,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "random-filler": {
+        "gain": 0.54,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "drop-drums": {
+        "gain": 0.86,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "drop-vocals": {
+        "gain": 0.74,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "drop-lead": {
+        "gain": 0.78,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "sub": {
+        "gain": 0.82,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "crash-layers": {
+        "gain": 0.68,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "glitch-tail": {
+        "gain": 0.62,
+        "pan": 0.12,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "second-drop-synths": {
+        "gain": 0.82,
+        "pan": -0.02,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "sirens-lasers": {
+        "gain": 0.64,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      },
+      "transition-fx": {
+        "gain": 0.74,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      }
+    },
+    "notes": [
+      {
+        "id": "jcs-note-0-0",
+        "beat": 0.0,
+        "duration": 0.5,
+        "note": 72,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-1",
+        "beat": 0.5,
+        "duration": 0.5,
+        "note": 75,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-2",
+        "beat": 1.0,
+        "duration": 0.75,
+        "note": 77,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-3",
+        "beat": 2.0,
+        "duration": 0.5,
+        "note": 75,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-4",
+        "beat": 2.5,
+        "duration": 0.5,
+        "note": 70,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-5",
+        "beat": 3.0,
+        "duration": 0.75,
+        "note": 68,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-6",
+        "beat": 4.0,
+        "duration": 0.5,
+        "note": 72,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-7",
+        "beat": 4.5,
+        "duration": 0.5,
+        "note": 77,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-8",
+        "beat": 5.0,
+        "duration": 0.5,
+        "note": 80,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-9",
+        "beat": 5.5,
+        "duration": 0.5,
+        "note": 77,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-10",
+        "beat": 6.0,
+        "duration": 0.5,
+        "note": 75,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-0-11",
+        "beat": 7.0,
+        "duration": 0.75,
+        "note": 70,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-0",
+        "beat": 32.0,
+        "duration": 0.5,
+        "note": 84,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-1",
+        "beat": 32.5,
+        "duration": 0.5,
+        "note": 87,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-2",
+        "beat": 33.0,
+        "duration": 0.75,
+        "note": 89,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-3",
+        "beat": 34.0,
+        "duration": 0.5,
+        "note": 87,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-4",
+        "beat": 34.5,
+        "duration": 0.5,
+        "note": 82,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-5",
+        "beat": 35.0,
+        "duration": 0.75,
+        "note": 80,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-6",
+        "beat": 36.0,
+        "duration": 0.5,
+        "note": 84,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-7",
+        "beat": 36.5,
+        "duration": 0.5,
+        "note": 89,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-8",
+        "beat": 37.0,
+        "duration": 0.5,
+        "note": 92,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-9",
+        "beat": 37.5,
+        "duration": 0.5,
+        "note": 89,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-10",
+        "beat": 38.0,
+        "duration": 0.5,
+        "note": 87,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-1-11",
+        "beat": 39.0,
+        "duration": 0.75,
+        "note": 82,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-0",
+        "beat": 64.0,
+        "duration": 0.5,
+        "note": 72,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-1",
+        "beat": 64.5,
+        "duration": 0.5,
+        "note": 75,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-2",
+        "beat": 65.0,
+        "duration": 0.75,
+        "note": 77,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-3",
+        "beat": 66.0,
+        "duration": 0.5,
+        "note": 75,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-4",
+        "beat": 66.5,
+        "duration": 0.5,
+        "note": 70,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-5",
+        "beat": 67.0,
+        "duration": 0.75,
+        "note": 68,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-6",
+        "beat": 68.0,
+        "duration": 0.5,
+        "note": 72,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-7",
+        "beat": 68.5,
+        "duration": 0.5,
+        "note": 77,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-8",
+        "beat": 69.0,
+        "duration": 0.5,
+        "note": 80,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-9",
+        "beat": 69.5,
+        "duration": 0.5,
+        "note": 77,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-10",
+        "beat": 70.0,
+        "duration": 0.5,
+        "note": 75,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-2-11",
+        "beat": 71.0,
+        "duration": 0.75,
+        "note": 70,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-0",
+        "beat": 96.0,
+        "duration": 0.5,
+        "note": 72,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-1",
+        "beat": 96.5,
+        "duration": 0.5,
+        "note": 75,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-2",
+        "beat": 97.0,
+        "duration": 0.75,
+        "note": 77,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-3",
+        "beat": 98.0,
+        "duration": 0.5,
+        "note": 75,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-4",
+        "beat": 98.5,
+        "duration": 0.5,
+        "note": 70,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-5",
+        "beat": 99.0,
+        "duration": 0.75,
+        "note": 68,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-6",
+        "beat": 100.0,
+        "duration": 0.5,
+        "note": 72,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-7",
+        "beat": 100.5,
+        "duration": 0.5,
+        "note": 77,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-8",
+        "beat": 101.0,
+        "duration": 0.5,
+        "note": 80,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-9",
+        "beat": 101.5,
+        "duration": 0.5,
+        "note": 77,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-10",
+        "beat": 102.0,
+        "duration": 0.5,
+        "note": 75,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      },
+      {
+        "id": "jcs-note-3-11",
+        "beat": 103.0,
+        "duration": 0.75,
+        "note": 70,
+        "velocity": 0.88,
+        "color": "#8bd3ff"
+      }
+    ],
+    "selectedTrackId": "drop-lead",
+    "selectedClipId": "drop_lead-32",
+    "activeView": "playlist",
+    "patternIndex": 1,
+    "arrangementMode": "song",
+    "recipe": [
+      {
+        "id": "chronological",
+        "section": "Foundation",
+        "label": "Chronological walkthrough layout",
+        "detail": "Project sections are arranged as pre-intro, intro, bridge/prebuild, build, drop, second part, second build, second drop.",
+        "status": "implemented",
+        "trackIds": [
+          "transition-fx",
+          "sample-bass-synth",
+          "drop-drums"
+        ]
+      },
+      {
+        "id": "sample-selection",
+        "section": "Foundation",
+        "label": "Sample-selection-first workflow",
+        "detail": "Tracks are split around long main samples, found textures, and selected one-shot layers rather than over-designed patches.",
+        "status": "implemented",
+        "trackIds": [
+          "sample-bass-synth",
+          "breaths",
+          "random-filler"
+        ]
+      },
+      {
+        "id": "least-layers",
+        "section": "Foundation",
+        "label": "Least necessary layers principle",
+        "detail": "The heavy sounds are few focused lanes, with extra layers only where the transcript calls them out.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-lead",
+          "second-drop-synths",
+          "sub"
+        ]
+      },
+      {
+        "id": "pre-intro-drama",
+        "section": "Intro",
+        "label": "Extra drama before the main loop",
+        "detail": "Transit Macro FX and Risers create the dramatic sweep/reverse opening before the bass-synth line lands.",
+        "status": "implemented",
+        "trackIds": [
+          "transition-fx",
+          "risers"
+        ]
+      },
+      {
+        "id": "reverse-first-sound",
+        "section": "Intro",
+        "label": "Reverse of the first synth sound",
+        "detail": "The opening FX lane includes reverse/downlifter motion into the first bass-synth phrase.",
+        "status": "implemented",
+        "trackIds": [
+          "transition-fx",
+          "sample-bass-synth"
+        ]
+      },
+      {
+        "id": "main-sample-bass",
+        "section": "Intro",
+        "label": "Long one-note sample as main synth",
+        "detail": "Sample Bass Synth acts like the long source sample, stretched into the central bass-synth line.",
+        "status": "implemented",
+        "trackIds": [
+          "sample-bass-synth"
+        ]
+      },
+      {
+        "id": "analog-layer",
+        "section": "Intro",
+        "label": "Simple analog bass layer",
+        "detail": "Analog Bass doubles the sampled synth with a simple warm hardware-style layer.",
+        "status": "implemented",
+        "trackIds": [
+          "analog-bass"
+        ]
+      },
+      {
+        "id": "same-claps",
+        "section": "Intro",
+        "label": "Layered random claps",
+        "detail": "Same Clap Stack reuses the same claps in the intro, build, and drops.",
+        "status": "implemented",
+        "trackIds": [
+          "clap-stack"
+        ]
+      },
+      {
+        "id": "omni-room",
+        "section": "Intro",
+        "label": "Omnisphere-style room/delay layer",
+        "detail": "Dark Room Layer carries the room and delay color from the walkthrough.",
+        "status": "implemented",
+        "trackIds": [
+          "room-layer"
+        ]
+      },
+      {
+        "id": "darker-melody",
+        "section": "Intro",
+        "label": "Darker melody direction",
+        "detail": "The harmony and lead notes use a darker minor center instead of the earlier happy future-bass melody shape.",
+        "status": "implemented",
+        "trackIds": [
+          "room-layer",
+          "drop-lead"
+        ]
+      },
+      {
+        "id": "breaths",
+        "section": "Intro",
+        "label": "Wide breath texture",
+        "detail": "Stereo Breaths are random wide details that fill the intro spread.",
+        "status": "implemented",
+        "trackIds": [
+          "breaths"
+        ]
+      },
+      {
+        "id": "vocal-found",
+        "section": "Intro",
+        "label": "Found vocal idea",
+        "detail": "Fresh Vocal Chops provide the vocal-sample role with synthetic, original chops.",
+        "status": "implemented",
+        "trackIds": [
+          "vocal-chops"
+        ]
+      },
+      {
+        "id": "dynamic-risers",
+        "section": "Intro",
+        "label": "Dynamic risers into the next section",
+        "detail": "Dynamic Risers mark every major lift into the following sections.",
+        "status": "implemented",
+        "trackIds": [
+          "risers"
+        ]
+      },
+      {
+        "id": "hype-prebuild",
+        "section": "Build",
+        "label": "Lit hype bridge/prebuild",
+        "detail": "Build Loop, Fresh Vocal Chops, and Rave Generator create the high-energy prebuild bridge.",
+        "status": "implemented",
+        "trackIds": [
+          "prebuild-drums",
+          "vocal-chops",
+          "rave-generator"
+        ]
+      },
+      {
+        "id": "vocal-loop",
+        "section": "Build",
+        "label": "Looped vocal with chopped edits",
+        "detail": "Fresh Vocal Chops repeats and slices the vocal rhythm through the bridge and build.",
+        "status": "implemented",
+        "trackIds": [
+          "vocal-chops"
+        ]
+      },
+      {
+        "id": "fresh-air",
+        "section": "Build",
+        "label": "Fresh Air brightness",
+        "detail": "Fresh Vocal Chops has a Fresh Air mid/high brightener slot.",
+        "status": "implemented",
+        "trackIds": [
+          "vocal-chops"
+        ]
+      },
+      {
+        "id": "sonic-extension",
+        "section": "Build",
+        "label": "Sonic-extension-style preset source",
+        "detail": "Rave Generator and Dark Room Layer represent the preset-pack sounds with post-processing.",
+        "status": "implemented",
+        "trackIds": [
+          "rave-generator",
+          "room-layer"
+        ]
+      },
+      {
+        "id": "dank-sauce",
+        "section": "Build",
+        "label": "Dank Sauce / OTT-style compression",
+        "detail": "Rave Generator has OTT-style multiband processing, and the bass synth has a multiband slot.",
+        "status": "implemented",
+        "trackIds": [
+          "rave-generator",
+          "sample-bass-synth"
+        ]
+      },
+      {
+        "id": "crystalline",
+        "section": "Build",
+        "label": "Crystalline metallic reverb",
+        "detail": "Rave Generator and Drop Lead both include Crystalline-style metallic reverb slots.",
+        "status": "implemented",
+        "trackIds": [
+          "rave-generator",
+          "drop-lead"
+        ]
+      },
+      {
+        "id": "reverb-dynamics",
+        "section": "Mix",
+        "label": "Dry versus wet reverb dynamics",
+        "detail": "Driven Sub stays dry while room, lead, and rave lanes carry distinct reverb spaces.",
+        "status": "implemented",
+        "trackIds": [
+          "sub",
+          "room-layer",
+          "drop-lead",
+          "rave-generator"
+        ]
+      },
+      {
+        "id": "bouncing-delays",
+        "section": "Build",
+        "label": "Left/right bouncing delays",
+        "detail": "Lead Tease and vocal lanes use ping-pong/bouncing delay effect slots and rendered delay tails.",
+        "status": "implemented",
+        "trackIds": [
+          "lead-tease",
+          "vocal-chops",
+          "drop-vocals"
+        ]
+      },
+      {
+        "id": "rave-generator",
+        "section": "Build",
+        "label": "Old-school Rave Generator color",
+        "detail": "Rave Generator uses fourth/fifth/seventh-style stab coloration before the drop.",
+        "status": "implemented",
+        "trackIds": [
+          "rave-generator"
+        ]
+      },
+      {
+        "id": "lead-tease",
+        "section": "Build",
+        "label": "Tease the drop lead in the build",
+        "detail": "Lead Tease sneaks the drop line into the buildup.",
+        "status": "implemented",
+        "trackIds": [
+          "lead-tease"
+        ]
+      },
+      {
+        "id": "green-room-loop",
+        "section": "Build",
+        "label": "Trap build-loop sample role",
+        "detail": "Build Loop covers the chant/trap snare/white-noise build loop role.",
+        "status": "implemented",
+        "trackIds": [
+          "prebuild-drums"
+        ]
+      },
+      {
+        "id": "random-build-filler",
+        "section": "Build",
+        "label": "Random background filler in build",
+        "detail": "Random Filler adds low background space between build hits.",
+        "status": "implemented",
+        "trackIds": [
+          "random-filler"
+        ]
+      },
+      {
+        "id": "drop-vocals-top",
+        "section": "Drop",
+        "label": "Vocals at the top of the drop session",
+        "detail": "Drop Vocals is a dedicated top lane with rhythmic chops and delays.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-vocals"
+        ]
+      },
+      {
+        "id": "call-response",
+        "section": "Drop",
+        "label": "Call-response vocal breaks",
+        "detail": "Drop Vocals marks the beat breaks where vocal answers signal a change.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-vocals"
+        ]
+      },
+      {
+        "id": "hiphop-tag",
+        "section": "Drop",
+        "label": "Tag-like vocal moment",
+        "detail": "Drop Vocals contains original tag-like vocal chops, not copied commercial tags.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-vocals"
+        ]
+      },
+      {
+        "id": "clicky-kick",
+        "section": "Drop",
+        "label": "Big clicky kick",
+        "detail": "Drop Drums uses a clicky kick with a Pultec-style low boost slot.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-drums"
+        ]
+      },
+      {
+        "id": "pultec-kick",
+        "section": "Mix",
+        "label": "Pultec-style kick low boost",
+        "detail": "Drop Drums exposes the Pultec-style kick low boost from the walkthrough.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-drums"
+        ]
+      },
+      {
+        "id": "snare-layers",
+        "section": "Drop",
+        "label": "Three-layer snare/clap stack",
+        "detail": "Same Clap Stack layers clap, snare, and offbeat snare elements.",
+        "status": "implemented",
+        "trackIds": [
+          "clap-stack"
+        ]
+      },
+      {
+        "id": "jingle-snare",
+        "section": "Drop",
+        "label": "Jingle/snare color",
+        "detail": "Same Clap Stack and Crash Layers hold extra transient color without over-EQ.",
+        "status": "implemented",
+        "trackIds": [
+          "clap-stack",
+          "crash-layers"
+        ]
+      },
+      {
+        "id": "offbeat-snare",
+        "section": "Drop",
+        "label": "Offbeat trap snare layer",
+        "detail": "Same Clap Stack includes offbeat snare support around the main backbeat.",
+        "status": "implemented",
+        "trackIds": [
+          "clap-stack"
+        ]
+      },
+      {
+        "id": "tiny-hat",
+        "section": "Drop",
+        "label": "Tiny high hat that never changes",
+        "detail": "Drop Drums carries a simple repeating tiny hat rhythm.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-drums"
+        ]
+      },
+      {
+        "id": "hat-highpass",
+        "section": "Mix",
+        "label": "Hat high-pass around 474 Hz",
+        "detail": "Drop Drums includes a Tiny Hat Highpass 474 Hz effect slot.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-drums"
+        ]
+      },
+      {
+        "id": "crash-stack",
+        "section": "Drop",
+        "label": "Crash stack with open hat, snare, and noise",
+        "detail": "Crash Layers separates open hats, slow-attack snare, and operator-style white noise.",
+        "status": "implemented",
+        "trackIds": [
+          "crash-layers"
+        ]
+      },
+      {
+        "id": "mid-side-concept",
+        "section": "Mix",
+        "label": "Middle/side coverage for cymbals",
+        "detail": "Crash Layers and Stereo Breaths are panned/wide so the high end covers middle and sides.",
+        "status": "implemented",
+        "trackIds": [
+          "crash-layers",
+          "breaths"
+        ]
+      },
+      {
+        "id": "serum-wamp",
+        "section": "Drop",
+        "label": "Simple Serum-style wamp synth",
+        "detail": "Drop Lead and Second Drop Synths use basic-shape wamp synthesis with post-processing.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-lead",
+          "second-drop-synths"
+        ]
+      },
+      {
+        "id": "noise-filter-drive",
+        "section": "Drop",
+        "label": "White noise routed into driven filter",
+        "detail": "Driven Sub and Drop Lead include noise/filter-drive style grit.",
+        "status": "implemented",
+        "trackIds": [
+          "sub",
+          "drop-lead"
+        ]
+      },
+      {
+        "id": "lead-sizzle",
+        "section": "Drop",
+        "label": "High sizzle layer completing the lead",
+        "detail": "Drop Lead includes high sizzle and wave-shaped brightness.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-lead"
+        ]
+      },
+      {
+        "id": "wave-shaper",
+        "section": "Drop",
+        "label": "Wave shaper and clipper on lead",
+        "detail": "Drop Lead has wave shaper and clipper effect slots.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-lead"
+        ]
+      },
+      {
+        "id": "low-cut-lead",
+        "section": "Mix",
+        "label": "Cut lows out of the lead",
+        "detail": "Drop Lead includes EQ Low Cut before the sub owns the low end.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-lead",
+          "sub"
+        ]
+      },
+      {
+        "id": "snapheap-phase",
+        "section": "Drop",
+        "label": "Snap Heap phase distortion",
+        "detail": "Drop Lead includes a Snap Heap phase distortion slot.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-lead"
+        ]
+      },
+      {
+        "id": "glitch-tail",
+        "section": "Drop",
+        "label": "Chopped/glitched reverb tail",
+        "detail": "Glitch Tail renders the chopped frozen reverb-tail idea.",
+        "status": "implemented",
+        "trackIds": [
+          "glitch-tail"
+        ]
+      },
+      {
+        "id": "chaos-filler",
+        "section": "Drop",
+        "label": "Chaotic background filler",
+        "detail": "Random Filler runs through drop and build sections as low background chaos.",
+        "status": "implemented",
+        "trackIds": [
+          "random-filler"
+        ]
+      },
+      {
+        "id": "sub-patch",
+        "section": "Drop",
+        "label": "Just Cant Stop sub patch",
+        "detail": "Driven Sub uses triangle/saw core plus bright white noise into a driven filter.",
+        "status": "implemented",
+        "trackIds": [
+          "sub"
+        ]
+      },
+      {
+        "id": "long-sub",
+        "section": "Drop",
+        "label": "Long drawn-out sub under wamps",
+        "detail": "Driven Sub sustains through wamp moments instead of retriggering every wobble.",
+        "status": "implemented",
+        "trackIds": [
+          "sub"
+        ]
+      },
+      {
+        "id": "first-drop-octave",
+        "section": "Drop",
+        "label": "First drop lead up an octave",
+        "detail": "Drop Lead labels the first drop as an octave-up lead layer.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-lead"
+        ]
+      },
+      {
+        "id": "second-part-vocoder",
+        "section": "Drop",
+        "label": "Humanoid/vocoder background in second part",
+        "detail": "Random Filler includes the humanoid/vocoder-style background role.",
+        "status": "implemented",
+        "trackIds": [
+          "random-filler"
+        ]
+      },
+      {
+        "id": "second-drop",
+        "section": "Drop",
+        "label": "Second drop with new huge sound",
+        "detail": "Second Drop Synths adds the later, bigger preset-style synth layer.",
+        "status": "implemented",
+        "trackIds": [
+          "second-drop-synths"
+        ]
+      },
+      {
+        "id": "big-nuke",
+        "section": "Drop",
+        "label": "Big nuke preset-style second drop",
+        "detail": "Second Drop Synths has a Big Nuke preset layer slot.",
+        "status": "implemented",
+        "trackIds": [
+          "second-drop-synths"
+        ]
+      },
+      {
+        "id": "old-trap-sirens",
+        "section": "Drop",
+        "label": "Old-trap sirens and lasers",
+        "detail": "Sirens Lasers handles the Flosstradamus/Uzi-era trap laser gesture.",
+        "status": "implemented",
+        "trackIds": [
+          "sirens-lasers"
+        ]
+      },
+      {
+        "id": "pitch-rise-fall",
+        "section": "Drop",
+        "label": "Pitch rise/fall laser modulation",
+        "detail": "Sirens Lasers includes quick pitch rise/fall processing.",
+        "status": "implemented",
+        "trackIds": [
+          "sirens-lasers"
+        ]
+      },
+      {
+        "id": "polysaturator",
+        "section": "Mix",
+        "label": "PolySaturator harmonics",
+        "detail": "Second Drop Synths includes PolySaturator-style harmonic enhancement.",
+        "status": "implemented",
+        "trackIds": [
+          "second-drop-synths"
+        ]
+      },
+      {
+        "id": "serum-fx",
+        "section": "Mix",
+        "label": "Serum FX preset chain",
+        "detail": "Second Drop Synths includes a Serum FX preset-chain slot.",
+        "status": "implemented",
+        "trackIds": [
+          "second-drop-synths"
+        ]
+      },
+      {
+        "id": "mono-utility",
+        "section": "Mix",
+        "label": "Mono utility on second drop layer",
+        "detail": "Sirens Lasers includes mono utility processing.",
+        "status": "implemented",
+        "trackIds": [
+          "sirens-lasers"
+        ]
+      },
+      {
+        "id": "vintage-verb",
+        "section": "Mix",
+        "label": "VintageVerb Color Now",
+        "detail": "Sirens Lasers includes VintageVerb Color Now.",
+        "status": "implemented",
+        "trackIds": [
+          "sirens-lasers"
+        ]
+      },
+      {
+        "id": "ott-soothe",
+        "section": "Mix",
+        "label": "OTT/multiband and Soothe cleanup",
+        "detail": "Second Drop Synths includes OTT-style treatment and Soothe resonance ducking.",
+        "status": "implemented",
+        "trackIds": [
+          "second-drop-synths"
+        ]
+      },
+      {
+        "id": "eq250",
+        "section": "Mix",
+        "label": "Simple low cut around 250",
+        "detail": "Second Drop Synths includes the quick low cut at 250 idea.",
+        "status": "implemented",
+        "trackIds": [
+          "second-drop-synths"
+        ]
+      },
+      {
+        "id": "transit",
+        "section": "Advanced",
+        "label": "Transit/Endless Smile-style transition control",
+        "detail": "Transit Macro FX has Transit 2 gritty delays and macro filter movement.",
+        "status": "implemented",
+        "trackIds": [
+          "transition-fx"
+        ]
+      },
+      {
+        "id": "share-sauce",
+        "section": "Advanced",
+        "label": "Plugin-chain documentation in project file",
+        "detail": "The recipe and effect slots document the sauce so the project file explains the walkthrough.",
+        "status": "implemented",
+        "trackIds": [
+          "drop-lead",
+          "second-drop-synths",
+          "transition-fx"
+        ]
+      }
+    ]
+  },
+  "assetMode": "external"
+}

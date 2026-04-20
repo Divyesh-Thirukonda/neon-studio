@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Neon Studio</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="mark"></span>
+          <span>Neon Studio</span>
+        </div>
+        <nav class="menu-strip" aria-label="Project menu">
+          <button>File</button>
+          <button>Edit</button>
+          <button>Patterns</button>
+          <button>View</button>
+          <button>Tools</button>
+        </nav>
+        <div class="transport" aria-label="Transport">
+          <button class="icon-btn" id="rewindBtn" title="Return to start" aria-label="Return to start">&#9198;</button>
+          <button class="icon-btn primary" id="playBtn" title="Play" aria-label="Play">&#9654;</button>
+          <button class="icon-btn" id="pauseBtn" title="Pause" aria-label="Pause">&#10074;&#10074;</button>
+          <button class="icon-btn" id="stopBtn" title="Stop" aria-label="Stop">&#9632;</button>
+          <a class="icon-btn link-btn" href="../exports/neon_solitude_full_mix.wav" download title="Download mix" aria-label="Download mix">&#8681;</a>
+        </div>
+        <div class="readouts">
+          <div>
+            <span class="readout-label">BPM</span>
+            <strong>142</strong>
+          </div>
+          <div>
+            <span class="readout-label">BAR</span>
+            <strong id="barReadout">001.1</strong>
+          </div>
+          <div>
+            <span class="readout-label">TIME</span>
+            <strong id="timeReadout">0:00.0</strong>
+          </div>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="left-panel" aria-label="Browser and channels">
+          <div class="browser">
+            <div class="panel-title">
+              <span>Browser</span>
+              <button class="mini-btn" id="reloadBtn" title="Reload stems" aria-label="Reload stems">&#10227;</button>
+            </div>
+            <ul class="asset-list">
+              <li><span class="asset-dot drums"></span>neon_solitude_drums.wav</li>
+              <li><span class="asset-dot bass"></span>neon_solitude_bass.wav</li>
+              <li><span class="asset-dot chords"></span>neon_solitude_chords.wav</li>
+              <li><span class="asset-dot lead"></span>neon_solitude_lead_and_plucks.wav</li>
+              <li><span class="asset-dot fx"></span>neon_solitude_fx.wav</li>
+            </ul>
+          </div>
+
+          <div class="rack">
+            <div class="panel-title">
+              <span>Channel Rack</span>
+              <span id="stepReadout">01</span>
+            </div>
+            <div class="steps-header" id="stepsHeader"></div>
+            <div class="step-grid" id="stepGrid"></div>
+          </div>
+        </section>
+
+        <section class="center-panel" aria-label="Playlist and editors">
+          <div class="playlist">
+            <div class="panel-title">
+              <span>Playlist</span>
+              <div class="playlist-tools">
+                <button class="mini-btn" id="zoomOutBtn" title="Zoom out" aria-label="Zoom out">-</button>
+                <button class="mini-btn" id="zoomInBtn" title="Zoom in" aria-label="Zoom in">+</button>
+              </div>
+            </div>
+            <div class="timeline-shell">
+              <div class="track-labels" id="trackLabels"></div>
+              <div class="timeline-scroll" id="timelineScroll">
+                <canvas id="rulerCanvas" class="ruler-canvas"></canvas>
+                <div id="waveformLanes" class="waveform-lanes"></div>
+                <div id="playhead" class="playhead"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="editor-grid">
+            <div class="piano-roll">
+              <div class="panel-title">
+                <span>Piano Roll</span>
+                <span>E minor</span>
+              </div>
+              <canvas id="pianoCanvas"></canvas>
+            </div>
+            <div class="master-scope">
+              <div class="panel-title">
+                <span>Master</span>
+                <span id="loadStatus">Loading stems</span>
+              </div>
+              <canvas id="scopeCanvas"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section class="mixer" aria-label="Mixer" id="mixer"></section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

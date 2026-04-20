@@ -1,0 +1,26 @@
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Local generated/cache output
+artifacts/
+__pycache__/
+*.py[cod]
+tsconfig.tsbuildinfo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

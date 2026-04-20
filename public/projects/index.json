@@ -1,0 +1,14 @@
+{
+  "format": "neon-studio-project-index",
+  "formatVersion": 1,
+  "projects": [
+    {
+      "id": "neon-solitude",
+      "file": "/projects/neon-solitude.neon.json"
+    },
+    {
+      "id": "just-cant-stop",
+      "file": "/projects/just-cant-stop.neon.json"
+    }
+  ]
+}
