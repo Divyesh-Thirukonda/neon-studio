@@ -33,12 +33,14 @@ import {
   Upload,
   AudioWaveform,
   HelpCircle,
+  WandSparkles,
   ZoomIn,
   ZoomOut
 } from "lucide-react";
 import {
   ChangeEvent,
   CSSProperties,
+  DragEvent,
   MouseEvent,
   ReactNode,
   useCallback,
@@ -73,6 +75,19 @@ type ChannelNode = {
 type ToolId = "select" | "draw" | "paint" | "slice" | "mute" | "erase";
 
 const PROJECTS_API = "/api/projects";
+const VOCALS_API = "/api/vocals";
+
+type VocalProcessResponse = {
+  track: Track;
+  analysis: {
+    segments?: number;
+    averageCorrectionSemitones?: number;
+    durationSeconds?: number;
+    placements?: Array<{ segment: number; bar: number; beat: number; durationBeats: number }>;
+  };
+  warnings?: string[];
+  error?: string;
+};
 
 const browserSections = [
   { name: "Current Project", items: ["Patterns", "Playlist clips", "Mixer states", "Automation clips", "Recipe checklist", "Project file"] },
@@ -317,6 +332,12 @@ export function DawApp() {
   const [lowerPanelHeight, setLowerPanelHeight] = useState(260);
   const [leftTopPercent, setLeftTopPercent] = useState(42);
   const [showHelp, setShowHelp] = useState(false);
+  const [showVocalLab, setShowVocalLab] = useState(false);
+  const [vocalStartBar, setVocalStartBar] = useState(17);
+  const [vocalKey, setVocalKey] = useState("e_minor");
+  const [isVocalProcessing, setIsVocalProcessing] = useState(false);
+  const [vocalDragActive, setVocalDragActive] = useState(false);
+  const [lastVocalAnalysis, setLastVocalAnalysis] = useState<VocalProcessResponse["analysis"] | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -336,6 +357,7 @@ export function DawApp() {
   const sampleRef = useRef<HTMLCanvasElement | null>(null);
   const importAudioRef = useRef<HTMLInputElement | null>(null);
   const importProjectRef = useRef<HTMLInputElement | null>(null);
+  const vocalUploadRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -1280,6 +1302,65 @@ export function DawApp() {
     event.target.value = "";
   };
 
+  const addProcessedVocalTrack = useCallback((track: Track, analysis: VocalProcessResponse["analysis"]) => {
+    stopSourcesOnly();
+    setTracks((current) => [...current.filter((item) => item.id !== track.id), track]);
+    setControls((current) => ({
+      ...current,
+      [track.id]: { gain: track.gain, pan: track.pan, mute: false, solo: false, arm: false, sendA: 0.26, sendB: 0.18 }
+    }));
+    setSelectedTrackId(track.id);
+    setSelectedClipId(track.clips[0]?.id ?? "");
+    setActiveView("playlist");
+    setIsLoaded(false);
+    setLastVocalAnalysis(analysis);
+    const tuned = typeof analysis.averageCorrectionSemitones === "number" ? `, ${analysis.averageCorrectionSemitones.toFixed(2)} st avg tune` : "";
+    setStatus(`Vocal tuned: ${analysis.segments ?? 1} segment${analysis.segments === 1 ? "" : "s"}${tuned}`);
+  }, [stopSourcesOnly]);
+
+  const processVocalFile = useCallback(async (file: File) => {
+    setIsVocalProcessing(true);
+    setStatus("Decoding vocal");
+    try {
+      const context = ensureAudioContext();
+      const inputBuffer = await file.arrayBuffer();
+      const decoded = await context.decodeAudioData(inputBuffer.slice(0));
+      const wavBlob = audioBufferToWav(decoded);
+      const form = new FormData();
+      form.append("file", wavBlob, `${file.name.replace(/\.[^.]+$/, "") || "vocal"}.wav`);
+      form.append("bpm", String(bpm));
+      form.append("startBar", String(vocalStartBar));
+      form.append("totalBars", String(TOTAL_BARS));
+      form.append("key", vocalKey);
+      setStatus("Auto-tuning vocal");
+      const response = await fetch(VOCALS_API, { method: "POST", body: form });
+      const body = await response.json() as VocalProcessResponse;
+      if (!response.ok || !body.track) {
+        throw new Error(body.error || "Vocal processing failed");
+      }
+      addProcessedVocalTrack(body.track, body.analysis);
+      setShowVocalLab(false);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Vocal processing failed");
+    } finally {
+      setIsVocalProcessing(false);
+      if (vocalUploadRef.current) vocalUploadRef.current.value = "";
+    }
+  }, [addProcessedVocalTrack, bpm, ensureAudioContext, vocalKey, vocalStartBar]);
+
+  const handleVocalUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await processVocalFile(file);
+  };
+
+  const handleVocalDrop = async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setVocalDragActive(false);
+    const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith("audio/"));
+    if (file) await processVocalFile(file);
+  };
+
   const downloadProjectFile = async () => {
     setStatus("Packing project file");
     const assets = await Promise.all(
@@ -1523,6 +1604,7 @@ export function DawApp() {
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-shell text-paper">
       <input ref={importAudioRef} type="file" accept="audio/*" className="hidden" onChange={handleAudioImport} />
       <input ref={importProjectRef} type="file" accept="application/json,.json,.neon" className="hidden" onChange={loadProject} />
+      <input ref={vocalUploadRef} type="file" accept="audio/*" className="hidden" onChange={handleVocalUpload} />
 
       <header className="grid gap-3 border-b border-line bg-[#1b1c1e] px-3 py-3 lg:px-4 xl:grid-cols-[minmax(220px,0.8fr)_minmax(280px,1.1fr)_auto] xl:items-center 2xl:grid-cols-[minmax(220px,0.8fr)_minmax(280px,1.1fr)_auto_auto]">
         <div className="flex min-w-0 items-center justify-between gap-3 min-[1536px]:justify-start">
@@ -1899,6 +1981,10 @@ export function DawApp() {
                 <ActionTile icon={<Upload size={17} />} label="Import" onClick={() => importAudioRef.current?.click()} />
                 <ActionTile icon={<Download size={17} />} label="Export" onClick={() => void exportMixdown()} />
                 <ActionTile icon={<Mic size={17} />} label={isRecording ? "Stop Rec" : "Record"} onClick={() => void toggleRecording()} active={isRecording} />
+                <ActionTile icon={<WandSparkles size={17} />} label="Vocal Lab" onClick={() => {
+                  setVocalStartBar(readoutBar);
+                  setShowVocalLab(true);
+                }} active={isVocalProcessing} />
                 <ActionTile icon={<Download size={17} />} label="Backup" onClick={() => void downloadProjectFile()} />
               </div>
               <div className="grid grid-cols-2 gap-2 rounded-md border border-line bg-[#151617] p-2 text-muted">
@@ -1915,6 +2001,21 @@ export function DawApp() {
         </aside>
       </main>
 
+      {showVocalLab && (
+        <VocalLabModal
+          startBar={vocalStartBar}
+          keyName={vocalKey}
+          isProcessing={isVocalProcessing}
+          dragActive={vocalDragActive}
+          analysis={lastVocalAnalysis}
+          onStartBarChange={setVocalStartBar}
+          onKeyChange={setVocalKey}
+          onClose={() => setShowVocalLab(false)}
+          onPickFile={() => vocalUploadRef.current?.click()}
+          onDrop={handleVocalDrop}
+          onDragActive={setVocalDragActive}
+        />
+      )}
       {showHelp && <KeyboardHelpModal onClose={() => setShowHelp(false)} />}
     </div>
   );
@@ -2048,6 +2149,118 @@ function Readout({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function VocalLabModal({
+  startBar,
+  keyName,
+  isProcessing,
+  dragActive,
+  analysis,
+  onStartBarChange,
+  onKeyChange,
+  onClose,
+  onPickFile,
+  onDrop,
+  onDragActive
+}: {
+  startBar: number;
+  keyName: string;
+  isProcessing: boolean;
+  dragActive: boolean;
+  analysis: VocalProcessResponse["analysis"] | null;
+  onStartBarChange: (value: number) => void;
+  onKeyChange: (value: string) => void;
+  onClose: () => void;
+  onPickFile: () => void;
+  onDrop: (event: DragEvent<HTMLDivElement>) => void;
+  onDragActive: (value: boolean) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-label="Vocal Lab" onMouseDown={onClose}>
+      <section className="w-full max-w-xl rounded-lg border border-line bg-panel shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-line bg-panel2 px-4 py-3">
+          <div className="flex items-center gap-2 text-lg font-black">
+            <WandSparkles size={18} className="text-[#f59fcb]" />
+            Vocal Lab
+          </div>
+          <button className="rounded-md border border-line bg-panel3 px-3 py-1 text-sm font-bold text-muted hover:text-paper" onClick={onClose}>
+            Esc
+          </button>
+        </div>
+        <div className="grid gap-3 p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-bold text-muted">
+              Start Bar
+              <input
+                className="h-10 rounded-md border border-line bg-[#101112] px-3 text-paper"
+                type="number"
+                min={1}
+                max={72}
+                value={startBar}
+                onChange={(event) => onStartBarChange(clamp(Number(event.target.value) || 1, 1, 72))}
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-bold text-muted">
+              Key
+              <select className="h-10 rounded-md border border-line bg-[#101112] px-3 text-paper" value={keyName} onChange={(event) => onKeyChange(event.target.value)}>
+                <option value="e_minor">E minor / G major</option>
+                <option value="g_major">G major</option>
+                <option value="a_minor">A minor</option>
+                <option value="c_major">C major</option>
+                <option value="chromatic">Chromatic</option>
+              </select>
+            </label>
+          </div>
+
+          <div
+            className={`grid min-h-44 place-items-center rounded-lg border border-dashed p-5 text-center transition ${dragActive ? "border-[#f59fcb] bg-[#3b1f31]" : "border-line bg-[#151617]"}`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              onDragActive(true);
+            }}
+            onDragLeave={() => onDragActive(false)}
+            onDrop={onDrop}
+          >
+            <div className="grid gap-3 justify-items-center">
+              <div className="grid h-14 w-14 place-items-center rounded-full border border-line bg-panel3 text-[#f59fcb]">
+                <Mic size={24} />
+              </div>
+              <div>
+                <div className="text-base font-black text-paper">{isProcessing ? "Processing vocal" : "Drop raw singing audio"}</div>
+                <div className="mt-1 text-xs font-semibold text-muted">MP3, WAV, M4A, or browser-decodable audio</div>
+              </div>
+              <button
+                className="flex h-10 items-center gap-2 rounded-md border border-[#f59fcb] bg-[#f59fcb] px-4 text-sm font-black text-[#241720] disabled:cursor-wait disabled:opacity-70"
+                onClick={onPickFile}
+                disabled={isProcessing}
+              >
+                <Upload size={15} />
+                {isProcessing ? "Tuning" : "Choose File"}
+              </button>
+            </div>
+          </div>
+
+          {analysis && (
+            <div className="grid grid-cols-3 gap-2 rounded-md border border-line bg-[#101112] p-3 text-xs">
+              <div>
+                <div className="font-black text-paper">{analysis.segments ?? 0}</div>
+                <div className="text-muted">Segments</div>
+              </div>
+              <div>
+                <div className="font-black text-paper">{analysis.averageCorrectionSemitones?.toFixed(2) ?? "0.00"} st</div>
+                <div className="text-muted">Avg Tune</div>
+              </div>
+              <div>
+                <div className="font-black text-paper">{analysis.durationSeconds?.toFixed(1) ?? "0.0"}s</div>
+                <div className="text-muted">Stem</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function KeyboardHelpModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-label="Keyboard help" onMouseDown={onClose}>
@@ -2085,6 +2298,12 @@ function KeyboardHelpModal({ onClose }: { onClose: () => void }) {
             ["Projects", "Open local project files from the home screen"],
             ["Backup", "Export a portable .neon.json project"],
             ["Import", "Load a shared .neon.json project"]
+          ]} />
+          <ShortcutGroup title="Vocal Lab" items={[
+            ["Vocal Lab", "Tune and align raw singing audio"],
+            ["Start Bar", "Rough placement for the first phrase"],
+            ["Key", "Scale target for pitch correction"],
+            ["Drop File", "Add the processed vocal as a track"]
           ]} />
         </div>
       </section>

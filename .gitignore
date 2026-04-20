@@ -10,6 +10,7 @@ out/
 # Local generated/cache output
 artifacts/
 __pycache__/
+vocal_inbox/
 *.py[cod]
 tsconfig.tsbuildinfo
 
