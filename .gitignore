@@ -11,6 +11,8 @@ out/
 artifacts/
 __pycache__/
 vocal_inbox/
+mac/build/
+DerivedData/
 *.py[cod]
 tsconfig.tsbuildinfo
 
