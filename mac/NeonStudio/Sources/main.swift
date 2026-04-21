@@ -526,21 +526,24 @@ final class ClosureButton: NSButton {
     private let actionHandler: () -> Void
     private let normalColor: NSColor
     private let primary: Bool
+    private let fontSize: CGFloat
 
     init(
         title: String,
         symbol: String? = nil,
         primary: Bool = false,
+        fontSize: CGFloat = 12,
         action: @escaping () -> Void
     ) {
         self.actionHandler = action
         self.primary = primary
         self.normalColor = primary ? Palette.yellow : Palette.panelRaised
+        self.fontSize = fontSize
         super.init(frame: .zero)
         self.title = title
         self.isBordered = false
         self.bezelStyle = .regularSquare
-        self.font = NSFont.systemFont(ofSize: 12, weight: .bold)
+        self.font = NSFont.systemFont(ofSize: fontSize, weight: .bold)
         self.target = self
         self.action = #selector(runAction)
         self.imagePosition = .imageLeading
@@ -551,6 +554,11 @@ final class ClosureButton: NSButton {
         self.layer?.borderWidth = primary ? 0 : 1
         self.layer?.cornerRadius = 8
         self.contentTintColor = primary ? NSColor.black : Palette.text
+        self.alignment = .center
+        self.lineBreakMode = .byTruncatingTail
+        self.cell?.lineBreakMode = .byTruncatingTail
+        self.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        self.setContentHuggingPriority(.defaultLow, for: .horizontal)
         updateAttributedTitle()
 
         _ = symbol
@@ -567,11 +575,15 @@ final class ClosureButton: NSButton {
     }
 
     private func updateAttributedTitle() {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byTruncatingTail
         attributedTitle = NSAttributedString(
             string: title,
             attributes: [
-                .font: NSFont.systemFont(ofSize: 12, weight: .bold),
-                .foregroundColor: primary ? NSColor.black : Palette.text
+                .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
+                .foregroundColor: primary ? NSColor.black : Palette.text,
+                .paragraphStyle: paragraph
             ]
         )
     }
@@ -1520,6 +1532,11 @@ final class RecipeView: NSView {
         drawText(meta, in: NSRect(x: 0, y: 22, width: bounds.width, height: 16), color: Palette.muted, size: 11, weight: .semibold)
 
         let recipe = project.snapshot.recipe ?? []
+        if bounds.height < 160 {
+            drawText("\(recipe.count) recipe items mapped", in: NSRect(x: 0, y: 48, width: bounds.width, height: 16), color: Palette.dim, size: 10, weight: .bold)
+            return
+        }
+
         let shown = recipe.prefix(5)
         var y: CGFloat = 52
         for item in shown {
@@ -1857,17 +1874,26 @@ final class MainWindowController: NSWindowController {
         toolbar.layer?.cornerRadius = 8
         toolbar.translatesAutoresizingMaskIntoConstraints = false
 
+        let viewTitles: [WorkView: String] = [
+            .playlist: "Playlist",
+            .piano: "Piano",
+            .mixer: "Mixer",
+            .plugins: "Plug",
+            .sample: "Sample",
+            .recipe: "Recipe"
+        ]
         let views = WorkView.allCases.map { view in
-            ClosureButton(title: view.label, symbol: symbol(for: view)) { [weak self] in
+            ClosureButton(title: viewTitles[view] ?? view.label, symbol: symbol(for: view), fontSize: 11) { [weak self] in
                 self?.setWorkView(view)
             }
         }
         views.forEach { button in
-            button.heightAnchor.constraint(equalToConstant: 32).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 28).isActive = true
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 56).isActive = true
         }
 
         let tools = ToolId.allCases.map { tool in
-            ClosureButton(title: tool.label, symbol: symbol(for: tool)) { [weak self] in
+            ClosureButton(title: tool.label, symbol: symbol(for: tool), fontSize: 10.5) { [weak self] in
                 self?.activeTool = tool
                 self?.playlistView.activeTool = tool
                 self?.statusLabel.stringValue = "\(tool.label) tool selected"
@@ -1875,47 +1901,47 @@ final class MainWindowController: NSWindowController {
         }
 
         tools.forEach { button in
-            button.heightAnchor.constraint(equalToConstant: 32).isActive = true
-            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 56).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 28).isActive = true
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 50).isActive = true
         }
 
         let projectControls: [ClosureButton] = [
-            ClosureButton(title: "Snap", symbol: "magnet") { [weak self] in self?.cycleSnap() },
-            ClosureButton(title: "Loop", symbol: "repeat") { [weak self] in self?.toggleLoop() },
-            ClosureButton(title: "P-", symbol: "minus") { [weak self] in self?.adjustPattern(by: -1) },
-            ClosureButton(title: "P+", symbol: "plus") { [weak self] in self?.adjustPattern(by: 1) },
-            ClosureButton(title: "Sw-", symbol: "dial.low") { [weak self] in self?.adjustSwing(by: -5) },
-            ClosureButton(title: "Sw+", symbol: "dial.high") { [weak self] in self?.adjustSwing(by: 5) },
-            ClosureButton(title: "Z-", symbol: "minus.magnifyingglass") { [weak self] in self?.adjustZoom(by: -6) },
-            ClosureButton(title: "Z+", symbol: "plus.magnifyingglass") { [weak self] in self?.adjustZoom(by: 6) }
+            ClosureButton(title: "Snap", symbol: "magnet", fontSize: 10.5) { [weak self] in self?.cycleSnap() },
+            ClosureButton(title: "Loop", symbol: "repeat", fontSize: 10.5) { [weak self] in self?.toggleLoop() },
+            ClosureButton(title: "P-", symbol: "minus", fontSize: 10.5) { [weak self] in self?.adjustPattern(by: -1) },
+            ClosureButton(title: "P+", symbol: "plus", fontSize: 10.5) { [weak self] in self?.adjustPattern(by: 1) },
+            ClosureButton(title: "Sw-", symbol: "dial.low", fontSize: 10.5) { [weak self] in self?.adjustSwing(by: -5) },
+            ClosureButton(title: "Sw+", symbol: "dial.high", fontSize: 10.5) { [weak self] in self?.adjustSwing(by: 5) },
+            ClosureButton(title: "Z-", symbol: "minus.magnifyingglass", fontSize: 10.5) { [weak self] in self?.adjustZoom(by: -6) },
+            ClosureButton(title: "Z+", symbol: "plus.magnifyingglass", fontSize: 10.5) { [weak self] in self?.adjustZoom(by: 6) }
         ]
         projectControls.forEach { button in
-            button.heightAnchor.constraint(equalToConstant: 32).isActive = true
-            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 28).isActive = true
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 38).isActive = true
         }
 
         let viewStack = NSStackView(views: views)
         viewStack.orientation = .horizontal
-        viewStack.spacing = 8
+        viewStack.spacing = 6
         viewStack.alignment = .centerY
         viewStack.translatesAutoresizingMaskIntoConstraints = false
 
         let toolStack = NSStackView(views: tools)
         toolStack.orientation = .horizontal
-        toolStack.spacing = 8
+        toolStack.spacing = 6
         toolStack.alignment = .centerY
         toolStack.translatesAutoresizingMaskIntoConstraints = false
 
         let projectControlStack = NSStackView(views: projectControls)
         projectControlStack.orientation = .horizontal
-        projectControlStack.spacing = 6
+        projectControlStack.spacing = 5
         projectControlStack.alignment = .centerY
         projectControlStack.translatesAutoresizingMaskIntoConstraints = false
 
         let rightStack = NSStackView(views: [projectControlStack, toolbarStatusLabel])
         rightStack.orientation = .vertical
         rightStack.alignment = .trailing
-        rightStack.spacing = 6
+        rightStack.spacing = 4
         rightStack.translatesAutoresizingMaskIntoConstraints = false
 
         toolbar.addSubview(viewStack)
@@ -1923,9 +1949,9 @@ final class MainWindowController: NSWindowController {
         toolbar.addSubview(rightStack)
         NSLayoutConstraint.activate([
             viewStack.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 12),
-            viewStack.topAnchor.constraint(equalTo: toolbar.topAnchor, constant: 8),
+            viewStack.topAnchor.constraint(equalTo: toolbar.topAnchor, constant: 7),
             toolStack.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 12),
-            toolStack.topAnchor.constraint(equalTo: viewStack.bottomAnchor, constant: 6),
+            toolStack.topAnchor.constraint(equalTo: viewStack.bottomAnchor, constant: 5),
             rightStack.trailingAnchor.constraint(equalTo: toolbar.trailingAnchor, constant: -14),
             rightStack.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
             rightStack.leadingAnchor.constraint(greaterThanOrEqualTo: toolStack.trailingAnchor, constant: 14)
@@ -1956,12 +1982,8 @@ final class MainWindowController: NSWindowController {
     }
 
     private func makeRightColumn() -> NSView {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .width
-        stack.distribution = .fill
-        stack.spacing = 10
-        stack.translatesAutoresizingMaskIntoConstraints = false
+        let column = NSView()
+        column.translatesAutoresizingMaskIntoConstraints = false
 
         let mixerPanel = TitledPanel(title: "Mixer", accessory: "Bus")
         let mixerScroll = NSScrollView()
@@ -1984,51 +2006,69 @@ final class MainWindowController: NSWindowController {
         projectPanel.contentGuide.addSubview(recipeView)
 
         let actionButtons: [ClosureButton] = [
-            ClosureButton(title: "New", symbol: "plus") { [weak self] in self?.createNewProject() },
-            ClosureButton(title: "Save", symbol: "square.and.arrow.down") { [weak self] in self?.saveCurrentProject(showStatus: true) },
-            ClosureButton(title: "Import", symbol: "folder.badge.plus") { [weak self] in self?.importProjectFile() },
-            ClosureButton(title: "Audio", symbol: "waveform.badge.plus") { [weak self] in self?.importAudioFile() },
-            ClosureButton(title: "Mixdown", symbol: "arrow.down.doc") { [weak self] in self?.exportMixdown() },
-            ClosureButton(title: "Backup", symbol: "doc.zipper") { [weak self] in self?.backupProjectFile() },
-            ClosureButton(title: "Vocal Lab", symbol: "wand.and.stars") { [weak self] in self?.runVocalLab() },
-            ClosureButton(title: "Delete", symbol: "trash") { [weak self] in self?.confirmDeleteCurrentProject() },
-            ClosureButton(title: "Rename", symbol: "text.cursor") { [weak self] in self?.renameProject() },
-            ClosureButton(title: "Reveal", symbol: "doc.text.magnifyingglass") { [weak self] in self?.revealCurrentProject() }
+            ClosureButton(title: "New", symbol: "plus", fontSize: 10.5) { [weak self] in self?.createNewProject() },
+            ClosureButton(title: "Save", symbol: "square.and.arrow.down", fontSize: 10.5) { [weak self] in self?.saveCurrentProject(showStatus: true) },
+            ClosureButton(title: "Import", symbol: "folder.badge.plus", fontSize: 10.5) { [weak self] in self?.importProjectFile() },
+            ClosureButton(title: "Audio", symbol: "waveform.badge.plus", fontSize: 10.5) { [weak self] in self?.importAudioFile() },
+            ClosureButton(title: "Mix", symbol: "arrow.down.doc", fontSize: 10.5) { [weak self] in self?.exportMixdown() },
+            ClosureButton(title: "Backup", symbol: "doc.zipper", fontSize: 10.5) { [weak self] in self?.backupProjectFile() },
+            ClosureButton(title: "Vocal", symbol: "wand.and.stars", fontSize: 10.5) { [weak self] in self?.runVocalLab() },
+            ClosureButton(title: "Delete", symbol: "trash", fontSize: 10.5) { [weak self] in self?.confirmDeleteCurrentProject() },
+            ClosureButton(title: "Rename", symbol: "text.cursor", fontSize: 10.5) { [weak self] in self?.renameProject() },
+            ClosureButton(title: "Reveal", symbol: "doc.text.magnifyingglass", fontSize: 10.5) { [weak self] in self?.revealCurrentProject() }
         ]
         actionButtons.forEach { button in
-            button.heightAnchor.constraint(equalToConstant: 32).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 26).isActive = true
         }
 
         let rows = stride(from: 0, to: actionButtons.count, by: 2).map { index -> NSStackView in
             let row = NSStackView(views: Array(actionButtons[index..<min(index + 2, actionButtons.count)]))
             row.orientation = .horizontal
-            row.alignment = .width
+            row.alignment = .centerY
             row.distribution = .fillEqually
-            row.spacing = 8
+            row.spacing = 5
+            row.translatesAutoresizingMaskIntoConstraints = false
             return row
         }
         let actions = NSStackView(views: rows)
         actions.orientation = .vertical
         actions.alignment = .width
         actions.distribution = .fillEqually
-        actions.spacing = 6
+        actions.spacing = 5
         actions.translatesAutoresizingMaskIntoConstraints = false
         projectPanel.contentGuide.addSubview(actions)
+        rows.forEach { row in
+            row.widthAnchor.constraint(equalTo: actions.widthAnchor).isActive = true
+        }
 
         NSLayoutConstraint.activate([
             recipeView.leadingAnchor.constraint(equalTo: projectPanel.contentGuide.leadingAnchor),
             recipeView.trailingAnchor.constraint(equalTo: projectPanel.contentGuide.trailingAnchor),
             recipeView.topAnchor.constraint(equalTo: projectPanel.contentGuide.topAnchor),
-            recipeView.bottomAnchor.constraint(equalTo: actions.topAnchor, constant: -8),
+            recipeView.bottomAnchor.constraint(equalTo: actions.topAnchor, constant: -6),
             actions.leadingAnchor.constraint(equalTo: projectPanel.contentGuide.leadingAnchor),
             actions.trailingAnchor.constraint(equalTo: projectPanel.contentGuide.trailingAnchor),
             actions.bottomAnchor.constraint(equalTo: projectPanel.contentGuide.bottomAnchor)
         ])
-        projectPanel.heightAnchor.constraint(equalToConstant: 300).isActive = true
+        let projectHeight = projectPanel.heightAnchor.constraint(equalToConstant: 300)
+        projectHeight.priority = .defaultHigh
+        projectHeight.isActive = true
+        projectPanel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        projectPanel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        stack.addArrangedSubview(mixerPanel)
-        stack.addArrangedSubview(projectPanel)
-        return stack
+        column.addSubview(mixerPanel)
+        column.addSubview(projectPanel)
+        NSLayoutConstraint.activate([
+            mixerPanel.leadingAnchor.constraint(equalTo: column.leadingAnchor),
+            mixerPanel.trailingAnchor.constraint(equalTo: column.trailingAnchor),
+            mixerPanel.topAnchor.constraint(equalTo: column.topAnchor),
+            mixerPanel.bottomAnchor.constraint(equalTo: projectPanel.topAnchor, constant: -10),
+            projectPanel.leadingAnchor.constraint(equalTo: column.leadingAnchor),
+            projectPanel.trailingAnchor.constraint(equalTo: column.trailingAnchor),
+            projectPanel.bottomAnchor.constraint(equalTo: column.bottomAnchor)
+        ])
+
+        return column
     }
 
     private func loadProjects() {
