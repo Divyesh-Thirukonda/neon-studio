@@ -618,6 +618,7 @@ final class LogoView: NSView {
 
 final class ReadoutView: NSView {
     private let title: String
+    var onClick: (() -> Void)?
     var value: String {
         didSet { needsDisplay = true }
     }
@@ -639,10 +640,14 @@ final class ReadoutView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let rect = bounds.insetBy(dx: 1, dy: 1)
-        roundedFill(rect, radius: 8, color: Palette.panel)
-        roundedStroke(rect, radius: 8, color: Palette.stroke)
+        roundedFill(rect, radius: 8, color: onClick == nil ? Palette.panel : Palette.panelAlt)
+        roundedStroke(rect, radius: 8, color: onClick == nil ? Palette.stroke : Palette.blue.withAlphaComponent(0.65))
         drawText(title.uppercased(), in: NSRect(x: rect.minX + 10, y: rect.minY + 7, width: rect.width - 20, height: 14), color: Palette.dim, size: 9, weight: .black)
         drawText(value, in: NSRect(x: rect.minX + 10, y: rect.minY + 22, width: rect.width - 20, height: 18), color: Palette.text, size: 14, weight: .black, alignment: .left)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onClick?()
     }
 }
 
@@ -893,6 +898,19 @@ final class PlaylistView: NSView {
     var recipe: [RecipeItem] = [] {
         didSet { needsDisplay = true }
     }
+    var snap: String = "1/4" {
+        didSet { needsDisplay = true }
+    }
+    var loopEnabled: Bool = false {
+        didSet { needsDisplay = true }
+    }
+    var loopStartBar: Double = 0 {
+        didSet { needsDisplay = true }
+    }
+    var loopEndBar: Double = 16 {
+        didSet { needsDisplay = true }
+    }
+    var activeTool: ToolId = .select
     var workView: WorkView = .playlist {
         didSet {
             invalidateIntrinsicContentSize()
@@ -911,12 +929,22 @@ final class PlaylistView: NSView {
     var onTrackSelected: ((String) -> Void)?
     var onClipSelected: ((String, String) -> Void)?
     var onPianoNoteAdded: ((PianoNote) -> Void)?
+    var onPianoNoteDeleted: (() -> Void)?
+    var onEffectToggle: ((String, String) -> Void)?
+    var onEffectAmount: ((String, String, Double) -> Void)?
+    var onSampleNormalize: (() -> Void)?
+    var onSampleReverse: (() -> Void)?
 
     private var totalBars: Double = 72
     private let leftWidth: CGFloat = 142
     private let rulerHeight: CGFloat = 34
     private let rowHeight: CGFloat = 50
-    private let pixelsPerBar: CGFloat = 38
+    var pixelsPerBar: CGFloat = 38 {
+        didSet {
+            invalidateIntrinsicContentSize()
+            needsDisplay = true
+        }
+    }
 
     override var isFlipped: Bool { true }
     override var intrinsicContentSize: NSSize {
@@ -991,6 +1019,18 @@ final class PlaylistView: NSView {
             drawText(name, in: NSRect(x: start + 8, y: 17, width: 70, height: 14), color: Palette.dim, size: 9, weight: .bold)
         }
 
+        if loopEnabled {
+            let startX = leftWidth + CGFloat(loopStartBar) * pixelsPerBar
+            let endX = leftWidth + CGFloat(max(loopStartBar + 1, loopEndBar)) * pixelsPerBar
+            let rect = NSRect(x: startX, y: rulerHeight, width: max(8, endX - startX), height: bounds.height - rulerHeight)
+            Palette.yellow.withAlphaComponent(0.08).setFill()
+            rect.fill()
+            Palette.yellow.withAlphaComponent(0.75).setStroke()
+            let loop = NSBezierPath(rect: rect)
+            loop.lineWidth = 1.2
+            loop.stroke()
+        }
+
         for (index, track) in tracks.enumerated() {
             let y = rulerHeight + CGFloat(index) * rowHeight
             let rowRect = NSRect(x: 0, y: y, width: bounds.width, height: rowHeight)
@@ -1042,7 +1082,8 @@ final class PlaylistView: NSView {
         let trackName = selectedTrack?.name ?? "No track"
         drawText("Piano Roll", in: NSRect(x: 18, y: 13, width: 120, height: 18), color: Palette.text, size: 14, weight: .black)
         drawText(trackName, in: NSRect(x: 132, y: 14, width: 240, height: 16), color: Palette.muted, size: 11, weight: .bold)
-        drawText("Click grid to add notes", in: NSRect(x: bounds.width - 190, y: 14, width: 170, height: 16), color: Palette.dim, size: 11, weight: .bold, alignment: .right)
+        let instruction = activeTool == .erase ? "Click grid to erase last note" : "Click grid to add notes"
+        drawText(instruction, in: NSRect(x: bounds.width - 220, y: 14, width: 200, height: 16), color: Palette.dim, size: 11, weight: .bold, alignment: .right)
 
         let left: CGFloat = 60
         let top: CGFloat = 58
@@ -1131,7 +1172,7 @@ final class PlaylistView: NSView {
             roundedFill(NSRect(x: rect.minX + 34, y: rect.minY + 42, width: rect.width - 56, height: 6), radius: 3, color: Palette.panelRaised)
             roundedFill(NSRect(x: rect.minX + 34, y: rect.minY + 42, width: (rect.width - 56) * amount, height: 6), radius: 3, color: color(from: track.color, fallback: Palette.blue))
         }
-        drawText("Click effect cards from the native menu actions to toggle; amounts round-trip through .neon.json.", in: NSRect(x: 18, y: bounds.height - 38, width: bounds.width - 36, height: 16), color: Palette.dim, size: 11, weight: .bold)
+        drawText("Click the left side of a card to toggle it. Click the meter area to set amount. Changes round-trip through .neon.json.", in: NSRect(x: 18, y: bounds.height - 38, width: bounds.width - 36, height: 16), color: Palette.dim, size: 11, weight: .bold)
     }
 
     private func drawSampleEditor() {
@@ -1141,6 +1182,14 @@ final class PlaylistView: NSView {
         }
         drawText("Sample", in: NSRect(x: 18, y: 16, width: 120, height: 22), color: Palette.text, size: 18, weight: .black)
         drawText(track.name, in: NSRect(x: 128, y: 20, width: 360, height: 16), color: Palette.muted, size: 11, weight: .bold)
+        let normalize = NSRect(x: bounds.width - 216, y: 12, width: 92, height: 26)
+        let reverse = NSRect(x: bounds.width - 112, y: 12, width: 92, height: 26)
+        roundedFill(normalize, radius: 6, color: Palette.panelRaised)
+        roundedStroke(normalize, radius: 6, color: Palette.stroke)
+        drawText("Normalize", in: normalize.insetBy(dx: 8, dy: 6), color: Palette.text, size: 10, weight: .black, alignment: .center)
+        roundedFill(reverse, radius: 6, color: Palette.panelRaised)
+        roundedStroke(reverse, radius: 6, color: Palette.stroke)
+        drawText("Reverse", in: reverse.insetBy(dx: 8, dy: 6), color: Palette.text, size: 10, weight: .black, alignment: .center)
         let waveRect = NSRect(x: 18, y: 60, width: bounds.width - 36, height: 260)
         roundedFill(waveRect, radius: 8, color: Palette.panel)
         drawWaveform(in: waveRect.insetBy(dx: 16, dy: 32), color: color(from: track.color, fallback: Palette.blue), seed: track.id.hashValue)
@@ -1190,6 +1239,10 @@ final class PlaylistView: NSView {
             if index >= 0, index < tracks.count {
                 onTrackSelected?(tracks[index].id)
             }
+        case .plugins:
+            handlePluginMouseDown(point)
+        case .sample:
+            handleSampleMouseDown(point)
         default:
             break
         }
@@ -1214,6 +1267,10 @@ final class PlaylistView: NSView {
 
     private func handlePianoMouseDown(_ point: NSPoint) {
         guard let track = selectedTrack else { return }
+        if activeTool == .erase {
+            onPianoNoteDeleted?()
+            return
+        }
         let left: CGFloat = 60
         let top: CGFloat = 58
         let rowHeight: CGFloat = 13
@@ -1222,7 +1279,36 @@ final class PlaylistView: NSView {
         let beat = max(0, round(((point.x - left) / beatWidth) * 4) / 4)
         let note = max(54, min(91, highNote - Int((point.y - top) / rowHeight)))
         guard point.x >= left, point.y >= top else { return }
-        onPianoNoteAdded?(PianoNote(id: makeId("note"), beat: Double(beat), duration: 0.75, note: note, velocity: 0.82, color: track.color ?? "#60c8f8"))
+        let duration = snap == "1/8" ? 0.5 : snap == "1/16" ? 0.25 : 0.75
+        onPianoNoteAdded?(PianoNote(id: makeId("note"), beat: Double(beat), duration: duration, note: note, velocity: 0.82, color: track.color ?? "#60c8f8"))
+    }
+
+    private func handlePluginMouseDown(_ point: NSPoint) {
+        guard let track = selectedTrack else { return }
+        let effects = track.effects ?? []
+        for (index, effect) in effects.enumerated() {
+            let col = index % 2
+            let row = index / 2
+            let rect = NSRect(x: 18 + CGFloat(col) * 360, y: 62 + CGFloat(row) * 82, width: 338, height: 66)
+            guard rect.contains(point) else { continue }
+            if point.x < rect.minX + 170 {
+                onEffectToggle?(track.id, effect.id)
+            } else {
+                let amount = max(0, min(1, Double((point.x - rect.minX - 34) / (rect.width - 56))))
+                onEffectAmount?(track.id, effect.id, amount)
+            }
+            return
+        }
+    }
+
+    private func handleSampleMouseDown(_ point: NSPoint) {
+        let normalize = NSRect(x: bounds.width - 216, y: 12, width: 92, height: 26)
+        let reverse = NSRect(x: bounds.width - 112, y: 12, width: 92, height: 26)
+        if normalize.contains(point) {
+            onSampleNormalize?()
+        } else if reverse.contains(point) {
+            onSampleReverse?()
+        }
     }
 
     private func drawWaveform(in rect: NSRect, color: NSColor, seed: Int) {
@@ -1462,10 +1548,12 @@ final class MainWindowController: NSWindowController {
     private var recordingURL: URL?
     private var isPlaying = false
     private var isRecording = false
+    private var zoom: CGFloat = 38
 
     private let titleLabel = makeLabel("Neon Studio", size: 26, weight: .black)
     private let subtitleLabel = makeLabel("Native Mac DAW shell", size: 12, weight: .bold, color: Palette.muted)
     private let statusLabel = makeLabel("Ready", size: 11, weight: .bold, color: Palette.muted, mono: true)
+    private let toolbarStatusLabel = makeLabel("Snap: 1/4   Loop: Off   P01   Swing: 0", size: 11, weight: .bold, color: Palette.muted, mono: true)
     private let projectReadout = ReadoutView(title: "Project", value: "None")
     private let bpmReadout = ReadoutView(title: "BPM", value: "--")
     private let barReadout = ReadoutView(title: "Bars", value: "--")
@@ -1550,6 +1638,12 @@ final class MainWindowController: NSWindowController {
         titleStack.alignment = .leading
         titleStack.spacing = 3
         titleStack.translatesAutoresizingMaskIntoConstraints = false
+
+        projectReadout.onClick = { [weak self] in self?.showProjectManager() }
+        bpmReadout.onClick = { [weak self] in self?.editBPM() }
+        barReadout.onClick = { [weak self] in self?.editLoopRange() }
+        trackReadout.onClick = { [weak self] in self?.importAudioFile() }
+        modeReadout.onClick = { [weak self] in self?.toggleArrangementMode() }
 
         let projects = ClosureButton(title: "Projects", symbol: "folder") { [weak self] in
             self?.showProjectManager()
@@ -1748,12 +1842,29 @@ final class MainWindowController: NSWindowController {
         let tools = ToolId.allCases.map { tool in
             ClosureButton(title: tool.label, symbol: symbol(for: tool)) { [weak self] in
                 self?.activeTool = tool
+                self?.playlistView.activeTool = tool
                 self?.statusLabel.stringValue = "\(tool.label) tool selected"
             }
         }
 
         tools.forEach { button in
             button.heightAnchor.constraint(equalToConstant: 32).isActive = true
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 56).isActive = true
+        }
+
+        let projectControls: [ClosureButton] = [
+            ClosureButton(title: "Snap", symbol: "magnet") { [weak self] in self?.cycleSnap() },
+            ClosureButton(title: "Loop", symbol: "repeat") { [weak self] in self?.toggleLoop() },
+            ClosureButton(title: "P-", symbol: "minus") { [weak self] in self?.adjustPattern(by: -1) },
+            ClosureButton(title: "P+", symbol: "plus") { [weak self] in self?.adjustPattern(by: 1) },
+            ClosureButton(title: "Sw-", symbol: "dial.low") { [weak self] in self?.adjustSwing(by: -5) },
+            ClosureButton(title: "Sw+", symbol: "dial.high") { [weak self] in self?.adjustSwing(by: 5) },
+            ClosureButton(title: "Z-", symbol: "minus.magnifyingglass") { [weak self] in self?.adjustZoom(by: -6) },
+            ClosureButton(title: "Z+", symbol: "plus.magnifyingglass") { [weak self] in self?.adjustZoom(by: 6) }
+        ]
+        projectControls.forEach { button in
+            button.heightAnchor.constraint(equalToConstant: 32).isActive = true
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         }
 
         let viewStack = NSStackView(views: views)
@@ -1768,19 +1879,29 @@ final class MainWindowController: NSWindowController {
         toolStack.alignment = .centerY
         toolStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let snap = makeLabel("Snap: 1/4   Loop: On   Scroll: vertical + horizontal", size: 11, weight: .bold, color: Palette.muted, mono: true)
+        let projectControlStack = NSStackView(views: projectControls)
+        projectControlStack.orientation = .horizontal
+        projectControlStack.spacing = 6
+        projectControlStack.alignment = .centerY
+        projectControlStack.translatesAutoresizingMaskIntoConstraints = false
+
+        let rightStack = NSStackView(views: [projectControlStack, toolbarStatusLabel])
+        rightStack.orientation = .vertical
+        rightStack.alignment = .trailing
+        rightStack.spacing = 6
+        rightStack.translatesAutoresizingMaskIntoConstraints = false
 
         toolbar.addSubview(viewStack)
         toolbar.addSubview(toolStack)
-        toolbar.addSubview(snap)
+        toolbar.addSubview(rightStack)
         NSLayoutConstraint.activate([
             viewStack.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 12),
             viewStack.topAnchor.constraint(equalTo: toolbar.topAnchor, constant: 8),
             toolStack.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 12),
             toolStack.topAnchor.constraint(equalTo: viewStack.bottomAnchor, constant: 6),
-            snap.trailingAnchor.constraint(equalTo: toolbar.trailingAnchor, constant: -14),
-            snap.centerYAnchor.constraint(equalTo: toolStack.centerYAnchor),
-            snap.leadingAnchor.constraint(greaterThanOrEqualTo: toolStack.trailingAnchor, constant: 14)
+            rightStack.trailingAnchor.constraint(equalTo: toolbar.trailingAnchor, constant: -14),
+            rightStack.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
+            rightStack.leadingAnchor.constraint(greaterThanOrEqualTo: toolStack.trailingAnchor, constant: 14)
         ])
         return toolbar
     }
@@ -1905,6 +2026,21 @@ final class MainWindowController: NSWindowController {
         playlistView.onPianoNoteAdded = { [weak self] note in
             self?.addPianoNote(note)
         }
+        playlistView.onPianoNoteDeleted = { [weak self] in
+            self?.deleteLastPianoNote()
+        }
+        playlistView.onEffectToggle = { [weak self] trackId, effectId in
+            self?.toggleEffect(trackId: trackId, effectId: effectId)
+        }
+        playlistView.onEffectAmount = { [weak self] trackId, effectId, amount in
+            self?.setEffectAmount(trackId: trackId, effectId: effectId, amount: amount)
+        }
+        playlistView.onSampleNormalize = { [weak self] in
+            self?.normalizeSelectedSample()
+        }
+        playlistView.onSampleReverse = { [weak self] in
+            self?.reverseSelectedSample()
+        }
         mixerView.onTrackSelected = { [weak self] trackId in
             self?.selectTrack(trackId)
         }
@@ -1942,6 +2078,7 @@ final class MainWindowController: NSWindowController {
         barReadout.value = "\(Int(maxClipEnd(project)))"
         trackReadout.value = "\(project.snapshot.tracks.count)"
         modeReadout.value = project.snapshot.arrangementMode ?? project.keyCenter ?? "Song"
+        toolbarStatusLabel.stringValue = "Snap: \(project.snapshot.snap ?? "1/4")   Loop: \(project.snapshot.loopEnabled == true ? "On" : "Off") \(Int((project.snapshot.loopStartBar ?? 0) + 1))-\(Int(project.snapshot.loopEndBar ?? 16))   P\(String(format: "%02d", project.snapshot.patternIndex ?? 1))   Swing: \(Int(project.snapshot.swing ?? 0))"
 
         let controls = project.snapshot.controls ?? makeDefaultControls(for: project.snapshot.tracks)
         channelRackView.tracks = project.snapshot.tracks
@@ -1951,6 +2088,12 @@ final class MainWindowController: NSWindowController {
         playlistView.controls = controls
         playlistView.notes = project.snapshot.notes ?? []
         playlistView.recipe = project.snapshot.recipe ?? []
+        playlistView.snap = project.snapshot.snap ?? "1/4"
+        playlistView.loopEnabled = project.snapshot.loopEnabled ?? false
+        playlistView.loopStartBar = project.snapshot.loopStartBar ?? 0
+        playlistView.loopEndBar = project.snapshot.loopEndBar ?? 16
+        playlistView.activeTool = activeTool
+        playlistView.pixelsPerBar = zoom
         playlistView.workView = activeWorkView
         playlistView.selectedTrackId = selectedTrackId
         playlistView.selectedClipId = selectedClipId
@@ -2060,6 +2203,97 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    private func editBPM() {
+        guard let project = currentProject else { return }
+        let alert = NSAlert()
+        alert.messageText = "BPM"
+        alert.informativeText = "Set the project tempo. This saves into the portable .neon.json file."
+        let field = NSTextField(string: "\(Int(project.snapshot.bpm))")
+        field.frame = NSRect(x: 0, y: 0, width: 180, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Set BPM")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let value = max(60, min(220, field.doubleValue))
+        mutateProject("BPM \(Int(value))") { project in
+            project.snapshot.bpm = value
+        }
+    }
+
+    private func toggleArrangementMode() {
+        mutateProject("Mode toggled") { project in
+            let current = project.snapshot.arrangementMode ?? "song"
+            project.snapshot.arrangementMode = current == "song" ? "pattern" : "song"
+        }
+    }
+
+    private func cycleSnap() {
+        let values = ["none", "1/2", "1/4", "1/8", "1/16"]
+        mutateProject("Snap changed") { project in
+            let current = project.snapshot.snap ?? "1/4"
+            let index = values.firstIndex(of: current) ?? 2
+            project.snapshot.snap = values[(index + 1) % values.count]
+        }
+    }
+
+    private func toggleLoop() {
+        mutateProject("Loop toggled") { project in
+            project.snapshot.loopEnabled = !(project.snapshot.loopEnabled ?? false)
+        }
+    }
+
+    private func editLoopRange() {
+        guard let project = currentProject else { return }
+        let alert = NSAlert()
+        alert.messageText = "Loop Bars"
+        alert.informativeText = "Set loop start and end bars. Values are 1-based, like the web app readout."
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.spacing = 8
+        stack.frame = NSRect(x: 0, y: 0, width: 220, height: 58)
+
+        let start = NSTextField(string: "\(Int((project.snapshot.loopStartBar ?? 0) + 1))")
+        let end = NSTextField(string: "\(Int(project.snapshot.loopEndBar ?? 16))")
+        start.placeholderString = "Start bar"
+        end.placeholderString = "End bar"
+        stack.addArrangedSubview(start)
+        stack.addArrangedSubview(end)
+        alert.accessoryView = stack
+        alert.addButton(withTitle: "Set Loop")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let startBar = max(1, min(128, start.integerValue))
+        let endBar = max(startBar + 1, min(128, end.integerValue))
+        mutateProject("Loop \(startBar)-\(endBar)") { project in
+            project.snapshot.loopEnabled = true
+            project.snapshot.loopStartBar = Double(startBar - 1)
+            project.snapshot.loopEndBar = Double(endBar)
+        }
+    }
+
+    private func adjustPattern(by delta: Int) {
+        mutateProject("Pattern changed") { project in
+            let current = project.snapshot.patternIndex ?? 1
+            project.snapshot.patternIndex = max(1, min(99, current + delta))
+        }
+    }
+
+    private func adjustSwing(by delta: Double) {
+        mutateProject("Swing changed") { project in
+            let current = project.snapshot.swing ?? 0
+            project.snapshot.swing = max(0, min(75, current + delta))
+        }
+    }
+
+    private func adjustZoom(by delta: CGFloat) {
+        zoom = max(26, min(96, zoom + delta))
+        playlistView.pixelsPerBar = zoom
+        playlistView.setFrameSize(playlistView.intrinsicContentSize)
+        statusLabel.stringValue = "Zoom \(Int(zoom)) px/bar"
+    }
+
     private func selectTrack(_ trackId: String) {
         selectedTrackId = trackId
         selectedClipId = ""
@@ -2110,6 +2344,66 @@ final class MainWindowController: NSWindowController {
             notes.append(note)
             project.snapshot.notes = notes
         }
+    }
+
+    private func deleteLastPianoNote() {
+        mutateProject("Deleted last note") { project in
+            project.snapshot.notes = Array((project.snapshot.notes ?? []).dropLast())
+        }
+    }
+
+    private func toggleEffect(trackId: String, effectId: String) {
+        mutateProject("Toggled \(effectId)") { project in
+            guard let trackIndex = project.snapshot.tracks.firstIndex(where: { $0.id == trackId }) else { return }
+            var effects = project.snapshot.tracks[trackIndex].effects ?? []
+            guard let effectIndex = effects.firstIndex(where: { $0.id == effectId }) else { return }
+            effects[effectIndex].active = !(effects[effectIndex].active ?? false)
+            project.snapshot.tracks[trackIndex].effects = effects
+        }
+    }
+
+    private func setEffectAmount(trackId: String, effectId: String, amount: Double) {
+        mutateProject("Adjusted \(effectId)") { project in
+            guard let trackIndex = project.snapshot.tracks.firstIndex(where: { $0.id == trackId }) else { return }
+            var effects = project.snapshot.tracks[trackIndex].effects ?? []
+            guard let effectIndex = effects.firstIndex(where: { $0.id == effectId }) else { return }
+            effects[effectIndex].amount = amount
+            effects[effectIndex].active = true
+            project.snapshot.tracks[trackIndex].effects = effects
+        }
+    }
+
+    private func normalizeSelectedSample() {
+        guard !selectedTrackId.isEmpty else { return }
+        mutateProject("Normalized sample") { project in
+            guard let trackIndex = project.snapshot.tracks.firstIndex(where: { $0.id == selectedTrackId }) else { return }
+            project.snapshot.tracks[trackIndex].gain = 0.92
+            upsertEffect(name: "Normalize Gain", id: "normalize", amount: 0.92, track: &project.snapshot.tracks[trackIndex])
+            var controls = project.snapshot.controls ?? makeDefaultControls(for: project.snapshot.tracks)
+            var control = controls[selectedTrackId] ?? MixerControl(gain: 0.92, pan: 0, mute: false, solo: false, arm: false, sendA: 0, sendB: 0)
+            control.gain = 0.92
+            controls[selectedTrackId] = control
+            project.snapshot.controls = controls
+        }
+    }
+
+    private func reverseSelectedSample() {
+        guard !selectedTrackId.isEmpty else { return }
+        mutateProject("Reversed sample intent") { project in
+            guard let trackIndex = project.snapshot.tracks.firstIndex(where: { $0.id == selectedTrackId }) else { return }
+            upsertEffect(name: "Reverse Sample", id: "reverse", amount: 1, track: &project.snapshot.tracks[trackIndex])
+        }
+    }
+
+    private func upsertEffect(name: String, id: String, amount: Double, track: inout Track) {
+        var effects = track.effects ?? []
+        if let index = effects.firstIndex(where: { $0.id == id }) {
+            effects[index].active = true
+            effects[index].amount = amount
+        } else {
+            effects.append(Effect(id: id, name: name, active: true, amount: amount))
+        }
+        track.effects = effects
     }
 
     private func deleteSelection() {
@@ -2584,11 +2878,12 @@ final class MainWindowController: NSWindowController {
         Space: Play or stop
         Cmd+S: Save
         Cmd+H: Open this help menu
+        Cmd+1...6: Switch Playlist, Piano, Mixer, Plugins, Sample, Recipe
         Cmd+R: Return to bar 1
         Cmd+Z / Shift+Cmd+Z: Undo and redo
         Delete: Delete selected clip, note, or track
 
-        Project actions export mixdowns, backup .neon.json files, import audio/projects, record audio, and run Vocal Lab.
+        File/Edit/Add/View/Options menus mirror the web app controls. Project actions export mixdowns, backup .neon.json files, import audio/projects, record audio, and run Vocal Lab.
         """
         alert.addButton(withTitle: "OK")
         alert.runModal()
@@ -2632,17 +2927,44 @@ final class MainWindowController: NSWindowController {
             return event
         }
     }
+
+    @objc func menuNewProject(_ sender: Any?) { createNewProject() }
+    @objc func menuSaveProject(_ sender: Any?) { saveCurrentProject(showStatus: true) }
+    @objc func menuImportProject(_ sender: Any?) { importProjectFile() }
+    @objc func menuImportAudio(_ sender: Any?) { importAudioFile() }
+    @objc func menuBackupProject(_ sender: Any?) { backupProjectFile() }
+    @objc func menuExportMixdown(_ sender: Any?) { exportMixdown() }
+    @objc func menuRevealProject(_ sender: Any?) { revealCurrentProject() }
+    @objc func menuUndo(_ sender: Any?) { undo() }
+    @objc func menuRedo(_ sender: Any?) { redo() }
+    @objc func menuDeleteSelection(_ sender: Any?) { deleteSelection() }
+    @objc func menuVocalLab(_ sender: Any?) { runVocalLab() }
+    @objc func menuToggleRecord(_ sender: Any?) { toggleRecording() }
+    @objc func menuPlaylist(_ sender: Any?) { setWorkView(.playlist) }
+    @objc func menuPiano(_ sender: Any?) { setWorkView(.piano) }
+    @objc func menuMixer(_ sender: Any?) { setWorkView(.mixer) }
+    @objc func menuPlugins(_ sender: Any?) { setWorkView(.plugins) }
+    @objc func menuSample(_ sender: Any?) { setWorkView(.sample) }
+    @objc func menuRecipe(_ sender: Any?) { setWorkView(.recipe) }
+    @objc func menuEditBPM(_ sender: Any?) { editBPM() }
+    @objc func menuToggleMode(_ sender: Any?) { toggleArrangementMode() }
+    @objc func menuCycleSnap(_ sender: Any?) { cycleSnap() }
+    @objc func menuToggleLoop(_ sender: Any?) { toggleLoop() }
+    @objc func menuEditLoop(_ sender: Any?) { editLoopRange() }
+    @objc func menuZoomIn(_ sender: Any?) { adjustZoom(by: 6) }
+    @objc func menuZoomOut(_ sender: Any?) { adjustZoom(by: -6) }
+    @objc func menuHelp(_ sender: Any?) { showHelp() }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: MainWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        installMenu()
         let rootURL = prepareSupportRoot()
 
         let controller = MainWindowController(store: ProjectStore(rootURL: rootURL))
         windowController = controller
+        installMenu(for: controller)
         controller.window?.center()
         controller.showWindow(nil)
         controller.window?.makeKeyAndOrderFront(nil)
@@ -2698,7 +3020,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func installMenu() {
+    private func installMenu(for controller: MainWindowController) {
         let mainMenu = NSMenu()
         let appMenuItem = NSMenuItem()
         mainMenu.addItem(appMenuItem)
@@ -2707,35 +3029,83 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(NSMenuItem(title: "Quit Neon Studio", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         appMenuItem.submenu = appMenu
 
+        let fileMenuItem = NSMenuItem()
+        mainMenu.addItem(fileMenuItem)
+        let fileMenu = NSMenu(title: "File")
+        addMenuItem("New Project", #selector(MainWindowController.menuNewProject(_:)), "n", to: fileMenu, target: controller)
+        addMenuItem("Save Project", #selector(MainWindowController.menuSaveProject(_:)), "s", to: fileMenu, target: controller)
+        fileMenu.addItem(.separator())
+        addMenuItem("Import Project...", #selector(MainWindowController.menuImportProject(_:)), "i", to: fileMenu, target: controller)
+        addMenuItem("Import Audio...", #selector(MainWindowController.menuImportAudio(_:)), "a", modifiers: [.command, .shift], to: fileMenu, target: controller)
+        addMenuItem("Backup Project...", #selector(MainWindowController.menuBackupProject(_:)), "b", modifiers: [.command, .shift], to: fileMenu, target: controller)
+        addMenuItem("Export Mixdown...", #selector(MainWindowController.menuExportMixdown(_:)), "e", modifiers: [.command, .shift], to: fileMenu, target: controller)
+        fileMenu.addItem(.separator())
+        addMenuItem("Reveal Project File", #selector(MainWindowController.menuRevealProject(_:)), "r", modifiers: [.command, .shift], to: fileMenu, target: controller)
+        fileMenuItem.submenu = fileMenu
+
+        let editMenuItem = NSMenuItem()
+        mainMenu.addItem(editMenuItem)
+        let editMenu = NSMenu(title: "Edit")
+        addMenuItem("Undo", #selector(MainWindowController.menuUndo(_:)), "z", to: editMenu, target: controller)
+        addMenuItem("Redo", #selector(MainWindowController.menuRedo(_:)), "z", modifiers: [.command, .shift], to: editMenu, target: controller)
+        addMenuItem("Delete Selection", #selector(MainWindowController.menuDeleteSelection(_:)), "\u{8}", modifiers: [], to: editMenu, target: controller)
+        editMenuItem.submenu = editMenu
+
+        let addMenuItemRoot = NSMenuItem()
+        mainMenu.addItem(addMenuItemRoot)
+        let addMenu = NSMenu(title: "Add")
+        addMenuItem("Audio Track...", #selector(MainWindowController.menuImportAudio(_:)), "", modifiers: [], to: addMenu, target: controller)
+        addMenuItem("Vocal Lab...", #selector(MainWindowController.menuVocalLab(_:)), "v", modifiers: [.command, .shift], to: addMenu, target: controller)
+        addMenuItem("Record Take", #selector(MainWindowController.menuToggleRecord(_:)), "k", modifiers: [.command, .shift], to: addMenu, target: controller)
+        addMenuItemRoot.submenu = addMenu
+
+        let viewMenuItem = NSMenuItem()
+        mainMenu.addItem(viewMenuItem)
+        let viewMenu = NSMenu(title: "View")
+        addMenuItem("Playlist", #selector(MainWindowController.menuPlaylist(_:)), "1", to: viewMenu, target: controller)
+        addMenuItem("Piano Roll", #selector(MainWindowController.menuPiano(_:)), "2", to: viewMenu, target: controller)
+        addMenuItem("Mixer", #selector(MainWindowController.menuMixer(_:)), "3", to: viewMenu, target: controller)
+        addMenuItem("Plugins", #selector(MainWindowController.menuPlugins(_:)), "4", to: viewMenu, target: controller)
+        addMenuItem("Sample", #selector(MainWindowController.menuSample(_:)), "5", to: viewMenu, target: controller)
+        addMenuItem("Recipe", #selector(MainWindowController.menuRecipe(_:)), "6", to: viewMenu, target: controller)
+        viewMenu.addItem(.separator())
+        addMenuItem("Zoom In", #selector(MainWindowController.menuZoomIn(_:)), "+", to: viewMenu, target: controller)
+        addMenuItem("Zoom Out", #selector(MainWindowController.menuZoomOut(_:)), "-", to: viewMenu, target: controller)
+        viewMenuItem.submenu = viewMenu
+
+        let optionsMenuItem = NSMenuItem()
+        mainMenu.addItem(optionsMenuItem)
+        let optionsMenu = NSMenu(title: "Options")
+        addMenuItem("Set BPM...", #selector(MainWindowController.menuEditBPM(_:)), "t", modifiers: [.command, .shift], to: optionsMenu, target: controller)
+        addMenuItem("Toggle Song/Pattern Mode", #selector(MainWindowController.menuToggleMode(_:)), "m", modifiers: [.command, .shift], to: optionsMenu, target: controller)
+        addMenuItem("Cycle Snap", #selector(MainWindowController.menuCycleSnap(_:)), "g", modifiers: [.command, .shift], to: optionsMenu, target: controller)
+        addMenuItem("Toggle Loop", #selector(MainWindowController.menuToggleLoop(_:)), "l", modifiers: [.command, .shift], to: optionsMenu, target: controller)
+        addMenuItem("Edit Loop Bars...", #selector(MainWindowController.menuEditLoop(_:)), "l", modifiers: [.command, .option], to: optionsMenu, target: controller)
+        optionsMenuItem.submenu = optionsMenu
+
         let helpMenuItem = NSMenuItem()
         mainMenu.addItem(helpMenuItem)
         let helpMenu = NSMenu(title: "Help")
-        let help = NSMenuItem(title: "Neon Studio Help", action: #selector(showMenuHelp(_:)), keyEquivalent: "h")
+        let help = NSMenuItem(title: "Neon Studio Help", action: #selector(MainWindowController.menuHelp(_:)), keyEquivalent: "h")
         help.keyEquivalentModifierMask = [.command]
-        help.target = self
+        help.target = controller
         helpMenu.addItem(help)
         helpMenuItem.submenu = helpMenu
         NSApp.mainMenu = mainMenu
     }
 
-    @objc private func showMenuHelp(_ sender: Any?) {
-        guard let controller = windowController else { return }
-        controller.window?.makeKeyAndOrderFront(nil)
-        let event = NSEvent.keyEvent(
-            with: .keyDown,
-            location: .zero,
-            modifierFlags: [.command],
-            timestamp: 0,
-            windowNumber: controller.window?.windowNumber ?? 0,
-            context: nil,
-            characters: "h",
-            charactersIgnoringModifiers: "h",
-            isARepeat: false,
-            keyCode: 4
-        )
-        if let event {
-            NSApp.postEvent(event, atStart: true)
-        }
+    private func addMenuItem(
+        _ title: String,
+        _ action: Selector,
+        _ keyEquivalent: String,
+        modifiers: NSEvent.ModifierFlags = [.command],
+        to menu: NSMenu,
+        target: AnyObject
+    ) {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.keyEquivalentModifierMask = modifiers
+        item.target = target
+        menu.addItem(item)
     }
 }
 
