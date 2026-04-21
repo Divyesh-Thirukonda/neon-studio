@@ -636,14 +636,14 @@ final class ReadoutView: NSView {
     }
 
     override var isFlipped: Bool { true }
-    override var intrinsicContentSize: NSSize { NSSize(width: 104, height: 48) }
+    override var intrinsicContentSize: NSSize { NSSize(width: 88, height: 44) }
 
     override func draw(_ dirtyRect: NSRect) {
         let rect = bounds.insetBy(dx: 1, dy: 1)
         roundedFill(rect, radius: 8, color: onClick == nil ? Palette.panel : Palette.panelAlt)
         roundedStroke(rect, radius: 8, color: onClick == nil ? Palette.stroke : Palette.blue.withAlphaComponent(0.65))
-        drawText(title.uppercased(), in: NSRect(x: rect.minX + 10, y: rect.minY + 7, width: rect.width - 20, height: 14), color: Palette.dim, size: 9, weight: .black)
-        drawText(value, in: NSRect(x: rect.minX + 10, y: rect.minY + 22, width: rect.width - 20, height: 18), color: Palette.text, size: 14, weight: .black, alignment: .left)
+        drawText(title.uppercased(), in: NSRect(x: rect.minX + 9, y: rect.minY + 6, width: rect.width - 18, height: 13), color: Palette.dim, size: 8, weight: .black)
+        drawText(value, in: NSRect(x: rect.minX + 9, y: rect.minY + 20, width: rect.width - 18, height: 17), color: Palette.text, size: 13, weight: .black, alignment: .left)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -1571,20 +1571,43 @@ final class MainWindowController: NSWindowController {
 
     init(store: ProjectStore) {
         self.store = store
+        let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1180, height: 720)
+        let initialFrame = Self.initialWindowFrame(in: screenFrame)
+        let minimumSize = Self.minimumWindowSize(in: screenFrame)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1240, height: 760),
+            contentRect: initialFrame,
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Neon Studio"
-        window.minSize = NSSize(width: 1040, height: 640)
+        window.minSize = minimumSize
         window.appearance = NSAppearance(named: .darkAqua)
         window.titlebarAppearsTransparent = true
         super.init(window: window)
         window.contentView = makeRootView()
+        window.setFrame(initialFrame, display: true)
         installKeyboardMonitor()
         loadProjects()
+    }
+
+    private static func initialWindowFrame(in visibleFrame: NSRect) -> NSRect {
+        let margin: CGFloat = 28
+        let width = min(1180, max(820, visibleFrame.width - margin * 2))
+        let height = min(700, max(540, visibleFrame.height - margin * 2))
+        return NSRect(
+            x: visibleFrame.midX - width / 2,
+            y: visibleFrame.midY - height / 2,
+            width: width,
+            height: height
+        )
+    }
+
+    private static func minimumWindowSize(in visibleFrame: NSRect) -> NSSize {
+        NSSize(
+            width: min(840, max(720, visibleFrame.width - 80)),
+            height: min(540, max(480, visibleFrame.height - 80))
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -1614,7 +1637,7 @@ final class MainWindowController: NSWindowController {
             header.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             header.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             header.topAnchor.constraint(equalTo: root.topAnchor),
-            header.heightAnchor.constraint(equalToConstant: 104),
+            header.heightAnchor.constraint(equalToConstant: 90),
 
             body.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 10),
             body.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -10),
@@ -1669,8 +1692,8 @@ final class MainWindowController: NSWindowController {
         }
 
         [projects, save, undo, redo, rewind, playButton, record, help].forEach { button in
-            button.heightAnchor.constraint(equalToConstant: 44).isActive = true
-            button.widthAnchor.constraint(greaterThanOrEqualToConstant: button === playButton ? 92 : 78).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 38).isActive = true
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: button === playButton ? 78 : 64).isActive = true
         }
 
         let controls = NSStackView(views: [projects, save, undo, redo, rewind, playButton, record, help])
@@ -1693,12 +1716,12 @@ final class MainWindowController: NSWindowController {
         NSLayoutConstraint.activate([
             logo.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 18),
             logo.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            logo.widthAnchor.constraint(equalToConstant: 50),
-            logo.heightAnchor.constraint(equalToConstant: 50),
+            logo.widthAnchor.constraint(equalToConstant: 44),
+            logo.heightAnchor.constraint(equalToConstant: 44),
 
             titleStack.leadingAnchor.constraint(equalTo: logo.trailingAnchor, constant: 16),
             titleStack.centerYAnchor.constraint(equalTo: header.centerYAnchor, constant: 2),
-            titleStack.widthAnchor.constraint(greaterThanOrEqualToConstant: 240),
+            titleStack.widthAnchor.constraint(greaterThanOrEqualToConstant: 190),
 
             controls.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -18),
             controls.centerYAnchor.constraint(equalTo: header.centerYAnchor, constant: 2),
@@ -1727,8 +1750,12 @@ final class MainWindowController: NSWindowController {
         split.addArrangedSubview(center)
         split.addArrangedSubview(right)
 
-        left.widthAnchor.constraint(equalToConstant: 318).isActive = true
-        right.widthAnchor.constraint(equalToConstant: 318).isActive = true
+        let leftWidth = left.widthAnchor.constraint(equalToConstant: 268)
+        leftWidth.priority = .defaultHigh
+        leftWidth.isActive = true
+        let rightWidth = right.widthAnchor.constraint(equalToConstant: 268)
+        rightWidth.priority = .defaultHigh
+        rightWidth.isActive = true
 
         return split
     }
@@ -1754,7 +1781,7 @@ final class MainWindowController: NSWindowController {
             browserScroll.topAnchor.constraint(equalTo: browserPanel.contentGuide.topAnchor),
             browserScroll.bottomAnchor.constraint(equalTo: browserPanel.contentGuide.bottomAnchor)
         ])
-        browserPanel.heightAnchor.constraint(equalToConstant: 270).isActive = true
+        browserPanel.heightAnchor.constraint(equalToConstant: 220).isActive = true
 
         let rackPanel = TitledPanel(title: "Channel Rack", accessory: "P01")
         let rackScroll = NSScrollView()
@@ -1786,7 +1813,7 @@ final class MainWindowController: NSWindowController {
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let toolbar = makePlaylistToolbar()
-        toolbar.heightAnchor.constraint(equalToConstant: 86).isActive = true
+        toolbar.heightAnchor.constraint(equalToConstant: 78).isActive = true
 
         let playlistPanel = TitledPanel(title: "Playlist", accessory: "Arrangement")
         let playlistScroll = NSScrollView()
@@ -1813,7 +1840,7 @@ final class MainWindowController: NSWindowController {
             automationScopeView.topAnchor.constraint(equalTo: scopePanel.contentGuide.topAnchor),
             automationScopeView.bottomAnchor.constraint(equalTo: scopePanel.contentGuide.bottomAnchor)
         ])
-        scopePanel.heightAnchor.constraint(equalToConstant: 182).isActive = true
+        scopePanel.heightAnchor.constraint(equalToConstant: 150).isActive = true
 
         stack.addArrangedSubview(toolbar)
         stack.addArrangedSubview(playlistPanel)
@@ -1975,14 +2002,14 @@ final class MainWindowController: NSWindowController {
         let rows = stride(from: 0, to: actionButtons.count, by: 2).map { index -> NSStackView in
             let row = NSStackView(views: Array(actionButtons[index..<min(index + 2, actionButtons.count)]))
             row.orientation = .horizontal
-            row.alignment = .centerY
+            row.alignment = .width
             row.distribution = .fillEqually
             row.spacing = 8
             return row
         }
         let actions = NSStackView(views: rows)
         actions.orientation = .vertical
-        actions.alignment = .centerY
+        actions.alignment = .width
         actions.distribution = .fillEqually
         actions.spacing = 6
         actions.translatesAutoresizingMaskIntoConstraints = false
@@ -1997,7 +2024,7 @@ final class MainWindowController: NSWindowController {
             actions.trailingAnchor.constraint(equalTo: projectPanel.contentGuide.trailingAnchor),
             actions.bottomAnchor.constraint(equalTo: projectPanel.contentGuide.bottomAnchor)
         ])
-        projectPanel.heightAnchor.constraint(equalToConstant: 360).isActive = true
+        projectPanel.heightAnchor.constraint(equalToConstant: 300).isActive = true
 
         stack.addArrangedSubview(mixerPanel)
         stack.addArrangedSubview(projectPanel)
