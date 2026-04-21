@@ -1,91 +1,277 @@
 import AppKit
 import AVFoundation
+import UniformTypeIdentifiers
 
-struct LocalProject: Decodable {
-    let id: String
-    let name: String
-    let updatedAt: String
-    let description: String?
-    let keyCenter: String?
-    let snapshot: ProjectSnapshot
+struct LocalProject: Codable {
+    var id: String
+    var name: String
+    var createdAt: String?
+    var updatedAt: String
+    var projectFile: String?
+    var assets: [ProjectAsset]?
+    var description: String?
+    var keyCenter: String?
+    var snapshot: ProjectSnapshot
 }
 
-struct ProjectSnapshot: Decodable {
-    let bpm: Double
-    let loopStartBar: Double?
-    let loopEndBar: Double?
-    let swing: Double?
-    let tracks: [Track]
-    let recipe: [RecipeItem]?
+struct ProjectAsset: Codable {
+    var trackId: String
+    var file: String
+    var data: String?
 }
 
-struct Track: Decodable {
-    let id: String
-    let name: String
-    let kind: String?
-    let file: String?
-    let color: String?
-    let gain: Double?
-    let pan: Double?
-    let steps: [Int]?
-    let instrument: String?
-    let clips: [Clip]?
-    let effects: [Effect]?
+struct ProjectSnapshot: Codable {
+    var version: Int?
+    var bpm: Double
+    var swing: Double?
+    var snap: String?
+    var loopEnabled: Bool?
+    var loopStartBar: Double?
+    var loopEndBar: Double?
+    var tracks: [Track]
+    var controls: [String: MixerControl]?
+    var notes: [PianoNote]?
+    var selectedTrackId: String?
+    var selectedClipId: String?
+    var activeView: String?
+    var patternIndex: Int?
+    var arrangementMode: String?
+    var recipe: [RecipeItem]?
 }
 
-struct Clip: Decodable {
-    let id: String
-    let name: String
-    let startBar: Double?
-    let bars: Double?
-    let lane: String?
-    let color: String?
-    let type: String?
+struct Track: Codable {
+    var id: String
+    var name: String
+    var kind: String?
+    var file: String?
+    var color: String?
+    var gain: Double?
+    var pan: Double?
+    var steps: [Int]?
+    var instrument: String?
+    var clips: [Clip]?
+    var effects: [Effect]?
 }
 
-struct Effect: Decodable {
-    let id: String
-    let name: String
-    let active: Bool?
-    let amount: Double?
+struct Clip: Codable {
+    var id: String
+    var name: String
+    var startBar: Double?
+    var bars: Double?
+    var lane: String?
+    var color: String?
+    var type: String?
 }
 
-struct RecipeItem: Decodable {
-    let id: String
-    let section: String?
-    let label: String
-    let detail: String?
-    let status: String?
-    let trackIds: [String]?
+struct Effect: Codable {
+    var id: String
+    var name: String
+    var active: Bool?
+    var amount: Double?
+}
+
+struct MixerControl: Codable {
+    var gain: Double
+    var pan: Double
+    var mute: Bool
+    var solo: Bool
+    var arm: Bool
+    var sendA: Double
+    var sendB: Double
+}
+
+struct PianoNote: Codable {
+    var id: String
+    var beat: Double
+    var duration: Double
+    var note: Int
+    var velocity: Double
+    var color: String
+}
+
+struct RecipeItem: Codable {
+    var id: String
+    var section: String?
+    var label: String
+    var detail: String?
+    var status: String?
+    var trackIds: [String]?
+}
+
+struct ProjectIndex: Codable {
+    struct Entry: Codable {
+        var id: String
+        var file: String
+    }
+    var projects: [Entry]?
+}
+
+struct ProjectFileEnvelope: Codable {
+    var format: String
+    var formatVersion: Int
+    var portable: Bool
+    var assetMode: String
+    var id: String
+    var name: String
+    var createdAt: String?
+    var updatedAt: String
+    var projectFile: String?
+    var assets: [ProjectAsset]?
+    var description: String?
+    var keyCenter: String?
+    var snapshot: ProjectSnapshot
+}
+
+enum WorkView: String, CaseIterable {
+    case playlist
+    case piano
+    case mixer
+    case plugins
+    case sample
+    case recipe
+
+    var label: String {
+        switch self {
+        case .playlist: return "Playlist"
+        case .piano: return "Piano"
+        case .mixer: return "Mixer"
+        case .plugins: return "Plugins"
+        case .sample: return "Sample"
+        case .recipe: return "Recipe"
+        }
+    }
+}
+
+enum ToolId: String, CaseIterable {
+    case select
+    case draw
+    case paint
+    case slice
+    case mute
+    case erase
+
+    var label: String {
+        switch self {
+        case .select: return "Select"
+        case .draw: return "Draw"
+        case .paint: return "Paint"
+        case .slice: return "Slice"
+        case .mute: return "Mute"
+        case .erase: return "Erase"
+        }
+    }
 }
 
 final class ProjectStore {
     let rootURL: URL
+    private let decoder = JSONDecoder()
+    private let encoder = JSONEncoder()
 
     init(rootURL: URL) {
         self.rootURL = rootURL
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     }
 
     func loadProjects() -> [LocalProject] {
-        let dataDirectory = rootURL.appendingPathComponent("data/projects")
-        let publicDirectory = rootURL.appendingPathComponent("public/projects")
-        let urls = projectFiles(in: dataDirectory) + projectFiles(in: publicDirectory)
-        var seen = Set<String>()
-        var projects: [LocalProject] = []
+        let deletedIds = Set(readDeletedIds())
+        let factoryProjects = loadFactoryProjects().filter { !deletedIds.contains($0.id) }
+        let storedProjects = projectFiles(in: dataDirectory()).compactMap { loadProjectFile($0) }
+        let storedById = Dictionary(uniqueKeysWithValues: storedProjects.map { ($0.id, $0) })
+        var merged: [LocalProject] = []
+        var factoryIds = Set<String>()
 
-        for url in urls {
-            guard let data = try? Data(contentsOf: url),
-                  let project = try? JSONDecoder().decode(LocalProject.self, from: data),
-                  !seen.contains(project.id) else {
-                continue
+        for factory in factoryProjects {
+            factoryIds.insert(factory.id)
+            if var stored = storedById[factory.id] {
+                stored.projectFile = stored.projectFile ?? factory.projectFile
+                stored.assets = stored.assets ?? factory.assets
+                stored.description = stored.description ?? factory.description
+                stored.keyCenter = stored.keyCenter ?? factory.keyCenter
+                merged.append(normalize(stored))
+            } else {
+                merged.append(normalize(factory))
             }
-            seen.insert(project.id)
-            projects.append(project)
         }
 
-        return projects.sorted { lhs, rhs in
+        merged.append(contentsOf: storedProjects.filter { !factoryIds.contains($0.id) }.map(normalize))
+        return merged.sorted { lhs, rhs in
             lhs.updatedAt > rhs.updatedAt
         }
+    }
+
+    func saveProject(_ project: LocalProject) throws -> LocalProject {
+        let dataDirectory = dataDirectory()
+        try FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
+        let normalized = normalize(project)
+        let envelope = ProjectFileEnvelope(
+            format: "neon-studio-project",
+            formatVersion: 1,
+            portable: true,
+            assetMode: normalized.assets?.contains(where: { $0.data != nil }) == true ? "embedded" : "external",
+            id: normalized.id,
+            name: normalized.name,
+            createdAt: normalized.createdAt,
+            updatedAt: normalized.updatedAt,
+            projectFile: normalized.projectFile,
+            assets: normalized.assets,
+            description: normalized.description,
+            keyCenter: normalized.keyCenter,
+            snapshot: normalized.snapshot
+        )
+        let data = try encoder.encode(envelope)
+        try data.write(to: projectURL(for: normalized.id), options: [.atomic])
+        var deleted = readDeletedIds()
+        if deleted.contains(normalized.id) {
+            deleted.removeAll { $0 == normalized.id }
+            try writeDeletedIds(deleted)
+        }
+        return normalized
+    }
+
+    func deleteProject(_ project: LocalProject) throws {
+        let url = projectURL(for: project.id)
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+        if isFactoryProject(project.id) {
+            var deleted = readDeletedIds()
+            if !deleted.contains(project.id) {
+                deleted.append(project.id)
+                try writeDeletedIds(deleted)
+            }
+        }
+    }
+
+    func importProject(from url: URL) throws -> LocalProject {
+        guard let imported = loadProjectFile(url) else {
+            throw NSError(domain: "NeonStudio", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not read project file"])
+        }
+        var project = normalize(imported)
+        let stamp = timestampForId()
+        project.id = "\(safeProjectId(project.id))-import-\(stamp)"
+        project.createdAt = project.createdAt ?? nowISO()
+        project.updatedAt = nowISO()
+        return try saveProject(project)
+    }
+
+    func exportProject(_ project: LocalProject, to url: URL) throws {
+        let normalized = normalize(project)
+        let envelope = ProjectFileEnvelope(
+            format: "neon-studio-project",
+            formatVersion: 1,
+            portable: true,
+            assetMode: normalized.assets?.contains(where: { $0.data != nil }) == true ? "embedded" : "external",
+            id: normalized.id,
+            name: normalized.name,
+            createdAt: normalized.createdAt,
+            updatedAt: normalized.updatedAt,
+            projectFile: normalized.projectFile,
+            assets: normalized.assets,
+            description: normalized.description,
+            keyCenter: normalized.keyCenter,
+            snapshot: normalized.snapshot
+        )
+        try encoder.encode(envelope).write(to: url, options: [.atomic])
     }
 
     private func projectFiles(in directory: URL) -> [URL] {
@@ -98,8 +284,51 @@ final class ProjectStore {
         return urls.filter { $0.lastPathComponent.hasSuffix(".neon.json") }
     }
 
+    private func loadFactoryProjects() -> [LocalProject] {
+        let indexURL = rootURL.appendingPathComponent("public/projects/index.json")
+        if let data = try? readData(indexURL),
+           let index = try? decoder.decode(ProjectIndex.self, from: data),
+           let entries = index.projects {
+            return entries.compactMap { entry in
+                let path = entry.file.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                let url = rootURL.appendingPathComponent("public").appendingPathComponent(path.replacingOccurrences(of: "projects/", with: "projects/"))
+                var project = loadProjectFile(url)
+                project?.projectFile = entry.file
+                return project
+            }
+        }
+        return projectFiles(in: rootURL.appendingPathComponent("public/projects")).compactMap { loadProjectFile($0) }
+    }
+
+    private func loadProjectFile(_ url: URL) -> LocalProject? {
+        guard let data = try? readData(url) else { return nil }
+        if let project = try? decoder.decode(LocalProject.self, from: data) {
+            return normalize(project)
+        }
+        if let envelope = try? decoder.decode(ProjectFileEnvelope.self, from: data) {
+            return normalize(LocalProject(
+                id: envelope.id,
+                name: envelope.name,
+                createdAt: envelope.createdAt,
+                updatedAt: envelope.updatedAt,
+                projectFile: envelope.projectFile,
+                assets: envelope.assets,
+                description: envelope.description,
+                keyCenter: envelope.keyCenter,
+                snapshot: envelope.snapshot
+            ))
+        }
+        return nil
+    }
+
     func audioURL(for track: Track) -> URL? {
         guard let file = track.file else { return nil }
+        if file.hasPrefix("file://"), let url = URL(string: file) {
+            return url
+        }
+        if file.hasPrefix("/") && !file.hasPrefix("/api/audio/") {
+            return URL(fileURLWithPath: file)
+        }
         if file.hasPrefix("/api/audio/") {
             return rootURL
                 .appendingPathComponent("exports")
@@ -109,6 +338,108 @@ final class ProjectStore {
         let cleaned = file.hasPrefix("/") ? String(file.dropFirst()) : file
         return rootURL.appendingPathComponent(cleaned)
     }
+
+    func fullMixURL(for project: LocalProject) -> URL? {
+        let file = "\(project.id.replacingOccurrences(of: "-", with: "_"))_full_mix.wav"
+        let url = rootURL.appendingPathComponent("exports").appendingPathComponent(file)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    func dataDirectory() -> URL {
+        rootURL.appendingPathComponent("data/projects")
+    }
+
+    func projectURL(for id: String) -> URL {
+        dataDirectory().appendingPathComponent("\(safeProjectId(id)).neon.json")
+    }
+
+    func deletedURL() -> URL {
+        rootURL.appendingPathComponent("data/deleted-projects.json")
+    }
+
+    private func readDeletedIds() -> [String] {
+        guard let data = try? readData(deletedURL()),
+              let ids = try? decoder.decode([String].self, from: data) else {
+            return []
+        }
+        return ids
+    }
+
+    private func readData(_ url: URL) throws -> Data {
+        return try Data(contentsOf: url)
+    }
+
+    private func writeDeletedIds(_ ids: [String]) throws {
+        try FileManager.default.createDirectory(at: rootURL.appendingPathComponent("data"), withIntermediateDirectories: true)
+        try encoder.encode(Array(Set(ids)).sorted()).write(to: deletedURL(), options: [.atomic])
+    }
+
+    private func isFactoryProject(_ id: String) -> Bool {
+        loadFactoryProjects().contains { $0.id == id }
+    }
+
+    func normalize(_ project: LocalProject) -> LocalProject {
+        var next = project
+        next.id = safeProjectId(next.id)
+        if next.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            next.name = "Untitled Project"
+        }
+        next.createdAt = next.createdAt ?? next.updatedAt
+        next.snapshot.version = 3
+        next.snapshot.swing = next.snapshot.swing ?? 0
+        next.snapshot.snap = next.snapshot.snap ?? "1/4"
+        next.snapshot.loopEnabled = next.snapshot.loopEnabled ?? false
+        next.snapshot.loopStartBar = next.snapshot.loopStartBar ?? 0
+        next.snapshot.loopEndBar = next.snapshot.loopEndBar ?? 16
+        next.snapshot.controls = next.snapshot.controls ?? makeDefaultControls(for: next.snapshot.tracks)
+        next.snapshot.notes = next.snapshot.notes ?? []
+        next.snapshot.selectedTrackId = next.snapshot.selectedTrackId ?? next.snapshot.tracks.first?.id ?? ""
+        next.snapshot.selectedClipId = next.snapshot.selectedClipId ?? next.snapshot.tracks.flatMap { $0.clips ?? [] }.first?.id ?? ""
+        next.snapshot.activeView = next.snapshot.activeView ?? WorkView.playlist.rawValue
+        next.snapshot.patternIndex = next.snapshot.patternIndex ?? 1
+        next.snapshot.arrangementMode = next.snapshot.arrangementMode ?? "song"
+        next.snapshot.recipe = next.snapshot.recipe ?? []
+        return next
+    }
+}
+
+func safeProjectId(_ id: String) -> String {
+    let basename = URL(fileURLWithPath: id).lastPathComponent.replacingOccurrences(of: ".neon.json", with: "")
+    let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-"))
+    let cleaned = String(basename.unicodeScalars.map { allowed.contains($0) ? Character($0) : "-" })
+        .trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+    return cleaned.isEmpty ? "project-\(timestampForId())" : String(cleaned.prefix(72))
+}
+
+func makeDefaultControls(for tracks: [Track]) -> [String: MixerControl] {
+    Dictionary(uniqueKeysWithValues: tracks.map { track in
+        (
+            track.id,
+            MixerControl(
+                gain: track.gain ?? 0.82,
+                pan: track.pan ?? 0,
+                mute: false,
+                solo: false,
+                arm: false,
+                sendA: 0.15,
+                sendB: 0.08
+            )
+        )
+    })
+}
+
+func nowISO() -> String {
+    ISO8601DateFormatter().string(from: Date())
+}
+
+func timestampForId() -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "HHmmss"
+    return formatter.string(from: Date())
+}
+
+func makeId(_ prefix: String) -> String {
+    "\(prefix)-\(UUID().uuidString.prefix(8).lowercased())"
 }
 
 enum Palette {
@@ -222,10 +553,7 @@ final class ClosureButton: NSButton {
         self.contentTintColor = primary ? NSColor.black : Palette.text
         updateAttributedTitle()
 
-        if let symbol, let image = NSImage(systemSymbolName: symbol, accessibilityDescription: title) {
-            self.image = image
-            self.imageScaling = .scaleProportionallyDown
-        }
+        _ = symbol
     }
 
     required init?(coder: NSCoder) {
@@ -375,10 +703,17 @@ final class BrowserProjectsView: NSView {
     var onProjectSelected: ((LocalProject) -> Void)?
 
     private let rowHeight: CGFloat = 72
+    private let sections: [(String, [String])] = [
+        ("Current Project", ["Patterns", "Playlist clips", "Mixer states", "Automation clips", "Recipe checklist", "Project file"]),
+        ("Packs", ["Drums", "Impacts", "Risers", "Vocal chops", "Noise sweeps", "Breaths", "Sirens", "Crowd", "Ear candy"]),
+        ("Generators", ["Sampler", "Sub Synth", "Supersaw", "Square Lead", "Granular Bass", "Rave Generator", "Analog Bass"]),
+        ("Effects", ["Low Cut EQ", "Compressor", "Delay", "Reverb", "Stereo Spread", "Sidechain", "Wave Shaper", "Transit Macro"])
+    ]
 
     override var isFlipped: Bool { true }
     override var intrinsicContentSize: NSSize {
-        NSSize(width: 260, height: max(160, CGFloat(projects.count) * rowHeight + 58))
+        let sectionRows = sections.reduce(0) { $0 + 28 + $1.1.count * 24 }
+        return NSSize(width: 260, height: max(420, CGFloat(projects.count) * rowHeight + CGFloat(sectionRows) + 76))
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -400,6 +735,24 @@ final class BrowserProjectsView: NSView {
             drawText(project.name, in: NSRect(x: 14, y: y + 12, width: bounds.width - 28, height: 18), color: Palette.text, size: 13, weight: .black)
             let detail = "\(Int(project.snapshot.bpm)) BPM  \(project.snapshot.tracks.count) tracks  \(project.snapshot.recipe?.count ?? 0) items"
             drawText(detail, in: NSRect(x: 14, y: y + 34, width: bounds.width - 28, height: 16), color: Palette.muted, size: 11, weight: .semibold)
+        }
+
+        var y = 60 + CGFloat(projects.count) * rowHeight
+        for section in sections {
+            drawText(section.0, in: NSRect(x: 2, y: y, width: bounds.width - 4, height: 16), color: Palette.muted, size: 11, weight: .black)
+            y += 22
+            for item in section.1 {
+                roundedFill(NSRect(x: 0, y: y, width: bounds.width, height: 20), radius: 5, color: Palette.panel)
+                drawText(item, in: NSRect(x: 18, y: y + 3, width: bounds.width - 28, height: 14), color: Palette.dim, size: 10, weight: .bold)
+                Palette.dim.setStroke()
+                let icon = NSBezierPath()
+                icon.move(to: NSPoint(x: 5, y: y + 10))
+                icon.line(to: NSPoint(x: 12, y: y + 10))
+                icon.lineWidth = 1
+                icon.stroke()
+                y += 24
+            }
+            y += 8
         }
     }
 
@@ -448,9 +801,19 @@ final class ChannelRackView: NSView {
             needsDisplay = true
         }
     }
+    var selectedTrackId: String? {
+        didSet { needsDisplay = true }
+    }
+    var activeStep: Int = -1 {
+        didSet { needsDisplay = true }
+    }
+    var onTrackSelected: ((String) -> Void)?
+    var onStepToggle: ((String, Int) -> Void)?
 
     private let rowHeight: CGFloat = 34
     private let nameWidth: CGFloat = 118
+    private let stepSize: CGFloat = 20
+    private let stepGap: CGFloat = 7
 
     override var isFlipped: Bool { true }
     override var intrinsicContentSize: NSSize {
@@ -462,8 +825,6 @@ final class ChannelRackView: NSView {
         dirtyRect.fill()
         drawText("16-step rack", in: NSRect(x: 0, y: 0, width: 120, height: 20), color: Palette.muted, size: 11, weight: .bold)
 
-        let stepSize: CGFloat = 20
-        let stepGap: CGFloat = 7
         for step in 0..<16 {
             let x = nameWidth + CGFloat(step) * (stepSize + stepGap)
             drawText("\(step + 1)", in: NSRect(x: x, y: 6, width: stepSize, height: 16), color: Palette.dim, size: 9, weight: .bold, alignment: .center)
@@ -472,7 +833,11 @@ final class ChannelRackView: NSView {
         for (index, track) in tracks.enumerated() {
             let y = 30 + CGFloat(index) * rowHeight
             let rowRect = NSRect(x: 0, y: y, width: bounds.width, height: rowHeight - 4)
-            roundedFill(rowRect, radius: 6, color: index.isMultiple(of: 2) ? Palette.panel : Palette.panelAlt)
+            let selected = track.id == selectedTrackId
+            roundedFill(rowRect, radius: 6, color: selected ? NSColor(calibratedRed: 0.16, green: 0.20, blue: 0.23, alpha: 1) : (index.isMultiple(of: 2) ? Palette.panel : Palette.panelAlt))
+            if selected {
+                roundedStroke(rowRect, radius: 6, color: Palette.blue, width: 1.4)
+            }
             let trackColor = color(from: track.color, fallback: Palette.blue)
             roundedFill(NSRect(x: 10, y: y + 10, width: 9, height: 9), radius: 2, color: trackColor)
             drawText(track.name, in: NSRect(x: 26, y: y + 7, width: nameWidth - 30, height: 16), color: Palette.text, size: 11, weight: .bold)
@@ -486,6 +851,26 @@ final class ChannelRackView: NSView {
                 if active {
                     roundedStroke(rect.insetBy(dx: 0.5, dy: 0.5), radius: 4, color: NSColor.white.withAlphaComponent(0.18))
                 }
+                if step == activeStep {
+                    roundedStroke(rect.insetBy(dx: -1.5, dy: -1.5), radius: 5, color: Palette.text, width: 1.3)
+                }
+            }
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let row = Int((point.y - 30) / rowHeight)
+        guard row >= 0, row < tracks.count else { return }
+        let track = tracks[row]
+        onTrackSelected?(track.id)
+
+        if point.x >= nameWidth {
+            let relative = point.x - nameWidth
+            let step = Int(relative / (stepSize + stepGap))
+            let stepX = nameWidth + CGFloat(step) * (stepSize + stepGap)
+            if step >= 0, step < 16, point.x >= stepX, point.x <= stepX + stepSize {
+                onStepToggle?(track.id, step)
             }
         }
     }
@@ -499,6 +884,33 @@ final class PlaylistView: NSView {
             needsDisplay = true
         }
     }
+    var controls: [String: MixerControl] = [:] {
+        didSet { needsDisplay = true }
+    }
+    var notes: [PianoNote] = [] {
+        didSet { needsDisplay = true }
+    }
+    var recipe: [RecipeItem] = [] {
+        didSet { needsDisplay = true }
+    }
+    var workView: WorkView = .playlist {
+        didSet {
+            invalidateIntrinsicContentSize()
+            needsDisplay = true
+        }
+    }
+    var selectedTrackId: String? {
+        didSet { needsDisplay = true }
+    }
+    var selectedClipId: String? {
+        didSet { needsDisplay = true }
+    }
+    var selectedTrack: Track? {
+        tracks.first { $0.id == selectedTrackId } ?? tracks.first
+    }
+    var onTrackSelected: ((String) -> Void)?
+    var onClipSelected: ((String, String) -> Void)?
+    var onPianoNoteAdded: ((PianoNote) -> Void)?
 
     private var totalBars: Double = 72
     private let leftWidth: CGFloat = 142
@@ -508,10 +920,19 @@ final class PlaylistView: NSView {
 
     override var isFlipped: Bool { true }
     override var intrinsicContentSize: NSSize {
-        NSSize(
-            width: max(1280, leftWidth + CGFloat(totalBars) * pixelsPerBar + 24),
-            height: max(470, rulerHeight + CGFloat(max(tracks.count, 8)) * rowHeight + 26)
-        )
+        switch workView {
+        case .playlist:
+            return NSSize(
+                width: max(1280, leftWidth + CGFloat(totalBars) * pixelsPerBar + 24),
+                height: max(470, rulerHeight + CGFloat(max(tracks.count, 8)) * rowHeight + 26)
+            )
+        case .mixer:
+            return NSSize(width: max(1040, CGFloat(tracks.count) * 118 + 24), height: 560)
+        case .recipe:
+            return NSSize(width: 1120, height: max(620, CGFloat(recipe.count) * 48 + 120))
+        default:
+            return NSSize(width: 1120, height: 560)
+        }
     }
 
     private func maxClipEnd() -> Double {
@@ -525,6 +946,23 @@ final class PlaylistView: NSView {
         NSColor(calibratedRed: 0.065, green: 0.073, blue: 0.083, alpha: 1).setFill()
         dirtyRect.fill()
 
+        switch workView {
+        case .playlist:
+            drawPlaylist()
+        case .piano:
+            drawPianoRoll()
+        case .mixer:
+            drawMixerDetail()
+        case .plugins:
+            drawPluginEditor()
+        case .sample:
+            drawSampleEditor()
+        case .recipe:
+            drawRecipeCoverage()
+        }
+    }
+
+    private func drawPlaylist() {
         roundedFill(NSRect(x: 0, y: 0, width: leftWidth, height: bounds.height), radius: 0, color: Palette.panel)
         roundedFill(NSRect(x: leftWidth, y: 0, width: bounds.width - leftWidth, height: rulerHeight), radius: 0, color: Palette.panelAlt)
 
@@ -572,6 +1010,9 @@ final class PlaylistView: NSView {
             let meta = track.instrument ?? track.kind ?? "Track"
             drawText(meta, in: NSRect(x: 14, y: y + 27, width: leftWidth - 38, height: 14), color: Palette.dim, size: 9, weight: .semibold)
             roundedFill(NSRect(x: leftWidth - 20, y: y + 20, width: 8, height: 8), radius: 2, color: color(from: track.color))
+            if track.id == selectedTrackId {
+                roundedStroke(NSRect(x: 8, y: y + 7, width: leftWidth - 16, height: rowHeight - 14), radius: 6, color: Palette.blue, width: 1.4)
+            }
 
             for clip in track.clips ?? [] {
                 let start = clip.startBar ?? 0
@@ -581,7 +1022,7 @@ final class PlaylistView: NSView {
                 let clipRect = NSRect(x: clipX, y: y + 7, width: clipWidth, height: rowHeight - 14)
                 let clipColor = color(from: clip.color ?? track.color, fallback: Palette.blue)
                 roundedFill(clipRect, radius: 5, color: clipColor.withAlphaComponent(0.86))
-                roundedStroke(clipRect, radius: 5, color: NSColor.white.withAlphaComponent(0.18))
+                roundedStroke(clipRect, radius: 5, color: clip.id == selectedClipId ? Palette.text : NSColor.white.withAlphaComponent(0.18), width: clip.id == selectedClipId ? 2 : 1)
 
                 let textColor: NSColor = clipColor.brightnessComponent > 0.58 ? NSColor(calibratedWhite: 0.06, alpha: 1) : NSColor.white
                 drawText(clip.name, in: clipRect.insetBy(dx: 9, dy: 6), color: textColor, size: 10, weight: .black)
@@ -593,6 +1034,195 @@ final class PlaylistView: NSView {
                 }
             }
         }
+    }
+
+    private func drawPianoRoll() {
+        let header = NSRect(x: 0, y: 0, width: bounds.width, height: 44)
+        roundedFill(header, radius: 0, color: Palette.panelAlt)
+        let trackName = selectedTrack?.name ?? "No track"
+        drawText("Piano Roll", in: NSRect(x: 18, y: 13, width: 120, height: 18), color: Palette.text, size: 14, weight: .black)
+        drawText(trackName, in: NSRect(x: 132, y: 14, width: 240, height: 16), color: Palette.muted, size: 11, weight: .bold)
+        drawText("Click grid to add notes", in: NSRect(x: bounds.width - 190, y: 14, width: 170, height: 16), color: Palette.dim, size: 11, weight: .bold, alignment: .right)
+
+        let left: CGFloat = 60
+        let top: CGFloat = 58
+        let rowHeight: CGFloat = 13
+        let beatWidth: CGFloat = 28
+        let highNote = 91
+        let lowNote = 54
+        let rows = highNote - lowNote + 1
+        for row in 0..<rows {
+            let note = highNote - row
+            let y = top + CGFloat(row) * rowHeight
+            let sharp = [1, 3, 6, 8, 10].contains(note % 12)
+            (sharp ? NSColor(calibratedRed: 0.10, green: 0.11, blue: 0.125, alpha: 1) : NSColor(calibratedRed: 0.075, green: 0.083, blue: 0.095, alpha: 1)).setFill()
+            NSRect(x: left, y: y, width: bounds.width - left, height: rowHeight).fill()
+            if note % 12 == 0 {
+                drawText("C\(note / 12 - 1)", in: NSRect(x: 12, y: y, width: 38, height: rowHeight), color: Palette.muted, size: 9, weight: .bold, alignment: .right)
+            }
+        }
+        for beat in 0...64 {
+            let x = left + CGFloat(beat) * beatWidth
+            let line = NSBezierPath()
+            line.move(to: NSPoint(x: x, y: top))
+            line.line(to: NSPoint(x: x, y: top + CGFloat(rows) * rowHeight))
+            (beat % 4 == 0 ? Palette.stroke : Palette.subtleStroke).setStroke()
+            line.lineWidth = beat % 4 == 0 ? 1 : 0.5
+            line.stroke()
+        }
+        for note in notes {
+            let y = top + CGFloat(highNote - note.note) * rowHeight
+            guard y >= top, y <= top + CGFloat(rows) * rowHeight else { continue }
+            let x = left + CGFloat(note.beat) * beatWidth
+            let rect = NSRect(x: x, y: y + 2, width: max(14, CGFloat(note.duration) * beatWidth - 3), height: rowHeight - 4)
+            roundedFill(rect, radius: 4, color: color(from: note.color, fallback: Palette.blue))
+            roundedStroke(rect, radius: 4, color: NSColor.white.withAlphaComponent(0.28))
+        }
+    }
+
+    private func drawMixerDetail() {
+        drawText("Mixer", in: NSRect(x: 18, y: 14, width: 130, height: 22), color: Palette.text, size: 18, weight: .black)
+        drawText("Mute, solo, arm, sends, gain, and pan are saved in the project file.", in: NSRect(x: 150, y: 19, width: 540, height: 16), color: Palette.muted, size: 11, weight: .bold)
+        for (index, track) in tracks.enumerated() {
+            let x = 18 + CGFloat(index) * 118
+            let strip = NSRect(x: x, y: 58, width: 104, height: 440)
+            let selected = track.id == selectedTrackId
+            roundedFill(strip, radius: 8, color: selected ? NSColor(calibratedRed: 0.15, green: 0.18, blue: 0.205, alpha: 1) : Palette.panel)
+            roundedStroke(strip, radius: 8, color: selected ? Palette.blue : Palette.stroke, width: selected ? 1.5 : 1)
+            drawText(String(format: "%02d", index + 1), in: NSRect(x: x + 10, y: 72, width: 84, height: 14), color: Palette.dim, size: 9, weight: .bold, alignment: .center)
+            drawText(track.name, in: NSRect(x: x + 10, y: 92, width: 84, height: 38), color: Palette.text, size: 11, weight: .black, alignment: .center, lineBreak: .byWordWrapping)
+            let control = controls[track.id] ?? MixerControl(gain: track.gain ?? 0.82, pan: track.pan ?? 0, mute: false, solo: false, arm: false, sendA: 0.15, sendB: 0.08)
+            let toggles = [("M", control.mute), ("S", control.solo), ("R", control.arm), ("A", control.sendA > 0.4), ("B", control.sendB > 0.4), ("FX", track.effects?.contains { $0.active == true } == true)]
+            for (toggleIndex, item) in toggles.enumerated() {
+                let tx = x + 10 + CGFloat(toggleIndex % 3) * 29
+                let ty = 144 + CGFloat(toggleIndex / 3) * 30
+                roundedFill(NSRect(x: tx, y: ty, width: 24, height: 22), radius: 4, color: item.1 ? color(from: track.color, fallback: Palette.yellow) : Palette.panelRaised)
+                drawText(item.0, in: NSRect(x: tx, y: ty + 5, width: 24, height: 12), color: item.1 ? NSColor.black : Palette.muted, size: 9, weight: .black, alignment: .center)
+            }
+            let meter = NSRect(x: x + 18, y: 226, width: 16, height: 180)
+            roundedFill(meter, radius: 4, color: NSColor(calibratedRed: 0.06, green: 0.07, blue: 0.08, alpha: 1))
+            let gain = CGFloat(max(0.0, min(control.gain, 1.4))) / 1.4
+            roundedFill(NSRect(x: meter.minX, y: meter.maxY - meter.height * gain, width: meter.width, height: meter.height * gain), radius: 4, color: color(from: track.color, fallback: Palette.green))
+            let fader = NSRect(x: x + 58, y: 226, width: 7, height: 180)
+            roundedFill(fader, radius: 3, color: NSColor(calibratedRed: 0.06, green: 0.07, blue: 0.08, alpha: 1))
+            roundedFill(NSRect(x: x + 48, y: fader.maxY - fader.height * gain - 5, width: 27, height: 10), radius: 4, color: Palette.text)
+            drawText(String(format: "%.2f", control.gain), in: NSRect(x: x + 10, y: 416, width: 84, height: 14), color: Palette.muted, size: 10, weight: .bold, alignment: .center)
+            drawText(control.pan == 0 ? "C" : String(format: "%+.2f", control.pan), in: NSRect(x: x + 10, y: 442, width: 84, height: 14), color: Palette.muted, size: 10, weight: .bold, alignment: .center)
+        }
+    }
+
+    private func drawPluginEditor() {
+        guard let track = selectedTrack else {
+            drawText("No track selected", in: bounds.insetBy(dx: 18, dy: 18), color: Palette.muted, size: 14, weight: .bold)
+            return
+        }
+        drawText("Plugins", in: NSRect(x: 18, y: 16, width: 120, height: 22), color: Palette.text, size: 18, weight: .black)
+        drawText("\(track.name)  /  \(track.instrument ?? "Instrument")", in: NSRect(x: 138, y: 20, width: 420, height: 16), color: Palette.muted, size: 11, weight: .bold)
+        let effects = track.effects ?? []
+        for (index, effect) in effects.enumerated() {
+            let col = index % 2
+            let row = index / 2
+            let rect = NSRect(x: 18 + CGFloat(col) * 360, y: 62 + CGFloat(row) * 82, width: 338, height: 66)
+            roundedFill(rect, radius: 8, color: Palette.panel)
+            roundedStroke(rect, radius: 8, color: effect.active == true ? Palette.green : Palette.stroke)
+            roundedFill(NSRect(x: rect.minX + 12, y: rect.minY + 16, width: 12, height: 12), radius: 6, color: effect.active == true ? Palette.green : Palette.dim)
+            drawText(effect.name, in: NSRect(x: rect.minX + 34, y: rect.minY + 12, width: rect.width - 48, height: 16), color: Palette.text, size: 12, weight: .black)
+            let amount = CGFloat(effect.amount ?? 0.35)
+            roundedFill(NSRect(x: rect.minX + 34, y: rect.minY + 42, width: rect.width - 56, height: 6), radius: 3, color: Palette.panelRaised)
+            roundedFill(NSRect(x: rect.minX + 34, y: rect.minY + 42, width: (rect.width - 56) * amount, height: 6), radius: 3, color: color(from: track.color, fallback: Palette.blue))
+        }
+        drawText("Click effect cards from the native menu actions to toggle; amounts round-trip through .neon.json.", in: NSRect(x: 18, y: bounds.height - 38, width: bounds.width - 36, height: 16), color: Palette.dim, size: 11, weight: .bold)
+    }
+
+    private func drawSampleEditor() {
+        guard let track = selectedTrack else {
+            drawText("No sample selected", in: bounds.insetBy(dx: 18, dy: 18), color: Palette.muted, size: 14, weight: .bold)
+            return
+        }
+        drawText("Sample", in: NSRect(x: 18, y: 16, width: 120, height: 22), color: Palette.text, size: 18, weight: .black)
+        drawText(track.name, in: NSRect(x: 128, y: 20, width: 360, height: 16), color: Palette.muted, size: 11, weight: .bold)
+        let waveRect = NSRect(x: 18, y: 60, width: bounds.width - 36, height: 260)
+        roundedFill(waveRect, radius: 8, color: Palette.panel)
+        drawWaveform(in: waveRect.insetBy(dx: 16, dy: 32), color: color(from: track.color, fallback: Palette.blue), seed: track.id.hashValue)
+        let controls = ["In", "Out", "Pitch", "Stretch"]
+        for (index, label) in controls.enumerated() {
+            let rect = NSRect(x: 18 + CGFloat(index) * ((bounds.width - 54) / 4), y: 344, width: (bounds.width - 72) / 4, height: 64)
+            roundedFill(rect, radius: 8, color: Palette.panel)
+            drawText(label, in: NSRect(x: rect.minX + 12, y: rect.minY + 12, width: 80, height: 16), color: Palette.text, size: 12, weight: .black)
+            roundedFill(NSRect(x: rect.minX + 12, y: rect.minY + 42, width: rect.width - 24, height: 6), radius: 3, color: Palette.panelRaised)
+            roundedFill(NSRect(x: rect.minX + 12, y: rect.minY + 42, width: (rect.width - 24) * (index < 2 ? (index == 0 ? 0.1 : 0.92) : 0.5), height: 6), radius: 3, color: Palette.yellow)
+        }
+    }
+
+    private func drawRecipeCoverage() {
+        drawText("Production Recipe Coverage", in: NSRect(x: 18, y: 16, width: 320, height: 24), color: Palette.text, size: 18, weight: .black)
+        let implemented = recipe.filter { $0.status == "implemented" }.count
+        drawText("\(recipe.count)/\(recipe.count) mapped  /  \(implemented) implemented", in: NSRect(x: bounds.width - 300, y: 20, width: 280, height: 16), color: Palette.muted, size: 11, weight: .bold, alignment: .right)
+        let sections = ["Foundation", "Intro", "Verse", "Build", "Drop", "Mix", "Advanced"]
+        var y: CGFloat = 58
+        for section in sections {
+            let items = recipe.filter { $0.section == section }
+            guard !items.isEmpty else { continue }
+            drawText(section.uppercased(), in: NSRect(x: 18, y: y, width: 180, height: 16), color: Palette.yellow, size: 11, weight: .black)
+            y += 22
+            for item in items {
+                let rect = NSRect(x: 18, y: y, width: bounds.width - 36, height: 40)
+                roundedFill(rect, radius: 7, color: Palette.panel)
+                roundedFill(NSRect(x: rect.minX + 12, y: rect.minY + 14, width: 10, height: 10), radius: 5, color: item.status == "implemented" ? Palette.green : Palette.yellow)
+                drawText(item.label, in: NSRect(x: rect.minX + 32, y: rect.minY + 7, width: 300, height: 15), color: Palette.text, size: 11, weight: .black)
+                drawText(item.detail ?? "", in: NSRect(x: rect.minX + 32, y: rect.minY + 23, width: rect.width - 240, height: 13), color: Palette.muted, size: 9, weight: .semibold)
+                drawText((item.trackIds ?? []).prefix(3).joined(separator: "  "), in: NSRect(x: rect.maxX - 210, y: rect.minY + 13, width: 190, height: 14), color: Palette.dim, size: 9, weight: .bold, alignment: .right)
+                y += 46
+            }
+            y += 8
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        switch workView {
+        case .playlist:
+            handlePlaylistMouseDown(point)
+        case .piano:
+            handlePianoMouseDown(point)
+        case .mixer:
+            let index = Int((point.x - 18) / 118)
+            if index >= 0, index < tracks.count {
+                onTrackSelected?(tracks[index].id)
+            }
+        default:
+            break
+        }
+    }
+
+    private func handlePlaylistMouseDown(_ point: NSPoint) {
+        let row = Int((point.y - rulerHeight) / rowHeight)
+        guard row >= 0, row < tracks.count else { return }
+        let track = tracks[row]
+        onTrackSelected?(track.id)
+        let y = rulerHeight + CGFloat(row) * rowHeight
+        for clip in track.clips ?? [] {
+            let clipX = leftWidth + CGFloat(clip.startBar ?? 0) * pixelsPerBar + 5
+            let clipWidth = max(34, CGFloat(clip.bars ?? 1) * pixelsPerBar - 10)
+            let clipRect = NSRect(x: clipX, y: y + 7, width: clipWidth, height: rowHeight - 14)
+            if clipRect.contains(point) {
+                onClipSelected?(track.id, clip.id)
+                return
+            }
+        }
+    }
+
+    private func handlePianoMouseDown(_ point: NSPoint) {
+        guard let track = selectedTrack else { return }
+        let left: CGFloat = 60
+        let top: CGFloat = 58
+        let rowHeight: CGFloat = 13
+        let beatWidth: CGFloat = 28
+        let highNote = 91
+        let beat = max(0, round(((point.x - left) / beatWidth) * 4) / 4)
+        let note = max(54, min(91, highNote - Int((point.y - top) / rowHeight)))
+        guard point.x >= left, point.y >= top else { return }
+        onPianoNoteAdded?(PianoNote(id: makeId("note"), beat: Double(beat), duration: 0.75, note: note, velocity: 0.82, color: track.color ?? "#60c8f8"))
     }
 
     private func drawWaveform(in rect: NSRect, color: NSColor, seed: Int) {
@@ -631,6 +1261,14 @@ final class MixerView: NSView {
             needsDisplay = true
         }
     }
+    var controls: [String: MixerControl] = [:] {
+        didSet { needsDisplay = true }
+    }
+    var selectedTrackId: String? {
+        didSet { needsDisplay = true }
+    }
+    var onTrackSelected: ((String) -> Void)?
+    var onControlChanged: ((String, MixerControl) -> Void)?
 
     override var isFlipped: Bool { true }
     override var intrinsicContentSize: NSSize {
@@ -644,14 +1282,16 @@ final class MixerView: NSView {
         for (index, track) in tracks.enumerated() {
             let x = 10 + CGFloat(index) * 66
             let strip = NSRect(x: x, y: 8, width: 56, height: bounds.height - 16)
-            roundedFill(strip, radius: 7, color: index.isMultiple(of: 2) ? Palette.panel : Palette.panelAlt)
-            roundedStroke(strip, radius: 7, color: Palette.subtleStroke)
+            let selected = track.id == selectedTrackId
+            roundedFill(strip, radius: 7, color: selected ? NSColor(calibratedRed: 0.15, green: 0.18, blue: 0.205, alpha: 1) : (index.isMultiple(of: 2) ? Palette.panel : Palette.panelAlt))
+            roundedStroke(strip, radius: 7, color: selected ? Palette.blue : Palette.subtleStroke, width: selected ? 1.4 : 1)
             drawText(String(format: "%02d", index + 1), in: NSRect(x: x + 8, y: 16, width: 40, height: 14), color: Palette.dim, size: 9, weight: .bold, alignment: .center)
             drawText(track.name, in: NSRect(x: x + 8, y: 34, width: 40, height: 38), color: Palette.text, size: 10, weight: .black, alignment: .center, lineBreak: .byWordWrapping)
 
+            let control = controls[track.id] ?? MixerControl(gain: track.gain ?? 0.7, pan: track.pan ?? 0, mute: false, solo: false, arm: false, sendA: 0.15, sendB: 0.08)
             let meter = NSRect(x: x + 10, y: 86, width: 8, height: 160)
             roundedFill(meter, radius: 3, color: NSColor(calibratedRed: 0.08, green: 0.09, blue: 0.10, alpha: 1))
-            let gain = CGFloat(max(0.05, min(track.gain ?? 0.7, 1.2))) / 1.2
+            let gain = CGFloat(max(0.05, min(control.gain, 1.2))) / 1.2
             let fill = NSRect(x: meter.minX, y: meter.maxY - meter.height * gain, width: meter.width, height: meter.height * gain)
             roundedFill(fill, radius: 3, color: color(from: track.color, fallback: Palette.green))
 
@@ -660,11 +1300,32 @@ final class MixerView: NSView {
             let faderY = faderTrack.maxY - faderTrack.height * gain
             roundedFill(NSRect(x: x + 24, y: faderY - 4, width: 20, height: 8), radius: 3, color: Palette.text)
 
-            let pan = track.pan ?? 0
+            let pan = control.pan
             let panLabel = pan == 0 ? "C" : String(format: "%+.1f", pan)
             drawText(panLabel, in: NSRect(x: x + 8, y: 260, width: 40, height: 14), color: Palette.muted, size: 9, weight: .bold, alignment: .center)
             roundedFill(NSRect(x: x + 12, y: 284, width: 32, height: 18), radius: 4, color: color(from: track.color, fallback: Palette.blue).withAlphaComponent(0.8))
+            drawText(control.mute ? "MUTE" : (control.solo ? "SOLO" : "FX"), in: NSRect(x: x + 8, y: 308, width: 40, height: 12), color: control.mute ? Palette.coral : Palette.muted, size: 8, weight: .black, alignment: .center)
         }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let index = Int((point.x - 10) / 66)
+        guard index >= 0, index < tracks.count else { return }
+        let track = tracks[index]
+        onTrackSelected?(track.id)
+
+        var control = controls[track.id] ?? MixerControl(gain: track.gain ?? 0.7, pan: track.pan ?? 0, mute: false, solo: false, arm: false, sendA: 0.15, sendB: 0.08)
+        let localY = point.y
+        if localY > 286 {
+            control.mute.toggle()
+        } else if localY > 240 {
+            control.pan = control.pan >= 0.5 ? -0.5 : control.pan + 0.5
+        } else if localY > 86 {
+            let gain = max(0, min(1.4, Double((246 - localY) / 160) * 1.4))
+            control.gain = gain
+        }
+        onControlChanged?(track.id, control)
     }
 }
 
@@ -790,7 +1451,17 @@ final class MainWindowController: NSWindowController {
     private var currentProject: LocalProject?
     private var players: [AVAudioPlayer] = []
     private var keyMonitor: Any?
+    private var autosaveTimer: Timer?
+    private var undoStack: [LocalProject] = []
+    private var redoStack: [LocalProject] = []
+    private var activeWorkView: WorkView = .playlist
+    private var activeTool: ToolId = .select
+    private var selectedTrackId = ""
+    private var selectedClipId = ""
+    private var audioRecorder: AVAudioRecorder?
+    private var recordingURL: URL?
     private var isPlaying = false
+    private var isRecording = false
 
     private let titleLabel = makeLabel("Neon Studio", size: 26, weight: .black)
     private let subtitleLabel = makeLabel("Native Mac DAW shell", size: 12, weight: .bold, color: Palette.muted)
@@ -813,13 +1484,13 @@ final class MainWindowController: NSWindowController {
     init(store: ProjectStore) {
         self.store = store
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1380, height: 830),
+            contentRect: NSRect(x: 0, y: 0, width: 1240, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Neon Studio"
-        window.minSize = NSSize(width: 1120, height: 680)
+        window.minSize = NSSize(width: 1040, height: 640)
         window.appearance = NSAppearance(named: .darkAqua)
         window.titlebarAppearsTransparent = true
         super.init(window: window)
@@ -836,6 +1507,7 @@ final class MainWindowController: NSWindowController {
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
         }
+        autosaveTimer?.invalidate()
     }
 
     private func makeRootView() -> NSView {
@@ -879,30 +1551,35 @@ final class MainWindowController: NSWindowController {
         titleStack.spacing = 3
         titleStack.translatesAutoresizingMaskIntoConstraints = false
 
+        let projects = ClosureButton(title: "Projects", symbol: "folder") { [weak self] in
+            self?.showProjectManager()
+        }
+        let save = ClosureButton(title: "Save", symbol: "square.and.arrow.down") { [weak self] in
+            self?.saveCurrentProject(showStatus: true)
+        }
         let undo = ClosureButton(title: "Undo", symbol: "arrow.uturn.backward") { [weak self] in
-            self?.statusLabel.stringValue = "Undo stack ready for project edits"
+            self?.undo()
         }
         let redo = ClosureButton(title: "Redo", symbol: "arrow.uturn.forward") { [weak self] in
-            self?.statusLabel.stringValue = "Redo stack ready for project edits"
+            self?.redo()
         }
         let rewind = ClosureButton(title: "Start", symbol: "backward.end.fill") { [weak self] in
             self?.stop()
             self?.statusLabel.stringValue = "Returned to bar 1"
         }
         let record = ClosureButton(title: "Rec", symbol: "record.circle") { [weak self] in
-            self?.statusLabel.stringValue = "Recording input is routed through Vocal Lab"
-            self?.showVocalLabNotice()
+            self?.toggleRecording()
         }
         let help = ClosureButton(title: "Help", symbol: "questionmark.circle") { [weak self] in
             self?.showHelp()
         }
 
-        [undo, redo, rewind, playButton, record, help].forEach { button in
+        [projects, save, undo, redo, rewind, playButton, record, help].forEach { button in
             button.heightAnchor.constraint(equalToConstant: 44).isActive = true
             button.widthAnchor.constraint(greaterThanOrEqualToConstant: button === playButton ? 92 : 78).isActive = true
         }
 
-        let controls = NSStackView(views: [undo, redo, rewind, playButton, record, help])
+        let controls = NSStackView(views: [projects, save, undo, redo, rewind, playButton, record, help])
         controls.orientation = .horizontal
         controls.alignment = .centerY
         controls.spacing = 8
@@ -1015,7 +1692,7 @@ final class MainWindowController: NSWindowController {
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let toolbar = makePlaylistToolbar()
-        toolbar.heightAnchor.constraint(equalToConstant: 54).isActive = true
+        toolbar.heightAnchor.constraint(equalToConstant: 86).isActive = true
 
         let playlistPanel = TitledPanel(title: "Playlist", accessory: "Arrangement")
         let playlistScroll = NSScrollView()
@@ -1059,41 +1736,75 @@ final class MainWindowController: NSWindowController {
         toolbar.layer?.cornerRadius = 8
         toolbar.translatesAutoresizingMaskIntoConstraints = false
 
-        let tools = [
-            ("Select", "cursorarrow"),
-            ("Draw", "pencil"),
-            ("Brush", "paintbrush"),
-            ("Split", "scissors"),
-            ("Mute", "speaker.slash"),
-            ("Zoom", "plus.magnifyingglass")
-        ].map { title, symbol in
-            ClosureButton(title: title, symbol: symbol) { [weak self] in
-                self?.statusLabel.stringValue = "\(title) tool selected"
+        let views = WorkView.allCases.map { view in
+            ClosureButton(title: view.label, symbol: symbol(for: view)) { [weak self] in
+                self?.setWorkView(view)
+            }
+        }
+        views.forEach { button in
+            button.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        }
+
+        let tools = ToolId.allCases.map { tool in
+            ClosureButton(title: tool.label, symbol: symbol(for: tool)) { [weak self] in
+                self?.activeTool = tool
+                self?.statusLabel.stringValue = "\(tool.label) tool selected"
             }
         }
 
         tools.forEach { button in
-            button.heightAnchor.constraint(equalToConstant: 34).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 32).isActive = true
         }
 
-        let stack = NSStackView(views: tools)
-        stack.orientation = .horizontal
-        stack.spacing = 8
-        stack.alignment = .centerY
-        stack.translatesAutoresizingMaskIntoConstraints = false
+        let viewStack = NSStackView(views: views)
+        viewStack.orientation = .horizontal
+        viewStack.spacing = 8
+        viewStack.alignment = .centerY
+        viewStack.translatesAutoresizingMaskIntoConstraints = false
+
+        let toolStack = NSStackView(views: tools)
+        toolStack.orientation = .horizontal
+        toolStack.spacing = 8
+        toolStack.alignment = .centerY
+        toolStack.translatesAutoresizingMaskIntoConstraints = false
 
         let snap = makeLabel("Snap: 1/4   Loop: On   Scroll: vertical + horizontal", size: 11, weight: .bold, color: Palette.muted, mono: true)
 
-        toolbar.addSubview(stack)
+        toolbar.addSubview(viewStack)
+        toolbar.addSubview(toolStack)
         toolbar.addSubview(snap)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 12),
-            stack.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
+            viewStack.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 12),
+            viewStack.topAnchor.constraint(equalTo: toolbar.topAnchor, constant: 8),
+            toolStack.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 12),
+            toolStack.topAnchor.constraint(equalTo: viewStack.bottomAnchor, constant: 6),
             snap.trailingAnchor.constraint(equalTo: toolbar.trailingAnchor, constant: -14),
-            snap.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
-            snap.leadingAnchor.constraint(greaterThanOrEqualTo: stack.trailingAnchor, constant: 14)
+            snap.centerYAnchor.constraint(equalTo: toolStack.centerYAnchor),
+            snap.leadingAnchor.constraint(greaterThanOrEqualTo: toolStack.trailingAnchor, constant: 14)
         ])
         return toolbar
+    }
+
+    private func symbol(for view: WorkView) -> String {
+        switch view {
+        case .playlist: return "list.bullet.rectangle"
+        case .piano: return "pianokeys"
+        case .mixer: return "slider.horizontal.3"
+        case .plugins: return "bolt.horizontal"
+        case .sample: return "waveform"
+        case .recipe: return "checklist"
+        }
+    }
+
+    private func symbol(for tool: ToolId) -> String {
+        switch tool {
+        case .select: return "cursorarrow"
+        case .draw: return "pencil"
+        case .paint: return "paintbrush"
+        case .slice: return "scissors"
+        case .mute: return "speaker.slash"
+        case .erase: return "eraser"
+        }
     }
 
     private func makeRightColumn() -> NSView {
@@ -1124,19 +1835,35 @@ final class MainWindowController: NSWindowController {
         recipeView.translatesAutoresizingMaskIntoConstraints = false
         projectPanel.contentGuide.addSubview(recipeView)
 
-        let vocal = ClosureButton(title: "Vocal Lab", symbol: "waveform.badge.mic") { [weak self] in
-            self?.showVocalLabNotice()
+        let actionButtons: [ClosureButton] = [
+            ClosureButton(title: "New", symbol: "plus") { [weak self] in self?.createNewProject() },
+            ClosureButton(title: "Save", symbol: "square.and.arrow.down") { [weak self] in self?.saveCurrentProject(showStatus: true) },
+            ClosureButton(title: "Import", symbol: "folder.badge.plus") { [weak self] in self?.importProjectFile() },
+            ClosureButton(title: "Audio", symbol: "waveform.badge.plus") { [weak self] in self?.importAudioFile() },
+            ClosureButton(title: "Mixdown", symbol: "arrow.down.doc") { [weak self] in self?.exportMixdown() },
+            ClosureButton(title: "Backup", symbol: "doc.zipper") { [weak self] in self?.backupProjectFile() },
+            ClosureButton(title: "Vocal Lab", symbol: "wand.and.stars") { [weak self] in self?.runVocalLab() },
+            ClosureButton(title: "Delete", symbol: "trash") { [weak self] in self?.confirmDeleteCurrentProject() },
+            ClosureButton(title: "Rename", symbol: "text.cursor") { [weak self] in self?.renameProject() },
+            ClosureButton(title: "Reveal", symbol: "doc.text.magnifyingglass") { [weak self] in self?.revealCurrentProject() }
+        ]
+        actionButtons.forEach { button in
+            button.heightAnchor.constraint(equalToConstant: 32).isActive = true
         }
-        let reveal = ClosureButton(title: "Reveal JSON", symbol: "doc.text.magnifyingglass") { [weak self] in
-            self?.revealCurrentProject()
-        }
-        vocal.heightAnchor.constraint(equalToConstant: 34).isActive = true
-        reveal.heightAnchor.constraint(equalToConstant: 34).isActive = true
 
-        let actions = NSStackView(views: [vocal, reveal])
-        actions.orientation = .horizontal
+        let rows = stride(from: 0, to: actionButtons.count, by: 2).map { index -> NSStackView in
+            let row = NSStackView(views: Array(actionButtons[index..<min(index + 2, actionButtons.count)]))
+            row.orientation = .horizontal
+            row.alignment = .centerY
+            row.distribution = .fillEqually
+            row.spacing = 8
+            return row
+        }
+        let actions = NSStackView(views: rows)
+        actions.orientation = .vertical
         actions.alignment = .centerY
-        actions.spacing = 8
+        actions.distribution = .fillEqually
+        actions.spacing = 6
         actions.translatesAutoresizingMaskIntoConstraints = false
         projectPanel.contentGuide.addSubview(actions)
 
@@ -1149,7 +1876,7 @@ final class MainWindowController: NSWindowController {
             actions.trailingAnchor.constraint(equalTo: projectPanel.contentGuide.trailingAnchor),
             actions.bottomAnchor.constraint(equalTo: projectPanel.contentGuide.bottomAnchor)
         ])
-        projectPanel.heightAnchor.constraint(equalToConstant: 290).isActive = true
+        projectPanel.heightAnchor.constraint(equalToConstant: 360).isActive = true
 
         stack.addArrangedSubview(mixerPanel)
         stack.addArrangedSubview(projectPanel)
@@ -1163,6 +1890,27 @@ final class MainWindowController: NSWindowController {
         browserView.onProjectSelected = { [weak self] project in
             self?.open(project)
         }
+        channelRackView.onTrackSelected = { [weak self] trackId in
+            self?.selectTrack(trackId)
+        }
+        channelRackView.onStepToggle = { [weak self] trackId, step in
+            self?.toggleStep(trackId: trackId, step: step)
+        }
+        playlistView.onTrackSelected = { [weak self] trackId in
+            self?.selectTrack(trackId)
+        }
+        playlistView.onClipSelected = { [weak self] trackId, clipId in
+            self?.selectClip(trackId: trackId, clipId: clipId)
+        }
+        playlistView.onPianoNoteAdded = { [weak self] note in
+            self?.addPianoNote(note)
+        }
+        mixerView.onTrackSelected = { [weak self] trackId in
+            self?.selectTrack(trackId)
+        }
+        mixerView.onControlChanged = { [weak self] trackId, control in
+            self?.updateControl(trackId: trackId, control: control)
+        }
 
         if let first = projects.first {
             open(first)
@@ -1173,29 +1921,49 @@ final class MainWindowController: NSWindowController {
 
     private func open(_ project: LocalProject) {
         stop(updateStatus: false)
-        currentProject = project
-        browserView.selectedId = project.id
-        titleLabel.stringValue = project.name
+        currentProject = store.normalize(project)
+        undoStack.removeAll()
+        redoStack.removeAll()
+        activeWorkView = WorkView(rawValue: currentProject?.snapshot.activeView ?? "") ?? .playlist
+        selectedTrackId = currentProject?.snapshot.selectedTrackId ?? currentProject?.snapshot.tracks.first?.id ?? ""
+        selectedClipId = currentProject?.snapshot.selectedClipId ?? currentProject?.snapshot.tracks.flatMap { $0.clips ?? [] }.first?.id ?? ""
+        refreshProjectUI(status: "Opened \(currentProject?.name ?? project.name)")
+    }
 
+    private func refreshProjectUI(status: String? = nil) {
+        guard let project = currentProject else { return }
+        browserView.selectedId = project.id
+        browserView.projects = projects
+        titleLabel.stringValue = project.name
         let itemCount = project.snapshot.recipe?.count ?? 0
         subtitleLabel.stringValue = "\(Int(project.snapshot.bpm)) BPM  \(project.snapshot.tracks.count) tracks  \(itemCount) recipe items"
         projectReadout.value = project.name
         bpmReadout.value = "\(Int(project.snapshot.bpm))"
-        let totalBars = Int(maxClipEnd(project))
-        barReadout.value = "\(totalBars)"
+        barReadout.value = "\(Int(maxClipEnd(project)))"
         trackReadout.value = "\(project.snapshot.tracks.count)"
-        modeReadout.value = project.keyCenter ?? "Local"
+        modeReadout.value = project.snapshot.arrangementMode ?? project.keyCenter ?? "Song"
 
+        let controls = project.snapshot.controls ?? makeDefaultControls(for: project.snapshot.tracks)
         channelRackView.tracks = project.snapshot.tracks
+        channelRackView.selectedTrackId = selectedTrackId
         channelRackView.setFrameSize(channelRackView.intrinsicContentSize)
         playlistView.tracks = project.snapshot.tracks
+        playlistView.controls = controls
+        playlistView.notes = project.snapshot.notes ?? []
+        playlistView.recipe = project.snapshot.recipe ?? []
+        playlistView.workView = activeWorkView
+        playlistView.selectedTrackId = selectedTrackId
+        playlistView.selectedClipId = selectedClipId
         playlistView.setFrameSize(playlistView.intrinsicContentSize)
         mixerView.tracks = project.snapshot.tracks
+        mixerView.controls = controls
+        mixerView.selectedTrackId = selectedTrackId
         mixerView.setFrameSize(mixerView.intrinsicContentSize)
         automationScopeView.project = project
         recipeView.project = project
-
-        statusLabel.stringValue = "Opened \(project.name)"
+        if let status {
+            statusLabel.stringValue = status
+        }
     }
 
     private func maxClipEnd(_ project: LocalProject) -> Double {
@@ -1203,6 +1971,541 @@ final class MainWindowController: NSWindowController {
             .flatMap { $0.clips ?? [] }
             .map { ($0.startBar ?? 0) + ($0.bars ?? 0) }
             .max() ?? 64
+    }
+
+    private func mutateProject(_ status: String, pushHistory: Bool = true, _ update: (inout LocalProject) -> Void) {
+        guard var project = currentProject else { return }
+        if pushHistory {
+            undoStack.append(project)
+            if undoStack.count > 40 {
+                undoStack.removeFirst(undoStack.count - 40)
+            }
+            redoStack.removeAll()
+        }
+        update(&project)
+        project.updatedAt = nowISO()
+        project.snapshot.selectedTrackId = selectedTrackId
+        project.snapshot.selectedClipId = selectedClipId
+        project.snapshot.activeView = activeWorkView.rawValue
+        currentProject = store.normalize(project)
+        upsertCurrentProject()
+        refreshProjectUI(status: status)
+        scheduleAutosave()
+    }
+
+    private func upsertCurrentProject() {
+        guard let project = currentProject else { return }
+        projects = [project] + projects.filter { $0.id != project.id }
+        browserView.projects = projects
+        browserView.setFrameSize(browserView.intrinsicContentSize)
+    }
+
+    private func scheduleAutosave() {
+        autosaveTimer?.invalidate()
+        autosaveTimer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { [weak self] _ in
+            self?.saveCurrentProject(showStatus: false)
+        }
+    }
+
+    private func saveCurrentProject(showStatus: Bool) {
+        guard let project = currentProject else { return }
+        do {
+            let saved = try store.saveProject(project)
+            currentProject = saved
+            upsertCurrentProject()
+            if showStatus {
+                statusLabel.stringValue = "Saved \(saved.name)"
+            } else {
+                statusLabel.stringValue = "Autosaved \(saved.name)"
+            }
+        } catch {
+            statusLabel.stringValue = "Save failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func undo() {
+        guard let previous = undoStack.popLast(), let current = currentProject else {
+            statusLabel.stringValue = "Nothing to undo"
+            return
+        }
+        redoStack.append(current)
+        currentProject = previous
+        selectedTrackId = previous.snapshot.selectedTrackId ?? previous.snapshot.tracks.first?.id ?? ""
+        selectedClipId = previous.snapshot.selectedClipId ?? ""
+        activeWorkView = WorkView(rawValue: previous.snapshot.activeView ?? "") ?? activeWorkView
+        upsertCurrentProject()
+        refreshProjectUI(status: "Undo")
+        scheduleAutosave()
+    }
+
+    private func redo() {
+        guard let next = redoStack.popLast(), let current = currentProject else {
+            statusLabel.stringValue = "Nothing to redo"
+            return
+        }
+        undoStack.append(current)
+        currentProject = next
+        selectedTrackId = next.snapshot.selectedTrackId ?? next.snapshot.tracks.first?.id ?? ""
+        selectedClipId = next.snapshot.selectedClipId ?? ""
+        activeWorkView = WorkView(rawValue: next.snapshot.activeView ?? "") ?? activeWorkView
+        upsertCurrentProject()
+        refreshProjectUI(status: "Redo")
+        scheduleAutosave()
+    }
+
+    private func setWorkView(_ view: WorkView) {
+        activeWorkView = view
+        mutateProject("\(view.label) view", pushHistory: false) { project in
+            project.snapshot.activeView = view.rawValue
+        }
+    }
+
+    private func selectTrack(_ trackId: String) {
+        selectedTrackId = trackId
+        selectedClipId = ""
+        mutateProject("Selected \(trackId)", pushHistory: false) { project in
+            project.snapshot.selectedTrackId = trackId
+            project.snapshot.selectedClipId = ""
+        }
+    }
+
+    private func selectClip(trackId: String, clipId: String) {
+        selectedTrackId = trackId
+        selectedClipId = clipId
+        mutateProject("Selected clip", pushHistory: false) { project in
+            project.snapshot.selectedTrackId = trackId
+            project.snapshot.selectedClipId = clipId
+        }
+    }
+
+    private func toggleStep(trackId: String, step: Int) {
+        mutateProject("Toggled step \(step + 1)") { project in
+            guard let trackIndex = project.snapshot.tracks.firstIndex(where: { $0.id == trackId }) else { return }
+            var steps = project.snapshot.tracks[trackIndex].steps ?? []
+            if steps.contains(step) {
+                steps.removeAll { $0 == step }
+            } else {
+                steps.append(step)
+                steps.sort()
+            }
+            project.snapshot.tracks[trackIndex].steps = steps
+        }
+    }
+
+    private func updateControl(trackId: String, control: MixerControl) {
+        mutateProject("Updated mixer \(trackId)") { project in
+            var controls = project.snapshot.controls ?? makeDefaultControls(for: project.snapshot.tracks)
+            controls[trackId] = control
+            project.snapshot.controls = controls
+            if let trackIndex = project.snapshot.tracks.firstIndex(where: { $0.id == trackId }) {
+                project.snapshot.tracks[trackIndex].gain = control.gain
+                project.snapshot.tracks[trackIndex].pan = control.pan
+            }
+        }
+    }
+
+    private func addPianoNote(_ note: PianoNote) {
+        mutateProject("Added note") { project in
+            var notes = project.snapshot.notes ?? []
+            notes.append(note)
+            project.snapshot.notes = notes
+        }
+    }
+
+    private func deleteSelection() {
+        guard let project = currentProject else { return }
+        if !selectedClipId.isEmpty {
+            mutateProject("Deleted clip") { project in
+                for index in project.snapshot.tracks.indices {
+                    project.snapshot.tracks[index].clips = (project.snapshot.tracks[index].clips ?? []).filter { $0.id != selectedClipId }
+                }
+                selectedClipId = ""
+                project.snapshot.selectedClipId = ""
+            }
+            return
+        }
+        if activeWorkView == .piano, !(project.snapshot.notes ?? []).isEmpty {
+            mutateProject("Deleted last note") { project in
+                project.snapshot.notes?.removeLast()
+            }
+            return
+        }
+        if !selectedTrackId.isEmpty, project.snapshot.tracks.count > 1 {
+            let deletingId = selectedTrackId
+            mutateProject("Deleted track") { project in
+                project.snapshot.tracks.removeAll { $0.id == deletingId }
+                project.snapshot.controls?[deletingId] = nil
+                selectedTrackId = project.snapshot.tracks.first?.id ?? ""
+                selectedClipId = ""
+                project.snapshot.selectedTrackId = selectedTrackId
+                project.snapshot.selectedClipId = ""
+            }
+            return
+        }
+        statusLabel.stringValue = "Nothing selected"
+    }
+
+    private func createBlankProject(name: String) -> LocalProject {
+        let now = nowISO()
+        let track = Track(
+            id: "audio-1",
+            name: "Audio 1",
+            kind: "audio",
+            file: nil,
+            color: "#60c8f8",
+            gain: 0.82,
+            pan: 0,
+            steps: [],
+            instrument: "Sampler",
+            clips: [],
+            effects: [
+                Effect(id: "eq", name: "EQ Eight", active: false, amount: 0.35),
+                Effect(id: "comp", name: "Compressor", active: false, amount: 0.35)
+            ]
+        )
+        let snapshot = ProjectSnapshot(
+            version: 3,
+            bpm: 142,
+            swing: 0,
+            snap: "1/4",
+            loopEnabled: false,
+            loopStartBar: 0,
+            loopEndBar: 16,
+            tracks: [track],
+            controls: makeDefaultControls(for: [track]),
+            notes: [],
+            selectedTrackId: track.id,
+            selectedClipId: "",
+            activeView: WorkView.playlist.rawValue,
+            patternIndex: 1,
+            arrangementMode: "song",
+            recipe: []
+        )
+        return LocalProject(
+            id: makeId("project"),
+            name: name,
+            createdAt: now,
+            updatedAt: now,
+            projectFile: nil,
+            assets: nil,
+            description: "Native Neon Studio project",
+            keyCenter: nil,
+            snapshot: snapshot
+        )
+    }
+
+    private func createNewProject() {
+        let project = createBlankProject(name: "Untitled \(projects.count + 1)")
+        do {
+            currentProject = try store.saveProject(project)
+            projects = store.loadProjects()
+            open(currentProject!)
+            statusLabel.stringValue = "Created \(project.name)"
+        } catch {
+            statusLabel.stringValue = "Create failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func renameProject() {
+        guard let project = currentProject else { return }
+        let alert = NSAlert()
+        alert.messageText = "Rename Project"
+        alert.informativeText = "Project names are saved into the local .neon.json file."
+        let field = NSTextField(string: project.name)
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        mutateProject("Renamed \(name)") { item in
+            item.name = name
+        }
+    }
+
+    private func importProjectFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Import a portable .neon.json project."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let imported = try store.importProject(from: url)
+            projects = store.loadProjects()
+            open(imported)
+            statusLabel.stringValue = "Imported \(url.lastPathComponent)"
+        } catch {
+            statusLabel.stringValue = "Import failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func importAudioFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.audio]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Import an audio file as a new track."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let id = makeId("sample")
+        let name = url.deletingPathExtension().lastPathComponent
+        let color = "#9ef0c0"
+        let track = Track(
+            id: id,
+            name: String(name.prefix(28)),
+            kind: "audio",
+            file: url.path,
+            color: color,
+            gain: 0.82,
+            pan: 0,
+            steps: [0, 8],
+            instrument: "Imported Audio",
+            clips: [Clip(id: "\(id)-clip", name: url.lastPathComponent, startBar: 0, bars: 8, lane: id, color: color, type: "audio")],
+            effects: [
+                Effect(id: "eq", name: "EQ Eight", active: false, amount: 0.35),
+                Effect(id: "comp", name: "Compressor", active: false, amount: 0.35)
+            ]
+        )
+        selectedTrackId = id
+        mutateProject("Imported \(url.lastPathComponent)") { project in
+            project.snapshot.tracks.append(track)
+            var controls = project.snapshot.controls ?? makeDefaultControls(for: project.snapshot.tracks)
+            controls[id] = MixerControl(gain: 0.82, pan: 0, mute: false, solo: false, arm: false, sendA: 0, sendB: 0)
+            project.snapshot.controls = controls
+            project.snapshot.selectedTrackId = id
+        }
+    }
+
+    private func backupProjectFile() {
+        guard let project = currentProject else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "\(safeProjectId(project.name.lowercased())).neon.json"
+        panel.message = "Export a portable .neon.json project file."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try store.exportProject(project, to: url)
+            statusLabel.stringValue = "Project backup exported"
+        } catch {
+            statusLabel.stringValue = "Backup failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func exportMixdown() {
+        guard let project = currentProject else { return }
+        guard let source = store.fullMixURL(for: project) else {
+            statusLabel.stringValue = "No rendered full mix exists yet"
+            return
+        }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.wav]
+        panel.nameFieldStringValue = "\(safeProjectId(project.name.lowercased()))-mixdown.wav"
+        panel.message = "Export the rendered mixdown WAV."
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        do {
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: source, to: destination)
+            statusLabel.stringValue = "Mixdown exported"
+        } catch {
+            statusLabel.stringValue = "Mixdown failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func confirmDeleteCurrentProject() {
+        guard let project = currentProject else { return }
+        let alert = NSAlert()
+        alert.messageText = "Delete \(project.name)?"
+        alert.informativeText = "This removes the local project file. If this is a factory project, it is hidden by the shared deleted-project marker."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try store.deleteProject(project)
+            projects = store.loadProjects()
+            currentProject = nil
+            if let first = projects.first {
+                open(first)
+            } else {
+                refreshProjectUI(status: "Project deleted")
+            }
+            statusLabel.stringValue = "Project deleted"
+        } catch {
+            statusLabel.stringValue = "Delete failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func showProjectManager() {
+        let alert = NSAlert()
+        alert.messageText = "Projects"
+        alert.informativeText = projects.map { "\($0.name)  -  \(Int($0.snapshot.bpm)) BPM, \($0.snapshot.tracks.count) tracks" }.joined(separator: "\n")
+        alert.addButton(withTitle: "New Project")
+        alert.addButton(withTitle: "Import")
+        alert.addButton(withTitle: "OK")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            createNewProject()
+        } else if response == .alertSecondButtonReturn {
+            importProjectFile()
+        }
+    }
+
+    private func toggleRecording() {
+        isRecording ? stopRecording() : startRecording()
+    }
+
+    private func startRecording() {
+        let inbox = store.rootURL.appendingPathComponent("vocal_inbox")
+        try? FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+        let url = inbox.appendingPathComponent("native_recording_\(timestampForId()).wav")
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: 44_100,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false
+        ]
+        do {
+            audioRecorder = try AVAudioRecorder(url: url, settings: settings)
+            audioRecorder?.prepareToRecord()
+            audioRecorder?.record()
+            recordingURL = url
+            isRecording = true
+            statusLabel.stringValue = "Recording"
+        } catch {
+            statusLabel.stringValue = "Recording failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func stopRecording() {
+        audioRecorder?.stop()
+        audioRecorder = nil
+        isRecording = false
+        guard let url = recordingURL else {
+            statusLabel.stringValue = "Recording stopped"
+            return
+        }
+        addAudioTrack(from: url, name: "Recording", color: "#f59fcb", instrument: "Audio Input", startBar: 0, status: "Recording captured")
+    }
+
+    private func runVocalLab() {
+        guard let project = currentProject else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.audio]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Choose raw singing audio. The native app converts it to WAV, splits silences, tunes it, and aligns it to the current project."
+        guard panel.runModal() == .OK, let inputURL = panel.url else { return }
+
+        let inbox = store.rootURL.appendingPathComponent("vocal_inbox")
+        let exports = store.rootURL.appendingPathComponent("exports")
+        try? FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: exports, withIntermediateDirectories: true)
+        let stem = safeProjectId(inputURL.deletingPathExtension().lastPathComponent.lowercased())
+        let stamp = timestampForId()
+        let rawWav = inbox.appendingPathComponent("\(stamp)_\(stem).wav")
+        let output = exports.appendingPathComponent("vocal_\(stamp)_\(stem).wav")
+
+        statusLabel.stringValue = "Preparing vocal"
+        do {
+            _ = try runProcess(
+                executable: URL(fileURLWithPath: "/usr/bin/afconvert"),
+                arguments: ["-f", "WAVE", "-d", "LEI16@44100", inputURL.path, rawWav.path]
+            )
+            statusLabel.stringValue = "Auto-tuning vocal"
+            let stdout = try runProcess(
+                executable: URL(fileURLWithPath: "/usr/bin/python3"),
+                arguments: [
+                    store.rootURL.appendingPathComponent("tools/vocal_autotune.py").path,
+                    "--input", rawWav.path,
+                    "--output", output.path,
+                    "--name", inputURL.lastPathComponent,
+                    "--bpm", "\(project.snapshot.bpm)",
+                    "--start-bar", "\(Int(project.snapshot.loopStartBar ?? 16) + 1)",
+                    "--total-bars", "72",
+                    "--key", (project.keyCenter ?? "e_minor").lowercased().replacingOccurrences(of: " / ", with: "_").replacingOccurrences(of: " ", with: "_")
+                ]
+            )
+            let analysis = parseLastJSONLine(stdout)
+            let segments = analysis["segments"] as? Int ?? 1
+            addAudioTrack(
+                from: output,
+                name: "Vocal \(stem.replacingOccurrences(of: "_", with: " "))",
+                color: "#f59fcb",
+                instrument: "AutoTune Vocal Chain",
+                startBar: max(0, project.snapshot.loopStartBar ?? 16),
+                status: "Vocal tuned: \(segments) segment\(segments == 1 ? "" : "s")"
+            )
+        } catch {
+            statusLabel.stringValue = "Vocal Lab failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func addAudioTrack(from url: URL, name: String, color: String, instrument: String, startBar: Double, status: String) {
+        let id = makeId(name.lowercased().contains("vocal") ? "vocal" : "audio")
+        let duration = (try? AVAudioPlayer(contentsOf: url))?.duration ?? 16
+        let bars = max(1, ceil(duration / (((currentProject?.snapshot.bpm ?? 142) > 0 ? 60 / (currentProject?.snapshot.bpm ?? 142) : 0.42) * 4)))
+        let track = Track(
+            id: id,
+            name: String(name.prefix(28)),
+            kind: "audio",
+            file: url.path,
+            color: color,
+            gain: 0.86,
+            pan: 0,
+            steps: [0, 4, 8, 12],
+            instrument: instrument,
+            clips: [Clip(id: "\(id)-clip", name: url.lastPathComponent, startBar: startBar, bars: bars, lane: id, color: color, type: "audio")],
+            effects: [
+                Effect(id: "autotune", name: instrument.contains("AutoTune") ? "Scale AutoTune" : "EQ Eight", active: instrument.contains("AutoTune"), amount: 0.82),
+                Effect(id: "comp", name: "Compressor", active: true, amount: 0.58),
+                Effect(id: "delay", name: "Stereo Delay", active: instrument.contains("Vocal"), amount: 0.34)
+            ]
+        )
+        selectedTrackId = id
+        selectedClipId = "\(id)-clip"
+        activeWorkView = .playlist
+        mutateProject(status) { project in
+            project.snapshot.tracks.append(track)
+            var controls = project.snapshot.controls ?? makeDefaultControls(for: project.snapshot.tracks)
+            controls[id] = MixerControl(gain: 0.86, pan: 0, mute: false, solo: false, arm: false, sendA: 0.26, sendB: 0.18)
+            project.snapshot.controls = controls
+            project.snapshot.selectedTrackId = id
+            project.snapshot.selectedClipId = "\(id)-clip"
+            project.snapshot.activeView = WorkView.playlist.rawValue
+        }
+    }
+
+    private func runProcess(executable: URL, arguments: [String]) throws -> String {
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = arguments
+        process.currentDirectoryURL = store.rootURL
+        let output = Pipe()
+        let error = Pipe()
+        process.standardOutput = output
+        process.standardError = error
+        try process.run()
+        process.waitUntilExit()
+        let stdout = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let stderr = String(data: error.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        if process.terminationStatus != 0 {
+            throw NSError(domain: "NeonStudio", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: stderr.isEmpty ? "Process failed" : stderr])
+        }
+        return stdout
+    }
+
+    private func parseLastJSONLine(_ stdout: String) -> [String: Any] {
+        guard let line = stdout.split(separator: "\n").last,
+              let data = String(line).data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return [:]
+        }
+        return object
     }
 
     private func togglePlayback() {
@@ -1216,7 +2519,13 @@ final class MainWindowController: NSWindowController {
         }
 
         stop(updateStatus: false)
+        let controls = project.snapshot.controls ?? makeDefaultControls(for: project.snapshot.tracks)
+        let soloActive = controls.values.contains { $0.solo }
         for track in project.snapshot.tracks {
+            let control = controls[track.id] ?? MixerControl(gain: track.gain ?? 0.75, pan: track.pan ?? 0, mute: false, solo: false, arm: false, sendA: 0.15, sendB: 0.08)
+            if control.mute || (soloActive && !control.solo) {
+                continue
+            }
             guard let url = store.audioURL(for: track),
                   FileManager.default.fileExists(atPath: url.path) else {
                 continue
@@ -1224,8 +2533,8 @@ final class MainWindowController: NSWindowController {
 
             do {
                 let player = try AVAudioPlayer(contentsOf: url)
-                player.volume = Float(max(0, min(track.gain ?? 0.75, 1.4)))
-                player.pan = Float(max(-1, min(track.pan ?? 0, 1)))
+                player.volume = Float(max(0, min(control.gain, 1.4)))
+                player.pan = Float(max(-1, min(control.pan, 1)))
                 player.prepareToPlay()
                 player.play()
                 players.append(player)
@@ -1236,7 +2545,7 @@ final class MainWindowController: NSWindowController {
 
         isPlaying = !players.isEmpty
         playButton.title = isPlaying ? "Stop" : "Play"
-        playButton.image = NSImage(systemSymbolName: isPlaying ? "stop.fill" : "play.fill", accessibilityDescription: playButton.title)
+        playButton.image = nil
         statusLabel.stringValue = players.isEmpty ? "No audio stems found" : "Playing \(players.count) stems"
     }
 
@@ -1248,7 +2557,7 @@ final class MainWindowController: NSWindowController {
         players.removeAll()
         isPlaying = false
         playButton.title = "Play"
-        playButton.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: "Play")
+        playButton.image = nil
         if updateStatus, currentProject != nil {
             statusLabel.stringValue = "Stopped"
         }
@@ -1268,24 +2577,18 @@ final class MainWindowController: NSWindowController {
         }
     }
 
-    private func showVocalLabNotice() {
-        let alert = NSAlert()
-        alert.messageText = "Vocal Lab"
-        alert.informativeText = "The web app has the automatic vocal upload/tune flow. This native shell loads the same projects and stems; the next native step is wiring the same Python vocal processor into this panel."
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
-
     private func showHelp() {
         let alert = NSAlert()
         alert.messageText = "Neon Studio Shortcuts"
         alert.informativeText = """
         Space: Play or stop
+        Cmd+S: Save
         Cmd+H: Open this help menu
         Cmd+R: Return to bar 1
-        Cmd+Z / Shift+Cmd+Z: Undo and redo placeholders
+        Cmd+Z / Shift+Cmd+Z: Undo and redo
+        Delete: Delete selected clip, note, or track
 
-        Panels use native split dividers, and the playlist, mixer, and channel rack scroll vertically and horizontally.
+        Project actions export mixdowns, backup .neon.json files, import audio/projects, record audio, and run Vocal Lab.
         """
         alert.addButton(withTitle: "OK")
         alert.runModal()
@@ -1301,17 +2604,29 @@ final class MainWindowController: NSWindowController {
                 self.showHelp()
                 return nil
             }
+            if flags.contains(.command), key == "s" {
+                self.saveCurrentProject(showStatus: true)
+                return nil
+            }
             if flags.contains(.command), key == "r" {
                 self.stop()
                 self.statusLabel.stringValue = "Returned to bar 1"
                 return nil
             }
             if flags.contains(.command), key == "z" {
-                self.statusLabel.stringValue = flags.contains(.shift) ? "Redo stack ready for project edits" : "Undo stack ready for project edits"
+                flags.contains(.shift) ? self.redo() : self.undo()
+                return nil
+            }
+            if flags.contains(.command), key == "y" {
+                self.redo()
                 return nil
             }
             if event.keyCode == 49 {
                 self.togglePlayback()
+                return nil
+            }
+            if event.keyCode == 51 || event.keyCode == 117 {
+                self.deleteSelection()
                 return nil
             }
             return event
@@ -1324,21 +2639,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenu()
-        let bundleURL = Bundle.main.bundleURL
-        let rootURL = bundleURL
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
+        let rootURL = prepareSupportRoot()
 
         let controller = MainWindowController(store: ProjectStore(rootURL: rootURL))
         windowController = controller
         controller.window?.center()
         controller.showWindow(nil)
+        controller.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    private func prepareSupportRoot() -> URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Neon Studio", isDirectory: true)
+        try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+
+        guard let seed = Bundle.main.resourceURL?.appendingPathComponent("seed", isDirectory: true) else {
+            return support
+        }
+        copySeedDirectory("public", from: seed, to: support)
+        copySeedDirectory("data", from: seed, to: support)
+        copySeedDirectory("exports", from: seed, to: support)
+        copySeedDirectory("tools", from: seed, to: support)
+        return support
+    }
+
+    private func copySeedDirectory(_ name: String, from seed: URL, to support: URL) {
+        let source = seed.appendingPathComponent(name, isDirectory: true)
+        let destination = support.appendingPathComponent(name, isDirectory: true)
+        guard FileManager.default.fileExists(atPath: source.path) else { return }
+        if !FileManager.default.fileExists(atPath: destination.path) {
+            try? FileManager.default.copyItem(at: source, to: destination)
+            return
+        }
+        copyMissingContents(from: source, to: destination)
+    }
+
+    private func copyMissingContents(from source: URL, to destination: URL) {
+        guard let urls = try? FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey]) else {
+            return
+        }
+        for item in urls {
+            let target = destination.appendingPathComponent(item.lastPathComponent)
+            var isDirectory: ObjCBool = false
+            let exists = FileManager.default.fileExists(atPath: target.path, isDirectory: &isDirectory)
+            if exists {
+                let values = try? item.resourceValues(forKeys: [.isDirectoryKey])
+                if values?.isDirectory == true {
+                    copyMissingContents(from: item, to: target)
+                }
+                continue
+            }
+            try? FileManager.default.copyItem(at: item, to: target)
+        }
     }
 
     private func installMenu() {
