@@ -3,7 +3,7 @@
 # Dependencies
 node_modules/
 
-# Next.js build output
+# Local app build output
 .next/
 out/
 

@@ -1,0 +1,289 @@
+{
+  "schemaVersion": 1,
+  "projectId": "transcript-demo",
+  "titleHint": "Down So This Song Starts Out With A Simple Chord Progression",
+  "sourcePrompt": null,
+  "wordCount": 192,
+  "timecoded": true,
+  "segmentCount": 6,
+  "sectionCount": 5,
+  "durationHintSeconds": 322,
+  "tempoHint": null,
+  "keyHints": [],
+  "sections": [
+    {
+      "id": "section-01",
+      "type": "production_notes",
+      "label": "Production Notes",
+      "startSeconds": 0,
+      "endSeconds": 0,
+      "timecodeStart": "0:00",
+      "timecodeEnd": "0:00",
+      "summary": "hey guys in this video I am going to show you how to make EDM music like marshmello",
+      "excerpt": "hey guys in this video I am going to show you how to make EDM music like marshmello",
+      "sourceSegmentCount": 1,
+      "trackRoles": [],
+      "plugins": [],
+      "techniques": []
+    },
+    {
+      "id": "section-02",
+      "type": "intro",
+      "label": "Intro",
+      "startSeconds": 23,
+      "endSeconds": 89,
+      "timecodeStart": "0:23",
+      "timecodeEnd": "1:29",
+      "summary": "create a song in his style by remaking his song Down so this song starts out with a simple chord progression with a simple melody so also in the intro we just have some simple white noise and a clap to take us into the verse",
+      "excerpt": "create a song in his style by remaking his song Down so this song starts out with a simple chord progression with a simple melody so also in the intro we just have some simple white noise and a clap to take us into the verse",
+      "sourceSegmentCount": 2,
+      "trackRoles": [
+        "chords",
+        "clap",
+        "noise"
+      ],
+      "plugins": [],
+      "techniques": []
+    },
+    {
+      "id": "section-03",
+      "type": "verse",
+      "label": "Verse",
+      "startSeconds": 124,
+      "endSeconds": 124,
+      "timecodeStart": "2:04",
+      "timecodeEnd": "2:04",
+      "summary": "moving on to the verse of the song we now have this guitar bass kind of sound and together they sound like this kind of a simple trap beat with kick drum snare sounds and hi-hat",
+      "excerpt": "moving on to the verse of the song we now have this guitar bass kind of sound and together they sound like this kind of a simple trap beat with kick drum snare sounds and hi-hat",
+      "sourceSegmentCount": 1,
+      "trackRoles": [
+        "bass",
+        "drums",
+        "guitar",
+        "hat",
+        "kick",
+        "snare"
+      ],
+      "plugins": [],
+      "techniques": []
+    },
+    {
+      "id": "section-04",
+      "type": "build",
+      "label": "Build",
+      "startSeconds": 200,
+      "endSeconds": 200,
+      "timecodeStart": "3:20",
+      "timecodeEnd": "3:20",
+      "summary": "now for the build up this is where we switch things up we got build up drums some snares and some claps different kick down lifters risers and then I have this filter that I automated",
+      "excerpt": "now for the build up this is where we switch things up we got build up drums some snares and some claps different kick down lifters risers and then I have this filter that I automated",
+      "sourceSegmentCount": 1,
+      "trackRoles": [
+        "clap",
+        "downlifter",
+        "drums",
+        "hat",
+        "kick",
+        "riser",
+        "snare"
+      ],
+      "plugins": [],
+      "techniques": [
+        "automation",
+        "filtering"
+      ]
+    },
+    {
+      "id": "section-05",
+      "type": "drop",
+      "label": "Drop",
+      "startSeconds": 322,
+      "endSeconds": 322,
+      "timecodeStart": "5:22",
+      "timecodeEnd": "5:22",
+      "summary": "for the drop we have the drop leads the drop bass and the sub bass for the drums we just have a simple trap beat with kick drum some snares and claps and then a fast hi-hat some crashes and a crowd effect which is side chain to the kick",
+      "excerpt": "for the drop we have the drop leads the drop bass and the sub bass for the drums we just have a simple trap beat with kick drum some snares and claps and then a fast hi-hat some crashes and a crowd effect which is side chain to the kick",
+      "sourceSegmentCount": 1,
+      "trackRoles": [
+        "bass",
+        "clap",
+        "crash",
+        "crowd",
+        "drums",
+        "fx",
+        "hat",
+        "kick",
+        "lead",
+        "snare",
+        "sub"
+      ],
+      "plugins": [],
+      "techniques": [
+        "sidechain"
+      ]
+    }
+  ],
+  "globalTracks": [
+    {
+      "name": "clap",
+      "mentions": 3,
+      "sections": [
+        "section-02",
+        "section-04",
+        "section-05"
+      ]
+    },
+    {
+      "name": "drums",
+      "mentions": 3,
+      "sections": [
+        "section-03",
+        "section-04",
+        "section-05"
+      ]
+    },
+    {
+      "name": "hat",
+      "mentions": 3,
+      "sections": [
+        "section-03",
+        "section-04",
+        "section-05"
+      ]
+    },
+    {
+      "name": "kick",
+      "mentions": 3,
+      "sections": [
+        "section-03",
+        "section-04",
+        "section-05"
+      ]
+    },
+    {
+      "name": "snare",
+      "mentions": 3,
+      "sections": [
+        "section-03",
+        "section-04",
+        "section-05"
+      ]
+    },
+    {
+      "name": "bass",
+      "mentions": 2,
+      "sections": [
+        "section-03",
+        "section-05"
+      ]
+    },
+    {
+      "name": "chords",
+      "mentions": 1,
+      "sections": [
+        "section-02"
+      ]
+    },
+    {
+      "name": "noise",
+      "mentions": 1,
+      "sections": [
+        "section-02"
+      ]
+    },
+    {
+      "name": "guitar",
+      "mentions": 1,
+      "sections": [
+        "section-03"
+      ]
+    },
+    {
+      "name": "downlifter",
+      "mentions": 1,
+      "sections": [
+        "section-04"
+      ]
+    },
+    {
+      "name": "riser",
+      "mentions": 1,
+      "sections": [
+        "section-04"
+      ]
+    },
+    {
+      "name": "crash",
+      "mentions": 1,
+      "sections": [
+        "section-05"
+      ]
+    },
+    {
+      "name": "crowd",
+      "mentions": 1,
+      "sections": [
+        "section-05"
+      ]
+    },
+    {
+      "name": "fx",
+      "mentions": 1,
+      "sections": [
+        "section-05"
+      ]
+    },
+    {
+      "name": "lead",
+      "mentions": 1,
+      "sections": [
+        "section-05"
+      ]
+    },
+    {
+      "name": "sub",
+      "mentions": 1,
+      "sections": [
+        "section-05"
+      ]
+    }
+  ],
+  "globalPlugins": [],
+  "globalTechniques": [
+    {
+      "name": "automation",
+      "mentions": 1
+    },
+    {
+      "name": "filtering",
+      "mentions": 1
+    },
+    {
+      "name": "sidechain",
+      "mentions": 1
+    }
+  ],
+  "arrangementNotes": [
+    "so also in the intro we just have some simple white noise and a clap to take us into the verse",
+    "moving on to the verse of the song we now have this guitar bass kind of sound and together they sound like this kind of a simple trap beat with kick drum snare sounds and hi-hat",
+    "now for the build up this is where we switch things up we got build up drums some snares and some claps different kick down lifters risers and then I have this filter that I automated",
+    "for the drop we have the drop leads the drop bass and the sub bass for the drums we just have a simple trap beat with kick drum some snares and claps and then a fast hi-hat some crashes and a crowd effect which is side chain to the kick"
+  ],
+  "mixNotes": [],
+  "automationNotes": [
+    "now for the build up this is where we switch things up we got build up drums some snares and some claps different kick down lifters risers and then I have this filter that I automated"
+  ],
+  "coverageChecklist": [
+    "Production Notes: no concrete track roles detected",
+    "Intro: chords, clap, noise",
+    "Verse: bass, drums, guitar, hat, kick, snare",
+    "Build: clap, downlifter, drums, hat, kick, riser",
+    "Drop: bass, clap, crash, crowd, drums, fx",
+    "Global track roles: clap, drums, hat, kick, snare, bass, chords, noise, guitar, downlifter"
+  ],
+  "openQuestions": [
+    "Transcript does not explicitly state a BPM.",
+    "Transcript does not clearly state the key."
+  ],
+  "derivedPrompt": "Convert the production walkthrough for Down So This Song Starts Out With A Simple Chord Progression into an original Neon Studio project. Carry over the described arrangement (Production Notes, Intro, Verse, Build, Drop), track roles (clap, drums, hat, kick, snare, bass), and production techniques, but keep the result original and portable."
+}

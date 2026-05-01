@@ -1,0 +1,1882 @@
+{
+  "format": "neon-studio-project",
+  "formatVersion": 1,
+  "portable": true,
+  "id": "neon-solitude",
+  "name": "Neon Solitude",
+  "createdAt": "2026-04-20T01:44:02.666Z",
+  "updatedAt": "2026-04-23T18:48:13.811Z",
+  "snapshot": {
+    "version": 3,
+    "bpm": 142,
+    "swing": 18,
+    "snap": "1/4",
+    "loopEnabled": true,
+    "loopStartBar": 16,
+    "loopEndBar": 32,
+    "tracks": [
+      {
+        "id": "drums",
+        "name": "Drums",
+        "kind": "audio",
+        "instrument": "Sampler",
+        "gain": 0.78,
+        "pan": 0.0,
+        "steps": [
+          0,
+          3,
+          6,
+          8,
+          11,
+          14
+        ],
+        "effects": [
+          {
+            "id": "eq",
+            "name": "EQ Eight",
+            "active": true,
+            "amount": 0.5
+          },
+          {
+            "id": "bus-comp",
+            "name": "Bus Comp",
+            "active": true,
+            "amount": 0.56
+          },
+          {
+            "id": "soft-clip",
+            "name": "Soft Clip",
+            "active": true,
+            "amount": 0.38
+          }
+        ],
+        "clips": [
+          {
+            "id": "drums-8a",
+            "name": "Verse drums",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "drums",
+            "color": "#ff8d5c",
+            "type": "audio"
+          },
+          {
+            "id": "drums-8b",
+            "name": "Marsh rhythm kick",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "drums",
+            "color": "#ff8d5c",
+            "type": "pattern"
+          },
+          {
+            "id": "drums-8c",
+            "name": "Snare + clap backbeat",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "drums",
+            "color": "#ff8d5c",
+            "type": "pattern"
+          },
+          {
+            "id": "drums-8d",
+            "name": "Trap hi-hat",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "drums",
+            "color": "#ff8d5c",
+            "type": "pattern"
+          },
+          {
+            "id": "drums-16",
+            "name": "Drop drums",
+            "startBar": 16,
+            "bars": 16,
+            "lane": "drums",
+            "color": "#ff8d5c",
+            "type": "audio"
+          },
+          {
+            "id": "drums-40a",
+            "name": "Build drums",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "drums",
+            "color": "#ff8d5c",
+            "type": "audio"
+          },
+          {
+            "id": "drums-40b",
+            "name": "Build different kick",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "drums",
+            "color": "#ff8d5c",
+            "type": "pattern"
+          },
+          {
+            "id": "drums-40c",
+            "name": "Build snare/clap roll",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "drums",
+            "color": "#ff8d5c",
+            "type": "pattern"
+          },
+          {
+            "id": "drums-48",
+            "name": "Final drums",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "drums",
+            "color": "#ff8d5c",
+            "type": "audio"
+          }
+        ],
+        "color": "#ff8d5c",
+        "file": "/api/audio/neon_solitude_drums.wav"
+      },
+      {
+        "id": "bass",
+        "name": "Bass",
+        "kind": "audio",
+        "instrument": "Sub Synth",
+        "gain": 0.9,
+        "pan": 0.0,
+        "steps": [
+          0,
+          6,
+          10,
+          13
+        ],
+        "effects": [
+          {
+            "id": "eq",
+            "name": "Low Cut EQ",
+            "active": true,
+            "amount": 0.44
+          },
+          {
+            "id": "duck",
+            "name": "Sidechain",
+            "active": true,
+            "amount": 0.6
+          },
+          {
+            "id": "sat",
+            "name": "Saturator",
+            "active": true,
+            "amount": 0.38
+          }
+        ],
+        "clips": [
+          {
+            "id": "bass-8",
+            "name": "Verse bass",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "bass",
+            "color": "#4ade80",
+            "type": "audio"
+          },
+          {
+            "id": "bass-16a",
+            "name": "Drop bass",
+            "startBar": 16,
+            "bars": 16,
+            "lane": "bass",
+            "color": "#4ade80",
+            "type": "audio"
+          },
+          {
+            "id": "bass-16b",
+            "name": "Fat drop bass",
+            "startBar": 16,
+            "bars": 16,
+            "lane": "bass",
+            "color": "#4ade80",
+            "type": "pattern"
+          },
+          {
+            "id": "bass-40",
+            "name": "Rendered/frozen build bass",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "bass",
+            "color": "#4ade80",
+            "type": "pattern"
+          },
+          {
+            "id": "bass-48",
+            "name": "Final bass",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "bass",
+            "color": "#4ade80",
+            "type": "audio"
+          }
+        ],
+        "color": "#45d18e",
+        "file": "/api/audio/neon_solitude_bass.wav"
+      },
+      {
+        "id": "chords",
+        "name": "Chords",
+        "kind": "audio",
+        "instrument": "Supersaw",
+        "gain": 1.0,
+        "pan": -0.04,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "effects": [
+          {
+            "id": "eq",
+            "name": "EQ Eight",
+            "active": true,
+            "amount": 0.72
+          },
+          {
+            "id": "delay",
+            "name": "Ping Delay",
+            "active": true,
+            "amount": 0.34
+          },
+          {
+            "id": "verb",
+            "name": "Reverb",
+            "active": true,
+            "amount": 0.46
+          }
+        ],
+        "clips": [
+          {
+            "id": "chords-0",
+            "name": "Simple happy chord progression",
+            "startBar": 0,
+            "bars": 16,
+            "lane": "chords",
+            "color": "#ffd166",
+            "type": "audio"
+          },
+          {
+            "id": "chords-16",
+            "name": "Drop stabs",
+            "startBar": 16,
+            "bars": 16,
+            "lane": "chords",
+            "color": "#ffd166",
+            "type": "audio"
+          },
+          {
+            "id": "chords-40",
+            "name": "Build pad",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "chords",
+            "color": "#ffd166",
+            "type": "audio"
+          },
+          {
+            "id": "chords-48",
+            "name": "Final stabs",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "chords",
+            "color": "#ffd166",
+            "type": "audio"
+          },
+          {
+            "id": "chords-64",
+            "name": "Outro pad",
+            "startBar": 64,
+            "bars": 8,
+            "lane": "chords",
+            "color": "#ffd166",
+            "type": "audio"
+          }
+        ],
+        "color": "#ffcd5a",
+        "file": "/api/audio/neon_solitude_chords.wav"
+      },
+      {
+        "id": "lead",
+        "name": "Lead",
+        "kind": "audio",
+        "instrument": "Square Lead",
+        "gain": 1.0,
+        "pan": 0.06,
+        "steps": [
+          0,
+          2,
+          5,
+          7,
+          10,
+          12,
+          15
+        ],
+        "effects": [
+          {
+            "id": "eq",
+            "name": "EQ Eight",
+            "active": true,
+            "amount": 0.66
+          },
+          {
+            "id": "delay",
+            "name": "Stereo Delay",
+            "active": true,
+            "amount": 0.48
+          },
+          {
+            "id": "plate",
+            "name": "Plate",
+            "active": true,
+            "amount": 0.42
+          }
+        ],
+        "clips": [
+          {
+            "id": "lead-4",
+            "name": "Simple happy intro melody",
+            "startBar": 4,
+            "bars": 12,
+            "lane": "lead",
+            "color": "#6fd6ff",
+            "type": "audio"
+          },
+          {
+            "id": "lead-16",
+            "name": "Filled-in drop lead",
+            "startBar": 16,
+            "bars": 16,
+            "lane": "lead",
+            "color": "#6fd6ff",
+            "type": "audio"
+          },
+          {
+            "id": "lead-32",
+            "name": "Break hook",
+            "startBar": 32,
+            "bars": 8,
+            "lane": "lead",
+            "color": "#6fd6ff",
+            "type": "audio"
+          },
+          {
+            "id": "lead-48",
+            "name": "Final filled-in hook",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "lead",
+            "color": "#6fd6ff",
+            "type": "audio"
+          }
+        ],
+        "color": "#60c8f8",
+        "file": "/api/audio/neon_solitude_lead_and_plucks.wav"
+      },
+      {
+        "id": "fx",
+        "name": "FX",
+        "kind": "audio",
+        "instrument": "Sampler",
+        "gain": 0.72,
+        "pan": 0.08,
+        "steps": [
+          0,
+          8
+        ],
+        "effects": [
+          {
+            "id": "eq",
+            "name": "EQ Eight",
+            "active": true,
+            "amount": 0.58
+          },
+          {
+            "id": "hall",
+            "name": "Hall",
+            "active": true,
+            "amount": 0.46
+          },
+          {
+            "id": "spread",
+            "name": "Stereo Spread",
+            "active": true,
+            "amount": 0.38
+          },
+          {
+            "id": "duck",
+            "name": "Kick Sidechain",
+            "active": true,
+            "amount": 0.34
+          }
+        ],
+        "clips": [
+          {
+            "id": "fx-0",
+            "name": "Intro white noise",
+            "startBar": 0,
+            "bars": 8,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-12a",
+            "name": "Riser",
+            "startBar": 12,
+            "bars": 4,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-12b",
+            "name": "White noise up",
+            "startBar": 12,
+            "bars": 4,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-15",
+            "name": "Reverse transition",
+            "startBar": 15,
+            "bars": 1,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-16",
+            "name": "Impact",
+            "startBar": 16,
+            "bars": 1,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-40a",
+            "name": "Long build",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-40b",
+            "name": "Downlifters",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-40c",
+            "name": "Chain noise layer",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-48a",
+            "name": "Impact",
+            "startBar": 48,
+            "bars": 1,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-48b",
+            "name": "Crowd sidechain swell",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-64",
+            "name": "Outro impact",
+            "startBar": 64,
+            "bars": 1,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          }
+        ],
+        "color": "#d885ff",
+        "file": "/api/audio/neon_solitude_fx.wav"
+      },
+      {
+        "id": "guitar-bass",
+        "name": "Guitar Bass",
+        "kind": "audio",
+        "instrument": "Muted guitar-style bass preset",
+        "gain": 0.58,
+        "pan": -0.08,
+        "steps": [
+          0,
+          3,
+          6,
+          10,
+          13
+        ],
+        "effects": [
+          {
+            "id": "amp",
+            "name": "Clean Amp",
+            "active": true,
+            "amount": 0.3
+          },
+          {
+            "id": "lpf",
+            "name": "Muted Lowpass",
+            "active": true,
+            "amount": 0.42
+          }
+        ],
+        "clips": [
+          {
+            "id": "guitar-bass-8",
+            "name": "Verse guitar bass sound",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "guitar-bass",
+            "color": "#f1ad72",
+            "type": "audio"
+          },
+          {
+            "id": "guitar-bass-40",
+            "name": "Build bass notes",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "guitar-bass",
+            "color": "#f1ad72",
+            "type": "audio"
+          }
+        ],
+        "color": "#9ef0c0",
+        "file": "/api/audio/neon_solitude_guitar_bass.wav"
+      },
+      {
+        "id": "hat-ride",
+        "name": "Hat/Ride",
+        "kind": "audio",
+        "instrument": "Fast trap hats and ride layer",
+        "gain": 0.52,
+        "pan": 0.16,
+        "steps": [
+          1,
+          3,
+          5,
+          7,
+          9,
+          11,
+          13,
+          15
+        ],
+        "effects": [
+          {
+            "id": "eq",
+            "name": "Bright EQ",
+            "active": true,
+            "amount": 0.52
+          },
+          {
+            "id": "human",
+            "name": "Velocity Humanize",
+            "active": true,
+            "amount": 0.44
+          }
+        ],
+        "clips": [
+          {
+            "id": "hat-ride-48a",
+            "name": "Fast hi-hat speed-up",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "hat-ride",
+            "color": "#f4f1a3",
+            "type": "audio"
+          },
+          {
+            "id": "hat-ride-56",
+            "name": "Ride variation",
+            "startBar": 56,
+            "bars": 8,
+            "lane": "hat-ride",
+            "color": "#f4f1a3",
+            "type": "audio"
+          },
+          {
+            "id": "hat-ride-48b",
+            "name": "Crashes on drop",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "hat-ride",
+            "color": "#f4f1a3",
+            "type": "audio"
+          }
+        ],
+        "color": "#f0f7a8",
+        "file": "/api/audio/neon_solitude_hat_ride.wav"
+      },
+      {
+        "id": "frozen-build-bass",
+        "name": "Frozen Bass",
+        "kind": "audio",
+        "instrument": "Rendered build bass audio",
+        "gain": 0.7,
+        "pan": 0.0,
+        "steps": [
+          0,
+          6,
+          10
+        ],
+        "effects": [
+          {
+            "id": "duck",
+            "name": "Kick Sidechain",
+            "active": true,
+            "amount": 0.54
+          },
+          {
+            "id": "eq",
+            "name": "Low Cut EQ",
+            "active": true,
+            "amount": 0.38
+          }
+        ],
+        "clips": [
+          {
+            "id": "frozen-build-bass-40",
+            "name": "CPU-saved rendered build bass",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "frozen-build-bass",
+            "color": "#7de2bf",
+            "type": "audio"
+          }
+        ],
+        "color": "#72f2b2",
+        "file": "/api/audio/neon_solitude_frozen_build_bass.wav"
+      },
+      {
+        "id": "filter-automation",
+        "name": "Filter Auto",
+        "kind": "automation",
+        "instrument": "Rendered cutoff sweep",
+        "gain": 0.58,
+        "pan": 0.0,
+        "steps": [
+          0
+        ],
+        "effects": [
+          {
+            "id": "cutoff",
+            "name": "Cutoff Automation",
+            "active": true,
+            "amount": 0.92
+          },
+          {
+            "id": "duck",
+            "name": "Kick Sidechain",
+            "active": true,
+            "amount": 0.48
+          }
+        ],
+        "clips": [
+          {
+            "id": "filter-automation-40",
+            "name": "Automated filter sweep",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "filter-automation",
+            "color": "#7dd3fc",
+            "type": "automation"
+          }
+        ],
+        "color": "#ffd88c",
+        "file": "/api/audio/neon_solitude_filter_automation.wav"
+      },
+      {
+        "id": "crowd-sidechain",
+        "name": "Crowd Duck",
+        "kind": "audio",
+        "instrument": "Crowd swell sampler",
+        "gain": 0.62,
+        "pan": 0.04,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "effects": [
+          {
+            "id": "duck",
+            "name": "Kick Sidechain",
+            "active": true,
+            "amount": 0.82
+          },
+          {
+            "id": "wide",
+            "name": "Stereo Crowd Spread",
+            "active": true,
+            "amount": 0.62
+          }
+        ],
+        "clips": [
+          {
+            "id": "crowd-sidechain-48",
+            "name": "Crowd sidechained to kick",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "crowd-sidechain",
+            "color": "#c084fc",
+            "type": "audio"
+          }
+        ],
+        "color": "#f59fcb",
+        "file": "/api/audio/neon_solitude_crowd_sidechain.wav"
+      },
+      {
+        "id": "lead-double",
+        "name": "Lead Double",
+        "kind": "audio",
+        "instrument": "Detuned square/saw support",
+        "gain": 0.74,
+        "pan": -0.16,
+        "steps": [
+          0,
+          2,
+          5,
+          7,
+          10,
+          12,
+          15
+        ],
+        "effects": [
+          {
+            "id": "eq",
+            "name": "Low Cut EQ",
+            "active": true,
+            "amount": 0.74
+          },
+          {
+            "id": "delay",
+            "name": "Micro Delay",
+            "active": true,
+            "amount": 0.36
+          },
+          {
+            "id": "wide",
+            "name": "Stereo Widener",
+            "active": true,
+            "amount": 0.56
+          },
+          {
+            "id": "duck",
+            "name": "Kick Sidechain",
+            "active": true,
+            "amount": 0.42
+          }
+        ],
+        "clips": [
+          {
+            "id": "lead-double-16",
+            "name": "Wide drop lead double",
+            "startBar": 16,
+            "bars": 16,
+            "lane": "lead-double",
+            "color": "#9ec5ff",
+            "type": "audio"
+          },
+          {
+            "id": "lead-double-48",
+            "name": "Final hook double",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "lead-double",
+            "color": "#9ec5ff",
+            "type": "audio"
+          }
+        ],
+        "color": "#84dcff",
+        "file": "/api/audio/neon_solitude_lead_double.wav"
+      },
+      {
+        "id": "clap-stack",
+        "name": "Clap Stack",
+        "kind": "audio",
+        "instrument": "Layered clap/snare bus",
+        "gain": 0.56,
+        "pan": 0.04,
+        "steps": [
+          4,
+          12
+        ],
+        "effects": [
+          {
+            "id": "transient",
+            "name": "Transient Shaper",
+            "active": true,
+            "amount": 0.48
+          },
+          {
+            "id": "bus",
+            "name": "Bus Comp",
+            "active": true,
+            "amount": 0.4
+          },
+          {
+            "id": "room",
+            "name": "Short Room",
+            "active": true,
+            "amount": 0.32
+          }
+        ],
+        "clips": [
+          {
+            "id": "clap-stack-8",
+            "name": "Verse clap layer",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "clap-stack",
+            "color": "#fb7185",
+            "type": "audio"
+          },
+          {
+            "id": "clap-stack-16",
+            "name": "Drop clap stack",
+            "startBar": 16,
+            "bars": 16,
+            "lane": "clap-stack",
+            "color": "#fb7185",
+            "type": "audio"
+          },
+          {
+            "id": "clap-stack-40",
+            "name": "Build clap roll layer",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "clap-stack",
+            "color": "#fb7185",
+            "type": "audio"
+          },
+          {
+            "id": "clap-stack-48",
+            "name": "Final clap stack",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "clap-stack",
+            "color": "#fb7185",
+            "type": "audio"
+          }
+        ],
+        "color": "#ffb08a",
+        "file": "/api/audio/neon_solitude_clap_stack.wav"
+      },
+      {
+        "id": "ghost-sidechain",
+        "name": "Ghost Key",
+        "kind": "send",
+        "instrument": "Silent-ish sidechain trigger",
+        "gain": 0.2,
+        "pan": 0.0,
+        "steps": [
+          0,
+          6,
+          10,
+          13
+        ],
+        "effects": [
+          {
+            "id": "key-out",
+            "name": "Sidechain Key Output",
+            "active": true,
+            "amount": 1.0
+          },
+          {
+            "id": "trim",
+            "name": "Monitor Trim",
+            "active": true,
+            "amount": 0.18
+          }
+        ],
+        "clips": [
+          {
+            "id": "ghost-sidechain-16",
+            "name": "Drop ghost trigger",
+            "startBar": 16,
+            "bars": 16,
+            "lane": "ghost-sidechain",
+            "color": "#94a3b8",
+            "type": "audio"
+          },
+          {
+            "id": "ghost-sidechain-40",
+            "name": "Build ghost trigger",
+            "startBar": 40,
+            "bars": 8,
+            "lane": "ghost-sidechain",
+            "color": "#94a3b8",
+            "type": "audio"
+          },
+          {
+            "id": "ghost-sidechain-48",
+            "name": "Final ghost trigger",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "ghost-sidechain",
+            "color": "#94a3b8",
+            "type": "audio"
+          }
+        ],
+        "color": "#7aa2ff",
+        "file": "/api/audio/neon_solitude_ghost_sidechain.wav"
+      },
+      {
+        "id": "ear-candy",
+        "name": "Ear Candy",
+        "kind": "audio",
+        "instrument": "Transition fills and sparkle",
+        "gain": 0.66,
+        "pan": 0.18,
+        "steps": [
+          3,
+          7,
+          11,
+          15
+        ],
+        "effects": [
+          {
+            "id": "hp",
+            "name": "Highpass EQ",
+            "active": true,
+            "amount": 0.78
+          },
+          {
+            "id": "delay",
+            "name": "Tempo Delay",
+            "active": true,
+            "amount": 0.44
+          },
+          {
+            "id": "plate",
+            "name": "Plate Reverb",
+            "active": true,
+            "amount": 0.48
+          },
+          {
+            "id": "spread",
+            "name": "Stereo Spread",
+            "active": true,
+            "amount": 0.62
+          }
+        ],
+        "clips": [
+          {
+            "id": "ear-candy-14",
+            "name": "Pre-drop sparkle fills",
+            "startBar": 14,
+            "bars": 2,
+            "lane": "ear-candy",
+            "color": "#f0abfc",
+            "type": "audio"
+          },
+          {
+            "id": "ear-candy-30",
+            "name": "Drop exit fills",
+            "startBar": 30,
+            "bars": 2,
+            "lane": "ear-candy",
+            "color": "#f0abfc",
+            "type": "audio"
+          },
+          {
+            "id": "ear-candy-46",
+            "name": "Build sparkle fills",
+            "startBar": 46,
+            "bars": 2,
+            "lane": "ear-candy",
+            "color": "#f0abfc",
+            "type": "audio"
+          },
+          {
+            "id": "ear-candy-48",
+            "name": "Final drop ear candy",
+            "startBar": 48,
+            "bars": 16,
+            "lane": "ear-candy",
+            "color": "#f0abfc",
+            "type": "audio"
+          }
+        ],
+        "color": "#f4b7ff",
+        "file": "/api/audio/neon_solitude_ear_candy.wav"
+      }
+    ],
+    "controls": {
+      "drums": {
+        "gain": 0.78,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.08,
+        "sendB": 0.04
+      },
+      "bass": {
+        "gain": 0.9,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.08,
+        "sendB": 0.04
+      },
+      "chords": {
+        "gain": 1.0,
+        "pan": -0.04,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.04
+      },
+      "lead": {
+        "gain": 1.0,
+        "pan": 0.06,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.04
+      },
+      "fx": {
+        "gain": 0.72,
+        "pan": 0.08,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.08,
+        "sendB": 0.12
+      },
+      "guitar-bass": {
+        "gain": 0.58,
+        "pan": -0.08,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.08,
+        "sendB": 0.04
+      },
+      "hat-ride": {
+        "gain": 0.52,
+        "pan": 0.16,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.08,
+        "sendB": 0.04
+      },
+      "frozen-build-bass": {
+        "gain": 0.7,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.08,
+        "sendB": 0.04
+      },
+      "filter-automation": {
+        "gain": 0.58,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.08,
+        "sendB": 0.04
+      },
+      "crowd-sidechain": {
+        "gain": 0.62,
+        "pan": 0.04,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.08,
+        "sendB": 0.12
+      },
+      "lead-double": {
+        "gain": 0.74,
+        "pan": -0.16,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.04
+      },
+      "clap-stack": {
+        "gain": 0.56,
+        "pan": 0.04,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.08,
+        "sendB": 0.04
+      },
+      "ghost-sidechain": {
+        "gain": 0.2,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.08,
+        "sendB": 0.04
+      },
+      "ear-candy": {
+        "gain": 0.66,
+        "pan": 0.18,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.18,
+        "sendB": 0.12
+      }
+    },
+    "notes": [
+      {
+        "id": "lead-preview-0-0",
+        "beat": 0.0,
+        "duration": 0.46,
+        "note": 76,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-0-52",
+        "beat": 0.52,
+        "duration": 0.42,
+        "note": 79,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-0-105",
+        "beat": 1.05,
+        "duration": 0.7,
+        "note": 83,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-0-200",
+        "beat": 2.0,
+        "duration": 0.42,
+        "note": 86,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-0-252",
+        "beat": 2.52,
+        "duration": 0.38,
+        "note": 83,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-0-304",
+        "beat": 3.04,
+        "duration": 0.68,
+        "note": 79,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-1-0",
+        "beat": 4.0,
+        "duration": 0.42,
+        "note": 84,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-1-50",
+        "beat": 4.5,
+        "duration": 0.44,
+        "note": 83,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-1-102",
+        "beat": 5.02,
+        "duration": 0.54,
+        "note": 79,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-1-172",
+        "beat": 5.72,
+        "duration": 0.38,
+        "note": 76,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-1-218",
+        "beat": 6.18,
+        "duration": 0.42,
+        "note": 81,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-1-272",
+        "beat": 6.720000000000001,
+        "duration": 0.68,
+        "note": 79,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-2-0",
+        "beat": 8.0,
+        "duration": 0.4,
+        "note": 83,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-2-46",
+        "beat": 8.46,
+        "duration": 0.42,
+        "note": 86,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-2-98",
+        "beat": 8.98,
+        "duration": 0.74,
+        "note": 88,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-2-200",
+        "beat": 10.0,
+        "duration": 0.4,
+        "note": 86,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-2-248",
+        "beat": 10.48,
+        "duration": 0.42,
+        "note": 83,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-2-300",
+        "beat": 11.0,
+        "duration": 0.7,
+        "note": 81,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-3-0",
+        "beat": 12.0,
+        "duration": 0.44,
+        "note": 79,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-3-55",
+        "beat": 12.55,
+        "duration": 0.38,
+        "note": 83,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-3-104",
+        "beat": 13.04,
+        "duration": 0.38,
+        "note": 81,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-3-154",
+        "beat": 13.54,
+        "duration": 0.38,
+        "note": 79,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-3-212",
+        "beat": 14.120000000000001,
+        "duration": 0.78,
+        "note": 76,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-3-308",
+        "beat": 15.08,
+        "duration": 0.4,
+        "note": 74,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-3-355",
+        "beat": 15.55,
+        "duration": 0.34,
+        "note": 76,
+        "velocity": 0.84,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-4-0",
+        "beat": 16.0,
+        "duration": 0.46,
+        "note": 76,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-4-52",
+        "beat": 16.52,
+        "duration": 0.42,
+        "note": 79,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-4-105",
+        "beat": 17.05,
+        "duration": 0.7,
+        "note": 83,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-4-200",
+        "beat": 18.0,
+        "duration": 0.42,
+        "note": 86,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-4-252",
+        "beat": 18.52,
+        "duration": 0.38,
+        "note": 83,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-4-304",
+        "beat": 19.04,
+        "duration": 0.68,
+        "note": 79,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-5-0",
+        "beat": 20.0,
+        "duration": 0.42,
+        "note": 96,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-5-50",
+        "beat": 20.5,
+        "duration": 0.44,
+        "note": 95,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-5-102",
+        "beat": 21.02,
+        "duration": 0.54,
+        "note": 91,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-5-172",
+        "beat": 21.72,
+        "duration": 0.38,
+        "note": 88,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-5-218",
+        "beat": 22.18,
+        "duration": 0.42,
+        "note": 93,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-5-272",
+        "beat": 22.72,
+        "duration": 0.68,
+        "note": 91,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-6-0",
+        "beat": 24.0,
+        "duration": 0.4,
+        "note": 95,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-6-46",
+        "beat": 24.46,
+        "duration": 0.42,
+        "note": 98,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-6-98",
+        "beat": 24.98,
+        "duration": 0.74,
+        "note": 100,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-6-200",
+        "beat": 26.0,
+        "duration": 0.4,
+        "note": 98,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-6-248",
+        "beat": 26.48,
+        "duration": 0.42,
+        "note": 95,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-6-300",
+        "beat": 27.0,
+        "duration": 0.7,
+        "note": 93,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-7-0",
+        "beat": 28.0,
+        "duration": 0.44,
+        "note": 79,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-7-55",
+        "beat": 28.55,
+        "duration": 0.38,
+        "note": 83,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-7-104",
+        "beat": 29.04,
+        "duration": 0.38,
+        "note": 81,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-7-154",
+        "beat": 29.54,
+        "duration": 0.38,
+        "note": 79,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-7-212",
+        "beat": 30.12,
+        "duration": 0.78,
+        "note": 76,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-7-308",
+        "beat": 31.08,
+        "duration": 0.4,
+        "note": 74,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      },
+      {
+        "id": "lead-preview-7-355",
+        "beat": 31.55,
+        "duration": 0.34,
+        "note": 76,
+        "velocity": 0.88,
+        "color": "#6fd6ff"
+      }
+    ],
+    "selectedTrackId": "lead",
+    "selectedClipId": "lead-16",
+    "activeView": "playlist",
+    "patternIndex": 1,
+    "arrangementMode": "song",
+    "recipe": [
+      {
+        "id": "future-bass-trap",
+        "section": "Foundation",
+        "label": "Future-bass presets plus trap drums",
+        "detail": "Supersaw chords, square lead, sub/fat bass, and trap drum patterns are separated into tracks.",
+        "status": "implemented",
+        "trackIds": [
+          "chords",
+          "lead",
+          "bass",
+          "drums"
+        ]
+      },
+      {
+        "id": "simple-chords",
+        "section": "Intro",
+        "label": "Simple happy chord progression",
+        "detail": "The chord track starts with a simple uplifting progression and keeps the harmony readable.",
+        "status": "implemented",
+        "trackIds": [
+          "chords"
+        ]
+      },
+      {
+        "id": "simple-melody",
+        "section": "Intro",
+        "label": "Simple happy melody",
+        "detail": "The lead track has an intro melody that becomes the source material for the filled-in drop hook.",
+        "status": "implemented",
+        "trackIds": [
+          "lead"
+        ]
+      },
+      {
+        "id": "white-noise",
+        "section": "Intro",
+        "label": "White noise and white-noise-up",
+        "detail": "FX clips mark the intro noise bed and rising noise transition into the verse/drop.",
+        "status": "implemented",
+        "trackIds": [
+          "fx"
+        ]
+      },
+      {
+        "id": "clap-transition",
+        "section": "Intro",
+        "label": "Clap into the verse",
+        "detail": "The drums track includes snare/clap transition clips and backbeat layers.",
+        "status": "implemented",
+        "trackIds": [
+          "drums"
+        ]
+      },
+      {
+        "id": "sub-reverse",
+        "section": "Intro",
+        "label": "Sub bass and reverse transition",
+        "detail": "Bass carries the sub layer while the FX lane marks the reverse transition before section changes.",
+        "status": "implemented",
+        "trackIds": [
+          "bass",
+          "fx"
+        ]
+      },
+      {
+        "id": "guitar-bass",
+        "section": "Verse",
+        "label": "Guitar-bass style verse sound",
+        "detail": "A dedicated Guitar Bass audio stem now plays the muted pluck/bass role from the walkthrough.",
+        "status": "implemented",
+        "trackIds": [
+          "guitar-bass"
+        ]
+      },
+      {
+        "id": "marsh-rhythm",
+        "section": "Verse",
+        "label": "Kick rhythm, snare, and hi-hat trap beat",
+        "detail": "The channel rack and drum clips include the kick rhythm, snare/clap backbeat, and trap hats.",
+        "status": "implemented",
+        "trackIds": [
+          "drums",
+          "hat-ride"
+        ]
+      },
+      {
+        "id": "build-drums",
+        "section": "Build",
+        "label": "Build snares, claps, and different kick",
+        "detail": "Build-specific drum clips mark the snare/clap roll and alternate kick layer.",
+        "status": "implemented",
+        "trackIds": [
+          "drums"
+        ]
+      },
+      {
+        "id": "downlifter-chains",
+        "section": "Build",
+        "label": "Downlifters, chains, riser",
+        "detail": "FX clips explicitly mark downlifters, chain noise, and the riser layer.",
+        "status": "implemented",
+        "trackIds": [
+          "fx"
+        ]
+      },
+      {
+        "id": "rendered-bass",
+        "section": "Build",
+        "label": "Rendered bass for CPU",
+        "detail": "Frozen Bass is a separate rendered audio stem for the build-bass CPU-saving workflow.",
+        "status": "implemented",
+        "trackIds": [
+          "frozen-build-bass"
+        ]
+      },
+      {
+        "id": "filled-drop-lead",
+        "section": "Build",
+        "label": "Filled-in drop lead from intro melody",
+        "detail": "The Lead lane labels the hook as a filled-in version of the intro melody.",
+        "status": "implemented",
+        "trackIds": [
+          "lead"
+        ]
+      },
+      {
+        "id": "filter-automation",
+        "section": "Build",
+        "label": "Automated filter",
+        "detail": "Filter Auto is a rendered cutoff-sweep stem plus an automation slot in the editor.",
+        "status": "implemented",
+        "trackIds": [
+          "filter-automation",
+          "chords",
+          "lead"
+        ]
+      },
+      {
+        "id": "fat-drop-bass",
+        "section": "Drop",
+        "label": "Fat drop bass plus sub bass",
+        "detail": "Bass clips and effects separate the fat drop bass role from the sub/low-end support.",
+        "status": "implemented",
+        "trackIds": [
+          "bass"
+        ]
+      },
+      {
+        "id": "low-cut-eq",
+        "section": "Mix",
+        "label": "EQ out lower frequencies",
+        "detail": "Bass and melodic tracks include low-cut/EQ slots so the mix has explicit cleanup controls.",
+        "status": "implemented",
+        "trackIds": [
+          "bass",
+          "chords",
+          "lead"
+        ]
+      },
+      {
+        "id": "drop-drums",
+        "section": "Drop",
+        "label": "Drop trap drums",
+        "detail": "Drop drums include kick, snares, claps, fast hats, and crash/ride variation.",
+        "status": "implemented",
+        "trackIds": [
+          "drums",
+          "hat-ride"
+        ]
+      },
+      {
+        "id": "hat-speed-ride",
+        "section": "Drop",
+        "label": "Speed-up hats or ride variation",
+        "detail": "Hat/Ride lane has fast hat, ride variation, and crashes on the drop.",
+        "status": "implemented",
+        "trackIds": [
+          "hat-ride"
+        ]
+      },
+      {
+        "id": "crowd-sidechain",
+        "section": "Drop",
+        "label": "Crowd effect sidechained to kick",
+        "detail": "Crowd Duck is a separate audible crowd-swell stem with kick-sidechain shaping.",
+        "status": "implemented",
+        "trackIds": [
+          "crowd-sidechain"
+        ]
+      },
+      {
+        "id": "lead-double-layer",
+        "section": "Advanced",
+        "label": "Wide lead double support",
+        "detail": "Lead Double adds detuned, filtered hook support on the drops so the main melody feels wider without crowding the center.",
+        "status": "implemented",
+        "trackIds": [
+          "lead",
+          "lead-double"
+        ]
+      },
+      {
+        "id": "clap-stack-layer",
+        "section": "Advanced",
+        "label": "Layered clap/snare stack",
+        "detail": "Clap Stack separates the transient and room layers from the main drums for stronger EDM backbeats and build rolls.",
+        "status": "implemented",
+        "trackIds": [
+          "drums",
+          "clap-stack"
+        ]
+      },
+      {
+        "id": "ghost-sidechain-key",
+        "section": "Advanced",
+        "label": "Ghost sidechain key lane",
+        "detail": "Ghost Key gives the project a dedicated trigger lane for ducking synths and FX independently from the audible kick.",
+        "status": "implemented",
+        "trackIds": [
+          "ghost-sidechain",
+          "bass",
+          "lead-double",
+          "fx"
+        ]
+      },
+      {
+        "id": "ear-candy-fills",
+        "section": "Advanced",
+        "label": "Ear-candy fills and transition sparkle",
+        "detail": "Ear Candy adds pluck blips, reverse tails, crash accents, and delayed transition details around section changes.",
+        "status": "implemented",
+        "trackIds": [
+          "ear-candy",
+          "fx"
+        ]
+      },
+      {
+        "id": "full-song",
+        "section": "Foundation",
+        "label": "Full intro, verse, build, drop arrangement",
+        "detail": "Playlist clips cover intro, verse, build, first drop, break, final drop, and outro.",
+        "status": "implemented",
+        "trackIds": [
+          "drums",
+          "bass",
+          "chords",
+          "lead",
+          "fx"
+        ]
+      }
+    ]
+  },
+  "assets": [
+    {
+      "trackId": "drums",
+      "file": "/api/audio/neon_solitude_drums.wav"
+    },
+    {
+      "trackId": "bass",
+      "file": "/api/audio/neon_solitude_bass.wav"
+    },
+    {
+      "trackId": "chords",
+      "file": "/api/audio/neon_solitude_chords.wav"
+    },
+    {
+      "trackId": "lead",
+      "file": "/api/audio/neon_solitude_lead_and_plucks.wav"
+    },
+    {
+      "trackId": "fx",
+      "file": "/api/audio/neon_solitude_fx.wav"
+    },
+    {
+      "trackId": "guitar-bass",
+      "file": "/api/audio/neon_solitude_guitar_bass.wav"
+    },
+    {
+      "trackId": "hat-ride",
+      "file": "/api/audio/neon_solitude_hat_ride.wav"
+    },
+    {
+      "trackId": "frozen-build-bass",
+      "file": "/api/audio/neon_solitude_frozen_build_bass.wav"
+    },
+    {
+      "trackId": "filter-automation",
+      "file": "/api/audio/neon_solitude_filter_automation.wav"
+    },
+    {
+      "trackId": "crowd-sidechain",
+      "file": "/api/audio/neon_solitude_crowd_sidechain.wav"
+    },
+    {
+      "trackId": "lead-double",
+      "file": "/api/audio/neon_solitude_lead_double.wav"
+    },
+    {
+      "trackId": "clap-stack",
+      "file": "/api/audio/neon_solitude_clap_stack.wav"
+    },
+    {
+      "trackId": "ghost-sidechain",
+      "file": "/api/audio/neon_solitude_ghost_sidechain.wav"
+    },
+    {
+      "trackId": "ear-candy",
+      "file": "/api/audio/neon_solitude_ear_candy.wav"
+    }
+  ],
+  "assetMode": "external",
+  "description": "Original bright future-bass/festival EDM project rebuilt in a Marshmello-inspired Alone lane without reusing the commercial melody.",
+  "keyCenter": "E minor / G major"
+}

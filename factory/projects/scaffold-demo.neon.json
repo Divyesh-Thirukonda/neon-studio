@@ -1,0 +1,661 @@
+{
+  "format": "neon-studio-project",
+  "formatVersion": 1,
+  "portable": true,
+  "assetMode": "external",
+  "id": "scaffold-demo",
+  "name": "Scaffold Demo",
+  "createdAt": "2026-05-01T00:50:36Z",
+  "updatedAt": "2026-05-01T00:50:36Z",
+  "projectFile": null,
+  "assets": null,
+  "description": "Transcript-driven portable Neon Studio project scaffold built from a production walkthrough for Scaffold Demo.",
+  "keyCenter": null,
+  "snapshot": {
+    "version": 3,
+    "bpm": 142,
+    "swing": 18,
+    "snap": "1/16",
+    "loopEnabled": true,
+    "loopStartBar": 24,
+    "loopEndBar": 40,
+    "tracks": [
+      {
+        "id": "chords",
+        "name": "Chords",
+        "kind": "audio",
+        "instrument": "Supersaw",
+        "gain": 0.92,
+        "pan": -0.03,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "effects": [
+          {
+            "id": "eq",
+            "name": "EQ Eight",
+            "active": false,
+            "amount": 0.4
+          },
+          {
+            "id": "verb",
+            "name": "Reverb",
+            "active": false,
+            "amount": 0.36
+          },
+          {
+            "id": "duck",
+            "name": "Sidechain",
+            "active": false,
+            "amount": 0.55
+          }
+        ],
+        "clips": [
+          {
+            "id": "chords-0-1",
+            "name": "Intro chords",
+            "startBar": 0,
+            "bars": 8,
+            "lane": "chords",
+            "color": "#ffd166",
+            "type": "pattern"
+          },
+          {
+            "id": "chords-24-1",
+            "name": "Drop chords",
+            "startBar": 24,
+            "bars": 16,
+            "lane": "chords",
+            "color": "#ffd166",
+            "type": "pattern"
+          }
+        ],
+        "color": "#ffd166",
+        "file": null
+      },
+      {
+        "id": "lead",
+        "name": "Lead",
+        "kind": "audio",
+        "instrument": "Square Lead",
+        "gain": 0.84,
+        "pan": 0.02,
+        "steps": [
+          0,
+          3,
+          7,
+          10,
+          14
+        ],
+        "effects": [
+          {
+            "id": "delay",
+            "name": "Ping Delay",
+            "active": false,
+            "amount": 0.34
+          },
+          {
+            "id": "air",
+            "name": "Air EQ",
+            "active": false,
+            "amount": 0.28
+          },
+          {
+            "id": "duck",
+            "name": "Sidechain",
+            "active": false,
+            "amount": 0.55
+          }
+        ],
+        "clips": [
+          {
+            "id": "lead-0-1",
+            "name": "Intro lead",
+            "startBar": 0,
+            "bars": 8,
+            "lane": "lead",
+            "color": "#6fd6ff",
+            "type": "pattern"
+          },
+          {
+            "id": "lead-24-1",
+            "name": "Drop lead",
+            "startBar": 24,
+            "bars": 16,
+            "lane": "lead",
+            "color": "#6fd6ff",
+            "type": "pattern"
+          }
+        ],
+        "color": "#6fd6ff",
+        "file": null
+      },
+      {
+        "id": "bass",
+        "name": "Bass",
+        "kind": "audio",
+        "instrument": "Mid Bass",
+        "gain": 0.86,
+        "pan": 0.0,
+        "steps": [
+          0,
+          6,
+          10,
+          13
+        ],
+        "effects": [
+          {
+            "id": "duck",
+            "name": "Sidechain",
+            "active": false,
+            "amount": 0.55
+          },
+          {
+            "id": "sat",
+            "name": "Saturator",
+            "active": false,
+            "amount": 0.32
+          }
+        ],
+        "clips": [
+          {
+            "id": "bass-8-1",
+            "name": "Verse bass",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "bass",
+            "color": "#4ade80",
+            "type": "pattern"
+          },
+          {
+            "id": "bass-24-1",
+            "name": "Drop bass",
+            "startBar": 24,
+            "bars": 16,
+            "lane": "bass",
+            "color": "#4ade80",
+            "type": "pattern"
+          }
+        ],
+        "color": "#4ade80",
+        "file": null
+      },
+      {
+        "id": "clap-stack",
+        "name": "Clap Stack",
+        "kind": "audio",
+        "instrument": "Clap Layer",
+        "gain": 0.72,
+        "pan": 0.02,
+        "steps": [
+          4,
+          12
+        ],
+        "effects": [
+          {
+            "id": "verb",
+            "name": "Reverb",
+            "active": false,
+            "amount": 0.28
+          },
+          {
+            "id": "wide",
+            "name": "Stereo Spread",
+            "active": false,
+            "amount": 0.3
+          }
+        ],
+        "clips": [
+          {
+            "id": "clap-stack-8-1",
+            "name": "Verse clap stack",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "clap-stack",
+            "color": "#fb7185",
+            "type": "pattern"
+          },
+          {
+            "id": "clap-stack-16-1",
+            "name": "Build clap stack",
+            "startBar": 16,
+            "bars": 8,
+            "lane": "clap-stack",
+            "color": "#fb7185",
+            "type": "pattern"
+          }
+        ],
+        "color": "#fb7185",
+        "file": null
+      },
+      {
+        "id": "fx",
+        "name": "FX",
+        "kind": "audio",
+        "instrument": "Transitions",
+        "gain": 0.72,
+        "pan": 0.0,
+        "steps": [],
+        "effects": [
+          {
+            "id": "verb",
+            "name": "Long Reverb",
+            "active": false,
+            "amount": 0.46
+          },
+          {
+            "id": "width",
+            "name": "Stereo Spread",
+            "active": false,
+            "amount": 0.42
+          },
+          {
+            "id": "duck",
+            "name": "Sidechain",
+            "active": false,
+            "amount": 0.55
+          }
+        ],
+        "clips": [
+          {
+            "id": "fx-0-1",
+            "name": "Intro fx",
+            "startBar": 0,
+            "bars": 8,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-16-1",
+            "name": "Build fx",
+            "startBar": 16,
+            "bars": 8,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          },
+          {
+            "id": "fx-24-1",
+            "name": "Drop fx",
+            "startBar": 24,
+            "bars": 16,
+            "lane": "fx",
+            "color": "#d78bff",
+            "type": "audio"
+          }
+        ],
+        "color": "#d78bff",
+        "file": null
+      },
+      {
+        "id": "drums",
+        "name": "Drums",
+        "kind": "audio",
+        "instrument": "Sampler",
+        "gain": 0.82,
+        "pan": 0.0,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "effects": [
+          {
+            "id": "eq",
+            "name": "EQ Eight",
+            "active": false,
+            "amount": 0.35
+          },
+          {
+            "id": "bus-comp",
+            "name": "Bus Comp",
+            "active": false,
+            "amount": 0.42
+          }
+        ],
+        "clips": [
+          {
+            "id": "drums-8-1",
+            "name": "Verse drums",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "drums",
+            "color": "#ff8d5c",
+            "type": "pattern"
+          }
+        ],
+        "color": "#ff8d5c",
+        "file": null
+      },
+      {
+        "id": "guitar",
+        "name": "Guitar",
+        "kind": "audio",
+        "instrument": "Muted Guitar",
+        "gain": 0.74,
+        "pan": -0.06,
+        "steps": [
+          0,
+          8
+        ],
+        "effects": [
+          {
+            "id": "comp",
+            "name": "Compressor",
+            "active": false,
+            "amount": 0.3
+          },
+          {
+            "id": "verb",
+            "name": "Room",
+            "active": false,
+            "amount": 0.22
+          }
+        ],
+        "clips": [
+          {
+            "id": "guitar-8-1",
+            "name": "Verse guitar",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "guitar",
+            "color": "#c4f1be",
+            "type": "pattern"
+          }
+        ],
+        "color": "#c4f1be",
+        "file": null
+      },
+      {
+        "id": "hat-ride",
+        "name": "Hat/Ride",
+        "kind": "audio",
+        "instrument": "Trap Hat Rack",
+        "gain": 0.68,
+        "pan": 0.0,
+        "steps": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14
+        ],
+        "effects": [
+          {
+            "id": "tight",
+            "name": "Transient Tightener",
+            "active": false,
+            "amount": 0.24
+          }
+        ],
+        "clips": [
+          {
+            "id": "hat-ride-8-1",
+            "name": "Verse hat/ride",
+            "startBar": 8,
+            "bars": 8,
+            "lane": "hat-ride",
+            "color": "#f4f1a3",
+            "type": "pattern"
+          }
+        ],
+        "color": "#f4f1a3",
+        "file": null
+      },
+      {
+        "id": "filter-auto",
+        "name": "Filter Auto",
+        "kind": "audio",
+        "instrument": "Automation Lane",
+        "gain": 0.0,
+        "pan": 0.0,
+        "steps": [],
+        "effects": [
+          {
+            "id": "macro",
+            "name": "Filter Macro",
+            "active": true,
+            "amount": 0.62
+          }
+        ],
+        "clips": [
+          {
+            "id": "filter-auto-16-1",
+            "name": "Build filter auto",
+            "startBar": 16,
+            "bars": 8,
+            "lane": "filter-auto",
+            "color": "#7dd3fc",
+            "type": "pattern"
+          }
+        ],
+        "color": "#7dd3fc",
+        "file": null
+      },
+      {
+        "id": "sub",
+        "name": "Sub",
+        "kind": "audio",
+        "instrument": "Triangle Sub",
+        "gain": 0.9,
+        "pan": 0.0,
+        "steps": [
+          0,
+          8
+        ],
+        "effects": [
+          {
+            "id": "mono",
+            "name": "Mono Utility",
+            "active": true,
+            "amount": 1.0
+          },
+          {
+            "id": "duck",
+            "name": "Kick Duck",
+            "active": false,
+            "amount": 0.5
+          },
+          {
+            "id": "duck",
+            "name": "Sidechain",
+            "active": false,
+            "amount": 0.55
+          }
+        ],
+        "clips": [
+          {
+            "id": "sub-24-1",
+            "name": "Drop sub",
+            "startBar": 24,
+            "bars": 16,
+            "lane": "sub",
+            "color": "#34d399",
+            "type": "pattern"
+          }
+        ],
+        "color": "#34d399",
+        "file": null
+      }
+    ],
+    "controls": {
+      "chords": {
+        "gain": 0.92,
+        "pan": -0.03,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.15,
+        "sendB": 0.08
+      },
+      "lead": {
+        "gain": 0.84,
+        "pan": 0.02,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.15,
+        "sendB": 0.08
+      },
+      "bass": {
+        "gain": 0.86,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.15,
+        "sendB": 0.08
+      },
+      "clap-stack": {
+        "gain": 0.72,
+        "pan": 0.02,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.15,
+        "sendB": 0.08
+      },
+      "fx": {
+        "gain": 0.72,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.15,
+        "sendB": 0.08
+      },
+      "drums": {
+        "gain": 0.82,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.15,
+        "sendB": 0.08
+      },
+      "guitar": {
+        "gain": 0.74,
+        "pan": -0.06,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.15,
+        "sendB": 0.08
+      },
+      "hat-ride": {
+        "gain": 0.68,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.15,
+        "sendB": 0.08
+      },
+      "filter-auto": {
+        "gain": 0.0,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.15,
+        "sendB": 0.08
+      },
+      "sub": {
+        "gain": 0.9,
+        "pan": 0.0,
+        "mute": false,
+        "solo": false,
+        "arm": false,
+        "sendA": 0.15,
+        "sendB": 0.08
+      }
+    },
+    "notes": [],
+    "selectedTrackId": "chords",
+    "selectedClipId": "chords-0-1",
+    "activeView": "playlist",
+    "patternIndex": 1,
+    "arrangementMode": "song",
+    "recipe": [
+      {
+        "id": "transcript-scaffold",
+        "section": "Foundation",
+        "label": "Transcript-derived scaffold",
+        "detail": "Track layout, clips, and coverage were generated from the transcript before manual sound design and rendering.",
+        "status": "mapped",
+        "trackIds": [
+          "chords",
+          "lead",
+          "bass",
+          "clap-stack",
+          "fx",
+          "drums",
+          "guitar",
+          "hat-ride",
+          "filter-auto",
+          "sub"
+        ]
+      },
+      {
+        "id": "section-01",
+        "section": "Intro",
+        "label": "intro has a simple chord progression and a lead melody with white noise",
+        "detail": "intro has a simple chord progression and a lead melody with white noise. Tracks: chords, lead, fx",
+        "status": "mapped",
+        "trackIds": [
+          "chords",
+          "lead",
+          "fx"
+        ]
+      },
+      {
+        "id": "section-02",
+        "section": "Verse",
+        "label": "verse adds guitar bass and a simple trap beat with kick snare clap and h",
+        "detail": "verse adds guitar bass and a simple trap beat with kick snare clap and hi-hat. Tracks: bass, clap-stack, drums, guitar, hat-ride",
+        "status": "mapped",
+        "trackIds": [
+          "bass",
+          "clap-stack",
+          "drums",
+          "guitar",
+          "hat-ride"
+        ]
+      },
+      {
+        "id": "section-03",
+        "section": "Build",
+        "label": "build adds risers downlifters claps and a filter automation",
+        "detail": "build adds risers downlifters claps and a filter automation. Tracks: filter-auto, clap-stack, fx. Techniques: automation, filtering",
+        "status": "mapped",
+        "trackIds": [
+          "filter-auto",
+          "clap-stack",
+          "fx"
+        ]
+      },
+      {
+        "id": "section-04",
+        "section": "Drop",
+        "label": "drop uses lead chords bass sub crashes crowd and sidechain",
+        "detail": "drop uses lead chords bass sub crashes crowd and sidechain. Tracks: bass, chords, fx, lead, sub. Techniques: sidechain",
+        "status": "mapped",
+        "trackIds": [
+          "bass",
+          "chords",
+          "fx",
+          "lead",
+          "sub"
+        ]
+      }
+    ]
+  }
+}

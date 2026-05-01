@@ -285,19 +285,19 @@ final class ProjectStore {
     }
 
     private func loadFactoryProjects() -> [LocalProject] {
-        let indexURL = rootURL.appendingPathComponent("public/projects/index.json")
+        let indexURL = rootURL.appendingPathComponent("factory/projects/index.json")
         if let data = try? readData(indexURL),
            let index = try? decoder.decode(ProjectIndex.self, from: data),
            let entries = index.projects {
             return entries.compactMap { entry in
                 let path = entry.file.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-                let url = rootURL.appendingPathComponent("public").appendingPathComponent(path.replacingOccurrences(of: "projects/", with: "projects/"))
+                let url = rootURL.appendingPathComponent("factory").appendingPathComponent(path.replacingOccurrences(of: "projects/", with: "projects/"))
                 var project = loadProjectFile(url)
                 project?.projectFile = entry.file
                 return project
             }
         }
-        return projectFiles(in: rootURL.appendingPathComponent("public/projects")).compactMap { loadProjectFile($0) }
+        return projectFiles(in: rootURL.appendingPathComponent("factory/projects")).compactMap { loadProjectFile($0) }
     }
 
     private func loadProjectFile(_ url: URL) -> LocalProject? {
@@ -808,6 +808,230 @@ final class BrowserProjectsView: NSView {
         handle.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
         handle.lineWidth = 1.7
         handle.stroke()
+    }
+}
+
+final class ProjectBrowserWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
+    var onOpenProject: ((LocalProject) -> Void)?
+    var onCreateProject: (() -> Void)?
+    var onImportProject: (() -> Void)?
+    var onDeleteProject: ((LocalProject) -> Void)?
+    var onRevealProject: ((LocalProject) -> Void)?
+
+    private let searchField = NSSearchField()
+    private let tableView = NSTableView()
+    private var allProjects: [LocalProject] = []
+    private var filteredProjects: [LocalProject] = []
+    private var selectedProjectId: String?
+
+    init() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 520),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Projects"
+        window.isReleasedWhenClosed = false
+        super.init(window: window)
+        window.contentView = makeContentView()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func setProjects(_ projects: [LocalProject], selectedId: String?) {
+        allProjects = projects
+        selectedProjectId = selectedId
+        applyFilter()
+    }
+
+    func present() {
+        showWindow(nil)
+        window?.center()
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        filteredProjects.count
+    }
+
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        58
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let identifier = NSUserInterfaceItemIdentifier("ProjectCell")
+        let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView ?? makeProjectCell(identifier: identifier)
+        let project = filteredProjects[row]
+        let primary = cell.viewWithTag(1) as? NSTextField
+        let secondary = cell.viewWithTag(2) as? NSTextField
+        primary?.stringValue = project.name
+        secondary?.stringValue = "\(Int(project.snapshot.bpm)) BPM  ·  \(project.snapshot.tracks.count) tracks  ·  \(project.snapshot.recipe?.count ?? 0) recipe items"
+        return cell
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        let row = tableView.selectedRow
+        selectedProjectId = row >= 0 && row < filteredProjects.count ? filteredProjects[row].id : nil
+    }
+
+    func controlTextDidChange(_ obj: Notification) {
+        applyFilter()
+    }
+
+    @objc private func openSelection() {
+        guard let project = selectedProject else { return }
+        onOpenProject?(project)
+        window?.orderOut(nil)
+    }
+
+    @objc private func createProject() {
+        onCreateProject?()
+        applyFilter()
+    }
+
+    @objc private func importProject() {
+        onImportProject?()
+        applyFilter()
+    }
+
+    @objc private func deleteSelection() {
+        guard let project = selectedProject else { return }
+        onDeleteProject?(project)
+    }
+
+    @objc private func revealSelection() {
+        guard let project = selectedProject else { return }
+        onRevealProject?(project)
+    }
+
+    @objc private func rowDoubleClicked() {
+        openSelection()
+    }
+
+    private var selectedProject: LocalProject? {
+        guard let selectedProjectId else { return nil }
+        return filteredProjects.first(where: { $0.id == selectedProjectId })
+    }
+
+    private func applyFilter() {
+        let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if query.isEmpty {
+            filteredProjects = allProjects
+        } else {
+            filteredProjects = allProjects.filter { project in
+                let haystack = [
+                    project.name,
+                    project.description ?? "",
+                    project.keyCenter ?? "",
+                    project.snapshot.tracks.map(\.name).joined(separator: " ")
+                ].joined(separator: " ").lowercased()
+                return haystack.contains(query)
+            }
+        }
+        tableView.reloadData()
+        if let selectedProjectId,
+           let index = filteredProjects.firstIndex(where: { $0.id == selectedProjectId }) {
+            tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        } else if !filteredProjects.isEmpty {
+            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            self.selectedProjectId = filteredProjects[0].id
+        }
+    }
+
+    private func makeContentView() -> NSView {
+        let root = NSView()
+        root.translatesAutoresizingMaskIntoConstraints = false
+        root.wantsLayer = true
+        root.layer?.backgroundColor = Palette.app.cgColor
+
+        searchField.placeholderString = "Search projects, stems, tracks"
+        searchField.delegate = self
+        searchField.translatesAutoresizingMaskIntoConstraints = false
+
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("project"))
+        column.width = 680
+        tableView.addTableColumn(column)
+        tableView.headerView = nil
+        tableView.rowSizeStyle = .custom
+        tableView.delegate = self
+        tableView.dataSource = self
+        tableView.target = self
+        tableView.doubleAction = #selector(rowDoubleClicked)
+        tableView.backgroundColor = Palette.panel
+        tableView.selectionHighlightStyle = .regular
+
+        let scroll = NSScrollView()
+        scroll.drawsBackground = false
+        scroll.documentView = tableView
+        scroll.hasVerticalScroller = true
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+
+        let open = ClosureButton(title: "Open", symbol: "arrow.right.circle") { [weak self] in self?.openSelection() }
+        let create = ClosureButton(title: "New", symbol: "plus") { [weak self] in self?.createProject() }
+        let `import` = ClosureButton(title: "Import", symbol: "folder.badge.plus") { [weak self] in self?.importProject() }
+        let reveal = ClosureButton(title: "Reveal", symbol: "doc.text.magnifyingglass") { [weak self] in self?.revealSelection() }
+        let delete = ClosureButton(title: "Delete", symbol: "trash") { [weak self] in self?.deleteSelection() }
+        [open, create, `import`, reveal, delete].forEach {
+            $0.heightAnchor.constraint(equalToConstant: 32).isActive = true
+            $0.widthAnchor.constraint(greaterThanOrEqualToConstant: 84).isActive = true
+        }
+        let actions = NSStackView(views: [open, create, `import`, reveal, delete])
+        actions.orientation = .horizontal
+        actions.alignment = .centerY
+        actions.spacing = 8
+        actions.translatesAutoresizingMaskIntoConstraints = false
+
+        root.addSubview(searchField)
+        root.addSubview(scroll)
+        root.addSubview(actions)
+        NSLayoutConstraint.activate([
+            searchField.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 18),
+            searchField.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -18),
+            searchField.topAnchor.constraint(equalTo: root.topAnchor, constant: 18),
+
+            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 18),
+            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -18),
+            scroll.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 14),
+            scroll.bottomAnchor.constraint(equalTo: actions.topAnchor, constant: -14),
+
+            actions.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 18),
+            actions.trailingAnchor.constraint(lessThanOrEqualTo: root.trailingAnchor, constant: -18),
+            actions.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -18)
+        ])
+        return root
+    }
+
+    private func makeProjectCell(identifier: NSUserInterfaceItemIdentifier) -> NSTableCellView {
+        let cell = NSTableCellView()
+        cell.identifier = identifier
+
+        let primary = NSTextField(labelWithString: "")
+        primary.tag = 1
+        primary.font = NSFont.systemFont(ofSize: 14, weight: .black)
+        primary.textColor = Palette.text
+        primary.translatesAutoresizingMaskIntoConstraints = false
+
+        let secondary = NSTextField(labelWithString: "")
+        secondary.tag = 2
+        secondary.font = NSFont.systemFont(ofSize: 11, weight: .bold)
+        secondary.textColor = Palette.muted
+        secondary.translatesAutoresizingMaskIntoConstraints = false
+
+        cell.addSubview(primary)
+        cell.addSubview(secondary)
+        NSLayoutConstraint.activate([
+            primary.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 12),
+            primary.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -12),
+            primary.topAnchor.constraint(equalTo: cell.topAnchor, constant: 9),
+            secondary.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 12),
+            secondary.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -12),
+            secondary.topAnchor.constraint(equalTo: primary.bottomAnchor, constant: 4)
+        ])
+        return cell
     }
 }
 
@@ -1563,9 +1787,11 @@ final class MainWindowController: NSWindowController {
     private var selectedClipId = ""
     private var audioRecorder: AVAudioRecorder?
     private var recordingURL: URL?
+    private var lastVocalAnalysis: [String: Any]?
     private var isPlaying = false
     private var isRecording = false
     private var zoom: CGFloat = 38
+    private lazy var projectBrowserController = ProjectBrowserWindowController()
 
     private let titleLabel = makeLabel("Neon Studio", size: 26, weight: .black)
     private let subtitleLabel = makeLabel("Native Mac DAW shell", size: 12, weight: .bold, color: Palette.muted)
@@ -1777,14 +2003,32 @@ final class MainWindowController: NSWindowController {
         return split
     }
 
-    private func makeLeftColumn() -> NSView {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .width
-        stack.distribution = .fill
-        stack.spacing = 10
-        stack.translatesAutoresizingMaskIntoConstraints = false
+    private func makeVerticalSplit(top: NSView, bottom: NSView, topHeight: CGFloat, minTop: CGFloat = 150, minBottom: CGFloat = 150) -> NSSplitView {
+        let split = NSSplitView()
+        split.isVertical = false
+        split.dividerStyle = .thin
+        split.translatesAutoresizingMaskIntoConstraints = false
+        split.wantsLayer = true
+        split.layer?.backgroundColor = Palette.app.cgColor
 
+        split.addArrangedSubview(top)
+        split.addArrangedSubview(bottom)
+
+        let preferredTopHeight = top.heightAnchor.constraint(equalToConstant: topHeight)
+        preferredTopHeight.priority = .defaultHigh
+        preferredTopHeight.isActive = true
+
+        top.heightAnchor.constraint(greaterThanOrEqualToConstant: minTop).isActive = true
+        bottom.heightAnchor.constraint(greaterThanOrEqualToConstant: minBottom).isActive = true
+        top.setContentHuggingPriority(.defaultLow, for: .vertical)
+        bottom.setContentHuggingPriority(.defaultLow, for: .vertical)
+        top.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        bottom.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+
+        return split
+    }
+
+    private func makeLeftColumn() -> NSView {
         let browserPanel = TitledPanel(title: "Browser", accessory: "Local")
         let browserScroll = NSScrollView()
         browserScroll.documentView = browserView
@@ -1798,7 +2042,6 @@ final class MainWindowController: NSWindowController {
             browserScroll.topAnchor.constraint(equalTo: browserPanel.contentGuide.topAnchor),
             browserScroll.bottomAnchor.constraint(equalTo: browserPanel.contentGuide.bottomAnchor)
         ])
-        browserPanel.heightAnchor.constraint(equalToConstant: 220).isActive = true
 
         let rackPanel = TitledPanel(title: "Channel Rack", accessory: "P01")
         let rackScroll = NSScrollView()
@@ -1816,19 +2059,10 @@ final class MainWindowController: NSWindowController {
             rackScroll.bottomAnchor.constraint(equalTo: rackPanel.contentGuide.bottomAnchor)
         ])
 
-        stack.addArrangedSubview(browserPanel)
-        stack.addArrangedSubview(rackPanel)
-        return stack
+        return makeVerticalSplit(top: browserPanel, bottom: rackPanel, topHeight: 220, minTop: 150, minBottom: 180)
     }
 
     private func makeCenterColumn() -> NSView {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .width
-        stack.distribution = .fill
-        stack.spacing = 10
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
         let toolbar = makePlaylistToolbar()
         toolbar.heightAnchor.constraint(equalToConstant: 78).isActive = true
 
@@ -1848,6 +2082,13 @@ final class MainWindowController: NSWindowController {
             playlistScroll.bottomAnchor.constraint(equalTo: playlistPanel.contentGuide.bottomAnchor)
         ])
 
+        let arrangementStack = NSStackView(views: [toolbar, playlistPanel])
+        arrangementStack.orientation = .vertical
+        arrangementStack.alignment = .width
+        arrangementStack.distribution = .fill
+        arrangementStack.spacing = 10
+        arrangementStack.translatesAutoresizingMaskIntoConstraints = false
+
         let scopePanel = TitledPanel(title: "Automation + Scope", accessory: "Live")
         automationScopeView.translatesAutoresizingMaskIntoConstraints = false
         scopePanel.contentGuide.addSubview(automationScopeView)
@@ -1857,12 +2098,8 @@ final class MainWindowController: NSWindowController {
             automationScopeView.topAnchor.constraint(equalTo: scopePanel.contentGuide.topAnchor),
             automationScopeView.bottomAnchor.constraint(equalTo: scopePanel.contentGuide.bottomAnchor)
         ])
-        scopePanel.heightAnchor.constraint(equalToConstant: 150).isActive = true
 
-        stack.addArrangedSubview(toolbar)
-        stack.addArrangedSubview(playlistPanel)
-        stack.addArrangedSubview(scopePanel)
-        return stack
+        return makeVerticalSplit(top: arrangementStack, bottom: scopePanel, topHeight: 410, minTop: 260, minBottom: 120)
     }
 
     private func makePlaylistToolbar() -> NSView {
@@ -1982,9 +2219,6 @@ final class MainWindowController: NSWindowController {
     }
 
     private func makeRightColumn() -> NSView {
-        let column = NSView()
-        column.translatesAutoresizingMaskIntoConstraints = false
-
         let mixerPanel = TitledPanel(title: "Mixer", accessory: "Bus")
         let mixerScroll = NSScrollView()
         mixerScroll.documentView = mixerView
@@ -2050,31 +2284,17 @@ final class MainWindowController: NSWindowController {
             actions.trailingAnchor.constraint(equalTo: projectPanel.contentGuide.trailingAnchor),
             actions.bottomAnchor.constraint(equalTo: projectPanel.contentGuide.bottomAnchor)
         ])
-        let projectHeight = projectPanel.heightAnchor.constraint(equalToConstant: 300)
-        projectHeight.priority = .defaultHigh
-        projectHeight.isActive = true
         projectPanel.setContentHuggingPriority(.defaultLow, for: .horizontal)
         projectPanel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        column.addSubview(mixerPanel)
-        column.addSubview(projectPanel)
-        NSLayoutConstraint.activate([
-            mixerPanel.leadingAnchor.constraint(equalTo: column.leadingAnchor),
-            mixerPanel.trailingAnchor.constraint(equalTo: column.trailingAnchor),
-            mixerPanel.topAnchor.constraint(equalTo: column.topAnchor),
-            mixerPanel.bottomAnchor.constraint(equalTo: projectPanel.topAnchor, constant: -10),
-            projectPanel.leadingAnchor.constraint(equalTo: column.leadingAnchor),
-            projectPanel.trailingAnchor.constraint(equalTo: column.trailingAnchor),
-            projectPanel.bottomAnchor.constraint(equalTo: column.bottomAnchor)
-        ])
-
-        return column
+        return makeVerticalSplit(top: mixerPanel, bottom: projectPanel, topHeight: 280, minTop: 170, minBottom: 230)
     }
 
     private func loadProjects() {
         projects = store.loadProjects()
         browserView.projects = projects
         browserView.setFrameSize(browserView.intrinsicContentSize)
+        projectBrowserController.setProjects(projects, selectedId: currentProject?.id)
         browserView.onProjectSelected = { [weak self] project in
             self?.open(project)
         }
@@ -2171,6 +2391,7 @@ final class MainWindowController: NSWindowController {
         mixerView.setFrameSize(mixerView.intrinsicContentSize)
         automationScopeView.project = project
         recipeView.project = project
+        projectBrowserController.setProjects(projects, selectedId: project.id)
         if let status {
             statusLabel.stringValue = status
         }
@@ -2313,7 +2534,7 @@ final class MainWindowController: NSWindowController {
         guard let project = currentProject else { return }
         let alert = NSAlert()
         alert.messageText = "Loop Bars"
-        alert.informativeText = "Set loop start and end bars. Values are 1-based, like the web app readout."
+        alert.informativeText = "Set loop start and end bars. Values are 1-based."
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -2655,20 +2876,24 @@ final class MainWindowController: NSWindowController {
 
     private func exportMixdown() {
         guard let project = currentProject else { return }
-        guard let source = store.fullMixURL(for: project) else {
-            statusLabel.stringValue = "No rendered full mix exists yet"
-            return
-        }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.wav]
         panel.nameFieldStringValue = "\(safeProjectId(project.name.lowercased()))-mixdown.wav"
-        panel.message = "Export the rendered mixdown WAV."
+        panel.message = "Render the current project state as a mixdown WAV."
         guard panel.runModal() == .OK, let destination = panel.url else { return }
         do {
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
-            }
-            try FileManager.default.copyItem(at: source, to: destination)
+            let tempProject = FileManager.default.temporaryDirectory.appendingPathComponent("\(project.id)-mixdown-project.neon.json")
+            try store.exportProject(project, to: tempProject)
+            statusLabel.stringValue = "Rendering mixdown"
+            _ = try runProcess(
+                executable: URL(fileURLWithPath: "/usr/bin/python3"),
+                arguments: [
+                    store.rootURL.appendingPathComponent("tools/render_mixdown.py").path,
+                    "--root", store.rootURL.path,
+                    "--project", tempProject.path,
+                    "--output", destination.path
+                ]
+            )
             statusLabel.stringValue = "Mixdown exported"
         } catch {
             statusLabel.stringValue = "Mixdown failed: \(error.localizedDescription)"
@@ -2700,18 +2925,34 @@ final class MainWindowController: NSWindowController {
     }
 
     private func showProjectManager() {
-        let alert = NSAlert()
-        alert.messageText = "Projects"
-        alert.informativeText = projects.map { "\($0.name)  -  \(Int($0.snapshot.bpm)) BPM, \($0.snapshot.tracks.count) tracks" }.joined(separator: "\n")
-        alert.addButton(withTitle: "New Project")
-        alert.addButton(withTitle: "Import")
-        alert.addButton(withTitle: "OK")
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            createNewProject()
-        } else if response == .alertSecondButtonReturn {
-            importProjectFile()
+        projectBrowserController.onOpenProject = { [weak self] project in
+            self?.open(project)
         }
+        projectBrowserController.onCreateProject = { [weak self] in
+            self?.createNewProject()
+            if let self {
+                self.projectBrowserController.setProjects(self.projects, selectedId: self.currentProject?.id)
+            }
+        }
+        projectBrowserController.onImportProject = { [weak self] in
+            self?.importProjectFile()
+            if let self {
+                self.projectBrowserController.setProjects(self.projects, selectedId: self.currentProject?.id)
+            }
+        }
+        projectBrowserController.onDeleteProject = { [weak self] project in
+            guard let self else { return }
+            self.open(project)
+            self.confirmDeleteCurrentProject()
+            self.projectBrowserController.setProjects(self.projects, selectedId: self.currentProject?.id)
+        }
+        projectBrowserController.onRevealProject = { [weak self] project in
+            guard let self else { return }
+            self.open(project)
+            self.revealCurrentProject()
+        }
+        projectBrowserController.setProjects(projects, selectedId: currentProject?.id)
+        projectBrowserController.present()
     }
 
     private func toggleRecording() {
@@ -2755,6 +2996,7 @@ final class MainWindowController: NSWindowController {
 
     private func runVocalLab() {
         guard let project = currentProject else { return }
+        guard let settings = promptVocalLabSettings(for: project) else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.audio]
         panel.allowsMultipleSelection = false
@@ -2786,24 +3028,71 @@ final class MainWindowController: NSWindowController {
                     "--output", output.path,
                     "--name", inputURL.lastPathComponent,
                     "--bpm", "\(project.snapshot.bpm)",
-                    "--start-bar", "\(Int(project.snapshot.loopStartBar ?? 16) + 1)",
+                    "--start-bar", "\(settings.startBar)",
                     "--total-bars", "72",
-                    "--key", (project.keyCenter ?? "e_minor").lowercased().replacingOccurrences(of: " / ", with: "_").replacingOccurrences(of: " ", with: "_")
+                    "--key", settings.key
                 ]
             )
             let analysis = parseLastJSONLine(stdout)
+            lastVocalAnalysis = analysis
             let segments = analysis["segments"] as? Int ?? 1
             addAudioTrack(
                 from: output,
                 name: "Vocal \(stem.replacingOccurrences(of: "_", with: " "))",
                 color: "#f59fcb",
                 instrument: "AutoTune Vocal Chain",
-                startBar: max(0, project.snapshot.loopStartBar ?? 16),
-                status: "Vocal tuned: \(segments) segment\(segments == 1 ? "" : "s")"
+                startBar: max(0, Double(settings.startBar - 1)),
+                status: vocalStatusText(analysis: analysis, fallbackSegments: segments)
             )
         } catch {
             statusLabel.stringValue = "Vocal Lab failed: \(error.localizedDescription)"
         }
+    }
+
+    private func promptVocalLabSettings(for project: LocalProject) -> (startBar: Int, key: String)? {
+        let alert = NSAlert()
+        alert.messageText = "Vocal Lab"
+        let defaultKey = (project.keyCenter ?? "e_minor").lowercased().replacingOccurrences(of: " / ", with: "_").replacingOccurrences(of: " ", with: "_")
+        var info = "Choose where the tuned vocal should enter and which key to tune toward."
+        if let lastVocalAnalysis {
+            let segments = lastVocalAnalysis["segments"] as? Int ?? 0
+            let correction = lastVocalAnalysis["averageCorrectionSemitones"] as? Double ?? 0
+            if segments > 0 {
+                info += "\nLast run: \(segments) segment\(segments == 1 ? "" : "s"), avg correction \(String(format: "%.2f", correction)) semitones."
+            }
+        }
+        alert.informativeText = info
+        let startField = NSTextField(string: "\(Int((project.snapshot.loopStartBar ?? 16) + 1))")
+        let keyField = NSTextField(string: defaultKey)
+        startField.frame.size.width = 70
+        keyField.frame.size.width = 150
+        let startLabel = makeLabel("Start Bar", size: 11, weight: .bold, color: Palette.muted)
+        let keyLabel = makeLabel("Key", size: 11, weight: .bold, color: Palette.muted)
+        let row1 = NSStackView(views: [startLabel, startField])
+        row1.orientation = .horizontal
+        row1.alignment = .centerY
+        row1.spacing = 10
+        let row2 = NSStackView(views: [keyLabel, keyField])
+        row2.orientation = .horizontal
+        row2.alignment = .centerY
+        row2.spacing = 36
+        let stack = NSStackView(views: [row1, row2])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 10
+        alert.accessoryView = stack
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        let startBar = max(1, min(72, Int(startField.integerValue == 0 ? 17 : startField.integerValue)))
+        let cleanedKey = keyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return (startBar, cleanedKey.isEmpty ? defaultKey : cleanedKey)
+    }
+
+    private func vocalStatusText(analysis: [String: Any], fallbackSegments: Int) -> String {
+        let segments = analysis["segments"] as? Int ?? fallbackSegments
+        let correction = analysis["averageCorrectionSemitones"] as? Double ?? 0
+        return "Vocal tuned: \(segments) segment\(segments == 1 ? "" : "s"), avg correction \(String(format: "%.2f", correction)) st"
     }
 
     private func addAudioTrack(from url: URL, name: String, color: String, instrument: String, startBar: Double, status: String) {
@@ -2928,7 +3217,7 @@ final class MainWindowController: NSWindowController {
         guard let project = currentProject else { return }
         let paths = [
             store.rootURL.appendingPathComponent("data/projects/\(project.id).neon.json"),
-            store.rootURL.appendingPathComponent("public/projects/\(project.id).neon.json")
+            store.rootURL.appendingPathComponent("factory/projects/\(project.id).neon.json")
         ]
         if let url = paths.first(where: { FileManager.default.fileExists(atPath: $0.path) }) {
             NSWorkspace.shared.activateFileViewerSelecting([url])
@@ -2950,7 +3239,7 @@ final class MainWindowController: NSWindowController {
         Cmd+Z / Shift+Cmd+Z: Undo and redo
         Delete: Delete selected clip, note, or track
 
-        File/Edit/Add/View/Options menus mirror the web app controls. Project actions export mixdowns, backup .neon.json files, import audio/projects, record audio, and run Vocal Lab.
+        File/Edit/Add/View/Options menus expose the core DAW controls. Project actions export mixdowns, backup .neon.json files, import audio/projects, record audio, and run Vocal Lab.
         """
         alert.addButton(withTitle: "OK")
         alert.runModal()
@@ -3050,7 +3339,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let seed = Bundle.main.resourceURL?.appendingPathComponent("seed", isDirectory: true) else {
             return support
         }
-        copySeedDirectory("public", from: seed, to: support)
+        copySeedDirectory("factory", from: seed, to: support)
         copySeedDirectory("data", from: seed, to: support)
         copySeedDirectory("exports", from: seed, to: support)
         copySeedDirectory("tools", from: seed, to: support)

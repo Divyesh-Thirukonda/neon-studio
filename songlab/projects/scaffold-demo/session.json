@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-04-30T23:22:31Z",
+  "updatedAt": "2026-05-01T00:50:36Z",
+  "projectId": "scaffold-demo",
+  "projectName": "Scaffold Demo",
+  "sourcePrompt": "Convert the production walkthrough for Scaffold Demo into an original Neon Studio project. Carry over the described arrangement (Intro, Verse, Build, Drop), track roles (chords, lead, bass, clap, noise, drums), and production techniques, but keep the result original and portable.",
+  "sourceMode": "transcript",
+  "normalizedIntent": "Create a hook-first future-bass project with a readable arrangement, clean low end, and a portable Neon Studio session, using any named references as valid production targets rather than reasons to refuse.",
+  "archetype": {
+    "id": "future-bass-generic",
+    "label": "Future Bass Generic",
+    "referenceSummary": [
+      "Memorable lead motif with simple supporting harmony",
+      "Pumped chords and a wide but controlled top end",
+      "Build-to-drop contrast more important than raw layer count"
+    ],
+    "arrangementTargets": [
+      "Intro, verse, build, drop, break, final drop, outro",
+      "Every section should have a reason to exist in the project file"
+    ],
+    "soundTargets": [
+      "Lead, chords, bass, drums, FX as obvious primary lanes",
+      "Automation and ear-candy lanes only when they have a clear job"
+    ],
+    "mixTargets": [
+      "No low-frequency clutter outside bass and kick",
+      "Final drop brighter and wider than the first"
+    ]
+  },
+  "copyrightGuardrails": [
+    "Treat named commercial songs, public tutorials, and transcripts as valid reference material for arrangement, sound design, transitions, and mix feel.",
+    "Push close to the requested production lane when the user provides concrete specs or walkthrough detail.",
+    "Do not rely on exact lyric copying, exact topline copying, or note-for-note melodic cloning as the main implementation strategy.",
+    "Keep the resulting .neon.json project portable and coherent."
+  ],
+  "workspace": {
+    "root": "/Users/divy/Downloads/summer",
+    "generator": "render_scaffold_demo.py",
+    "dataProject": "data/projects/scaffold-demo.neon.json",
+    "factoryProject": "factory/projects/scaffold-demo.neon.json",
+    "fullMix": "exports/scaffold_demo_full_mix.wav",
+    "arrangementMidi": "midi/scaffold_demo_arrangement.mid"
+  },
+  "currentProject": {
+    "exists": true,
+    "path": "data/projects/scaffold-demo.neon.json",
+    "name": "Scaffold Demo",
+    "description": "Transcript-driven portable Neon Studio project scaffold built from a production walkthrough for Scaffold Demo.",
+    "keyCenter": null,
+    "bpm": 142,
+    "trackCount": 10,
+    "trackNames": [
+      "Chords",
+      "Lead",
+      "Bass",
+      "Clap Stack",
+      "FX",
+      "Drums",
+      "Guitar",
+      "Hat/Ride",
+      "Filter Auto",
+      "Sub"
+    ],
+    "recipeCount": 5,
+    "loopRange": [
+      24,
+      40
+    ],
+    "snap": "1/16",
+    "swing": 18,
+    "generatorLikely": "render_scaffold_demo.py"
+  },
+  "phasePlan": [
+    {
+      "id": "ingest",
+      "title": "Transcript Ingest",
+      "goal": "Convert the walkthrough transcript into a structured project spec before editing the song.",
+      "deliverables": [
+        "transcript.txt copied into the songlab session",
+        "transcript_spec.json with sections, tracks, plugins, and techniques",
+        "transcript_spec.md human-readable coverage summary"
+      ]
+    },
+    {
+      "id": "scaffold",
+      "title": "Project Scaffold",
+      "goal": "Generate a first-pass .neon.json track layout, clip map, and recipe from the transcript before detailed renderer work.",
+      "deliverables": [
+        "data/projects/<project-id>.neon.json scaffold",
+        "factory/projects/<project-id>.neon.json scaffold",
+        "render_<project>.py stub if no renderer exists yet"
+      ]
+    },
+    {
+      "id": "plan",
+      "title": "Reference DNA",
+      "goal": "Convert the user prompt into a concrete target lane with explicit boundaries around what should be matched closely versus only approximated.",
+      "deliverables": [
+        "session.json updated with normalized intent",
+        "plan.md with arrangement and mix targets"
+      ]
+    },
+    {
+      "id": "inspect",
+      "title": "Current Project Audit",
+      "goal": "Read the current .neon.json and generator so edits land on the real project, not a stale seed.",
+      "deliverables": [
+        "data/projects/scaffold-demo.neon.json",
+        "factory/projects/scaffold-demo.neon.json",
+        "render_scaffold_demo.py (exists)"
+      ]
+    },
+    {
+      "id": "implement",
+      "title": "Generator / Project Edit",
+      "goal": "Adjust the renderer and project metadata together so arrangement, stems, and recipe stay coherent.",
+      "deliverables": [
+        "Updated stem synthesis or arrangement logic",
+        "Updated track/recipe metadata when musical structure changes"
+      ]
+    },
+    {
+      "id": "render",
+      "title": "Render + Sync",
+      "goal": "Render the mix, stems, and MIDI and ensure the factory/data project files match.",
+      "deliverables": [
+        "exports/scaffold_demo_full_mix.wav",
+        "midi/scaffold_demo_arrangement.mid"
+      ]
+    },
+    {
+      "id": "verify",
+      "title": "Verification Loop",
+      "goal": "Check the result against the acceptance criteria, then log the next gap instead of stopping at a vague impression.",
+      "deliverables": [
+        "iteration log entry",
+        "next-pass backlog item"
+      ]
+    }
+  ],
+  "iterationBacklog": [
+    {
+      "status": "pending",
+      "focus": "Simplify the melodic contour before adding countermelodies"
+    },
+    {
+      "status": "pending",
+      "focus": "Tighten drums before touching mastering-style loudness"
+    }
+  ],
+  "acceptanceChecks": [
+    "Portable project renders with coherent stems and metadata",
+    "The drop reads immediately from the recipe and playlist"
+  ],
+  "transcript": {
+    "sourcePath": "songlab/projects/scaffold-demo/transcript.txt",
+    "specPath": "songlab/projects/scaffold-demo/transcript_spec.json",
+    "summaryPath": "songlab/projects/scaffold-demo/transcript_spec.md",
+    "analysis": {
+      "titleHint": "Scaffold Demo",
+      "wordCount": 51,
+      "timecoded": true,
+      "sectionCount": 4,
+      "tempoHint": null,
+      "keyHints": [],
+      "topTrackRoles": [
+        "chords",
+        "lead",
+        "bass",
+        "clap",
+        "noise",
+        "drums",
+        "guitar",
+        "hat"
+      ],
+      "topPlugins": [],
+      "sectionLabels": [
+        "Intro",
+        "Verse",
+        "Build",
+        "Drop"
+      ],
+      "openQuestions": [
+        "Transcript does not explicitly state a BPM.",
+        "Transcript does not clearly state the key."
+      ]
+    }
+  },
+  "scaffold": {
+    "generatedAt": "2026-05-01T00:50:36Z",
+    "dataProject": "data/projects/scaffold-demo.neon.json",
+    "factoryProject": "factory/projects/scaffold-demo.neon.json",
+    "renderer": "render_scaffold_demo.py",
+    "summaryPath": "songlab/projects/scaffold-demo/project_scaffold.md"
+  }
+}

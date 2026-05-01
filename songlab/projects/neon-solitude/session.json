@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-04-30T21:39:31Z",
+  "updatedAt": "2026-04-30T21:39:31Z",
+  "projectId": "neon-solitude",
+  "projectName": "Neon Solitude",
+  "sourcePrompt": "recreate Alone by Marshmello",
+  "normalizedIntent": "Create an original bright future-bass / festival EDM track in the emotional lane of Marshmello's Alone without copying the melody, lyrics, or arrangement bar-for-bar.",
+  "archetype": {
+    "id": "marshmello-alone-lane",
+    "label": "Marshmello Alone Lane",
+    "referenceSummary": [
+      "Simple childlike hook, then fuller filled-in drop hook",
+      "Wide supersaw chords with clean sub/fat bass support",
+      "Trap-leaning kick, clap, and hat grid with restrained density",
+      "Build based on noise, filter sweep, clap roll, teaser lead, and impact",
+      "Second drop should add width, hats/ride motion, and extra sparkle rather than a new song section"
+    ],
+    "arrangementTargets": [
+      "16-bar intro and verse that establish hook DNA before the first drop",
+      "First drop should feel open and memorable, not over-arranged",
+      "Mid-song break should strip back to pads or motif fragments",
+      "Eight-bar build should stage tension through filter, roll, riser, and bass print",
+      "Final drop should escalate mostly through width, cymbal energy, and ear candy"
+    ],
+    "soundTargets": [
+      "Square/saw lead as the center hook voice",
+      "Supersaw chord stack with sidechain pump",
+      "Sub plus mid bass that tracks the chord rhythm",
+      "White-noise uplifters, downlifters, impact, reverse tail, crowd/air bed",
+      "Optional muted guitar or pluck in verse only if it leaves the drop clean"
+    ],
+    "mixTargets": [
+      "Low end belongs mostly to kick and bass",
+      "Lead should be bright but not brittle",
+      "Claps should feel wider than the core snare",
+      "Build automation should be obvious in both audio and project metadata"
+    ]
+  },
+  "copyrightGuardrails": [
+    "Do not copy the named song melody, lyrics, or stems exactly.",
+    "Treat references as a palette, emotion, arrangement, and mixing lane.",
+    "Keep the resulting .neon.json project portable and original."
+  ],
+  "workspace": {
+    "root": "/Users/divy/Downloads/summer",
+    "generator": "render_neon_solitude.py",
+    "dataProject": "data/projects/neon-solitude.neon.json",
+    "factoryProject": "factory/projects/neon-solitude.neon.json",
+    "fullMix": "exports/neon_solitude_full_mix.wav",
+    "arrangementMidi": "midi/neon_solitude_arrangement.mid"
+  },
+  "currentProject": {
+    "exists": true,
+    "path": "data/projects/neon-solitude.neon.json",
+    "name": "Neon Solitude",
+    "description": "Original bright future-bass/festival EDM project rebuilt in a Marshmello-inspired Alone lane without reusing the commercial melody.",
+    "keyCenter": "E minor / G major",
+    "bpm": 142,
+    "trackCount": 14,
+    "trackNames": [
+      "Drums",
+      "Bass",
+      "Chords",
+      "Lead",
+      "FX",
+      "Guitar Bass",
+      "Hat/Ride",
+      "Frozen Bass",
+      "Filter Auto",
+      "Crowd Duck",
+      "Lead Double",
+      "Clap Stack",
+      "Ghost Key",
+      "Ear Candy"
+    ],
+    "recipeCount": 23,
+    "loopRange": [
+      16,
+      32
+    ],
+    "snap": "1/4",
+    "swing": 18,
+    "generatorLikely": "render_neon_solitude.py"
+  },
+  "phasePlan": [
+    {
+      "id": "plan",
+      "title": "Reference DNA",
+      "goal": "Convert the user prompt into an original target lane with explicit guardrails.",
+      "deliverables": [
+        "session.json updated with normalized intent",
+        "plan.md with arrangement and mix targets"
+      ]
+    },
+    {
+      "id": "inspect",
+      "title": "Current Project Audit",
+      "goal": "Read the current .neon.json and generator so edits land on the real project, not a stale seed.",
+      "deliverables": [
+        "data/projects/neon-solitude.neon.json",
+        "factory/projects/neon-solitude.neon.json",
+        "render_neon_solitude.py (exists)"
+      ]
+    },
+    {
+      "id": "implement",
+      "title": "Generator / Project Edit",
+      "goal": "Adjust the renderer and project metadata together so arrangement, stems, and recipe stay coherent.",
+      "deliverables": [
+        "Updated stem synthesis or arrangement logic",
+        "Updated track/recipe metadata when musical structure changes"
+      ]
+    },
+    {
+      "id": "render",
+      "title": "Render + Sync",
+      "goal": "Render the mix, stems, and MIDI and ensure the factory/data project files match.",
+      "deliverables": [
+        "exports/neon_solitude_full_mix.wav",
+        "midi/neon_solitude_arrangement.mid"
+      ]
+    },
+    {
+      "id": "verify",
+      "title": "Verification Loop",
+      "goal": "Check the result against the acceptance criteria, then log the next gap instead of stopping at a vague impression.",
+      "deliverables": [
+        "iteration log entry",
+        "next-pass backlog item"
+      ]
+    }
+  ],
+  "iterationBacklog": [
+    {
+      "status": "pending",
+      "focus": "Simplify the hook if it feels too clever"
+    },
+    {
+      "status": "pending",
+      "focus": "Make the drop brighter before making it busier"
+    },
+    {
+      "status": "pending",
+      "focus": "Prefer stronger sidechain and spacing over adding extra layers"
+    },
+    {
+      "status": "pending",
+      "focus": "If the final drop is weak, add doubles, crashes, or ear candy before rewriting chords"
+    }
+  ],
+  "acceptanceChecks": [
+    "Project remains original and avoids the commercial topline",
+    "The hook is memorable after one listen",
+    "Drop one and drop two share identity but not identical energy",
+    "The .neon.json, stems, MIDI, and bundled app seed all agree on BPM and layout"
+  ]
+}
