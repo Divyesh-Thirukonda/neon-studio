@@ -19,7 +19,7 @@ swiftc \
   -o "$MACOS_DIR/NeonStudio"
 
 mkdir -p "$RESOURCES_DIR/seed"
-for seed_dir in factory data exports tools; do
+for seed_dir in factory data exports tools skills; do
   if [ -e "$REPO_ROOT/$seed_dir" ]; then
     rm -rf "$RESOURCES_DIR/seed/$seed_dir"
     cp -R "$REPO_ROOT/$seed_dir" "$RESOURCES_DIR/seed/$seed_dir"

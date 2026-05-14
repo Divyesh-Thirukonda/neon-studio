@@ -30,6 +30,7 @@ struct ProjectSnapshot: Codable {
     var loopEndBar: Double?
     var tracks: [Track]
     var controls: [String: MixerControl]?
+    var automationLanes: [AutomationLane]?
     var notes: [PianoNote]?
     var selectedTrackId: String?
     var selectedClipId: String?
@@ -51,6 +52,7 @@ struct Track: Codable {
     var instrument: String?
     var clips: [Clip]?
     var effects: [Effect]?
+    var sampleEdit: SampleEdit?
 }
 
 struct Clip: Codable {
@@ -70,6 +72,16 @@ struct Effect: Codable {
     var amount: Double?
 }
 
+struct SampleEdit: Codable {
+    var trimStart: Double?
+    var trimEnd: Double?
+    var pitchSemitones: Double?
+    var stretch: Double?
+    var reverse: Bool?
+    var normalize: Bool?
+    var gain: Double?
+}
+
 struct MixerControl: Codable {
     var gain: Double
     var pan: Double
@@ -78,6 +90,23 @@ struct MixerControl: Codable {
     var arm: Bool
     var sendA: Double
     var sendB: Double
+}
+
+struct AutomationLane: Codable {
+    var id: String
+    var trackId: String
+    var parameter: String
+    var label: String
+    var color: String?
+    var enabled: Bool?
+    var curve: String?
+    var points: [AutomationPoint]
+}
+
+struct AutomationPoint: Codable {
+    var bar: Double
+    var value: Double
+    var curve: String?
 }
 
 struct PianoNote: Codable {
@@ -385,6 +414,13 @@ final class ProjectStore {
             next.name = "Untitled Project"
         }
         next.createdAt = next.createdAt ?? next.updatedAt
+        next.snapshot.tracks = next.snapshot.tracks.map { track in
+            var normalized = track
+            if track.sampleEdit != nil || track.file != nil || track.kind?.lowercased() == "audio" {
+                normalized.sampleEdit = normalizeSampleEdit(track.sampleEdit)
+            }
+            return normalized
+        }
         next.snapshot.version = 3
         next.snapshot.swing = next.snapshot.swing ?? 0
         next.snapshot.snap = next.snapshot.snap ?? "1/4"
@@ -392,6 +428,8 @@ final class ProjectStore {
         next.snapshot.loopStartBar = next.snapshot.loopStartBar ?? 0
         next.snapshot.loopEndBar = next.snapshot.loopEndBar ?? 16
         next.snapshot.controls = next.snapshot.controls ?? makeDefaultControls(for: next.snapshot.tracks)
+        let automationLanes = next.snapshot.automationLanes ?? makeDefaultAutomationLanes(for: next.snapshot.tracks)
+        next.snapshot.automationLanes = automationLanes.map { normalizeAutomationLane($0, tracks: next.snapshot.tracks) }
         next.snapshot.notes = next.snapshot.notes ?? []
         next.snapshot.selectedTrackId = next.snapshot.selectedTrackId ?? next.snapshot.tracks.first?.id ?? ""
         next.snapshot.selectedClipId = next.snapshot.selectedClipId ?? next.snapshot.tracks.flatMap { $0.clips ?? [] }.first?.id ?? ""
@@ -426,6 +464,96 @@ func makeDefaultControls(for tracks: [Track]) -> [String: MixerControl] {
             )
         )
     })
+}
+
+func makeDefaultAutomationLanes(for tracks: [Track]) -> [AutomationLane] {
+    tracks.compactMap { track in
+        let isAutomationTrack = track.kind?.lowercased() == "automation"
+            || track.name.lowercased().contains("auto")
+            || (track.clips ?? []).contains { $0.type?.lowercased() == "automation" }
+        guard isAutomationTrack else { return nil }
+
+        let firstClip = track.clips?.first
+        let startBar = max(0, firstClip?.startBar ?? 0)
+        let bars = max(1, firstClip?.bars ?? 8)
+        let parameter = inferAutomationParameter(for: track)
+        return AutomationLane(
+            id: "auto-\(safeProjectId(track.id))-\(safeProjectId(parameter))",
+            trackId: track.id,
+            parameter: parameter,
+            label: "\(track.name) \(parameter.capitalized)",
+            color: track.color,
+            enabled: true,
+            curve: "linear",
+            points: [
+                AutomationPoint(bar: startBar, value: 0.15, curve: "linear"),
+                AutomationPoint(bar: startBar + bars, value: 0.9, curve: "linear")
+            ]
+        )
+    }
+}
+
+func normalizeAutomationLane(_ lane: AutomationLane, tracks: [Track]) -> AutomationLane {
+    var next = lane
+    let fallbackTrackId = tracks.first?.id ?? "master"
+    if !tracks.contains(where: { $0.id == next.trackId }) {
+        next.trackId = fallbackTrackId
+    }
+    if next.parameter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        next.parameter = "gain"
+    }
+    if next.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        next.id = "auto-\(safeProjectId(next.trackId))-\(safeProjectId(next.parameter))"
+    }
+    if next.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        let trackName = tracks.first { $0.id == next.trackId }?.name ?? "Master"
+        next.label = "\(trackName) \(next.parameter.capitalized)"
+    }
+    next.enabled = next.enabled ?? true
+    next.curve = next.curve ?? "linear"
+    next.points = next.points
+        .map { point in
+            AutomationPoint(
+                bar: max(0, point.bar),
+                value: max(0, min(1, point.value)),
+                curve: point.curve ?? next.curve
+            )
+        }
+        .sorted { lhs, rhs in lhs.bar < rhs.bar }
+    if next.points.isEmpty {
+        next.points = [
+            AutomationPoint(bar: 0, value: 0.3, curve: next.curve),
+            AutomationPoint(bar: 8, value: 0.8, curve: next.curve)
+        ]
+    }
+    return next
+}
+
+func normalizeSampleEdit(_ edit: SampleEdit?) -> SampleEdit {
+    let trimStart = max(0, edit?.trimStart ?? 0)
+    let rawTrimEnd = edit?.trimEnd
+    let trimEnd = rawTrimEnd.map { max(trimStart, $0) }
+    return SampleEdit(
+        trimStart: trimStart,
+        trimEnd: trimEnd,
+        pitchSemitones: max(-48, min(48, edit?.pitchSemitones ?? 0)),
+        stretch: max(0.25, min(4, edit?.stretch ?? 1)),
+        reverse: edit?.reverse ?? false,
+        normalize: edit?.normalize ?? false,
+        gain: edit?.gain.map { max(0, min(2, $0)) }
+    )
+}
+
+func inferAutomationParameter(for track: Track) -> String {
+    let text = ([track.name, track.kind, track.instrument] + (track.effects ?? []).map(\.name))
+        .compactMap { $0 }
+        .joined(separator: " ")
+        .lowercased()
+    if text.contains("filter") || text.contains("cutoff") { return "filter" }
+    if text.contains("reverb") { return "reverb" }
+    if text.contains("delay") { return "delay" }
+    if text.contains("pan") { return "pan" }
+    return "gain"
 }
 
 func nowISO() -> String {
@@ -714,22 +842,22 @@ final class BrowserProjectsView: NSView {
     var projects: [LocalProject] = [] {
         didSet { needsDisplay = true }
     }
+    var currentProject: LocalProject? {
+        didSet {
+            invalidateIntrinsicContentSize()
+            needsDisplay = true
+        }
+    }
     var selectedId: String? {
         didSet { needsDisplay = true }
     }
     var onProjectSelected: ((LocalProject) -> Void)?
 
     private let rowHeight: CGFloat = 72
-    private let sections: [(String, [String])] = [
-        ("Current Project", ["Patterns", "Playlist clips", "Mixer states", "Automation clips", "Recipe checklist", "Project file"]),
-        ("Packs", ["Drums", "Impacts", "Risers", "Vocal chops", "Noise sweeps", "Breaths", "Sirens", "Crowd", "Ear candy"]),
-        ("Generators", ["Sampler", "Sub Synth", "Supersaw", "Square Lead", "Granular Bass", "Rave Generator", "Analog Bass"]),
-        ("Effects", ["Low Cut EQ", "Compressor", "Delay", "Reverb", "Stereo Spread", "Sidechain", "Wave Shaper", "Transit Macro"])
-    ]
 
     override var isFlipped: Bool { true }
     override var intrinsicContentSize: NSSize {
-        let sectionRows = sections.reduce(0) { $0 + 28 + $1.1.count * 24 }
+        let sectionRows = browserSections().reduce(0) { $0 + 28 + $1.1.count * 24 }
         return NSSize(width: 260, height: max(420, CGFloat(projects.count) * rowHeight + CGFloat(sectionRows) + 76))
     }
 
@@ -737,14 +865,20 @@ final class BrowserProjectsView: NSView {
         Palette.panel.setFill()
         dirtyRect.fill()
 
-        let search = NSRect(x: 0, y: 0, width: bounds.width, height: 38)
-        roundedFill(search, radius: 8, color: NSColor(calibratedRed: 0.07, green: 0.08, blue: 0.09, alpha: 1))
-        roundedStroke(search, radius: 8, color: Palette.stroke)
-        drawText("Search projects, stems, samples", in: search.insetBy(dx: 34, dy: 11), color: Palette.dim, size: 12, weight: .semibold)
-        drawSearchIcon(in: NSRect(x: 12, y: 10, width: 18, height: 18))
+        let summary = NSRect(x: 0, y: 0, width: bounds.width, height: 52)
+        roundedFill(summary, radius: 8, color: NSColor(calibratedRed: 0.07, green: 0.08, blue: 0.09, alpha: 1))
+        roundedStroke(summary, radius: 8, color: Palette.stroke)
+        if let project = currentProject {
+            drawText(project.name, in: NSRect(x: 12, y: 9, width: bounds.width - 24, height: 16), color: Palette.text, size: 12, weight: .black)
+            let detail = "\(Int(project.snapshot.bpm)) BPM  ·  \(project.snapshot.tracks.count) tracks  ·  \(project.snapshot.recipe?.count ?? 0) recipe items"
+            drawText(detail, in: NSRect(x: 12, y: 27, width: bounds.width - 24, height: 14), color: Palette.muted, size: 10, weight: .bold)
+        } else {
+            drawText("Project browser", in: NSRect(x: 12, y: 9, width: bounds.width - 24, height: 16), color: Palette.text, size: 12, weight: .black)
+            drawText("Open a local project to inspect its real tracks, recipe, effects, and audio assets.", in: NSRect(x: 12, y: 27, width: bounds.width - 24, height: 14), color: Palette.muted, size: 10, weight: .bold)
+        }
 
         for (index, project) in projects.enumerated() {
-            let y = 52 + CGFloat(index) * rowHeight
+            let y = 66 + CGFloat(index) * rowHeight
             let rect = NSRect(x: 0, y: y, width: bounds.width, height: rowHeight - 10)
             let selected = project.id == selectedId
             roundedFill(rect, radius: 8, color: selected ? NSColor(calibratedRed: 0.14, green: 0.20, blue: 0.25, alpha: 1) : Palette.panelAlt)
@@ -754,8 +888,8 @@ final class BrowserProjectsView: NSView {
             drawText(detail, in: NSRect(x: 14, y: y + 34, width: bounds.width - 28, height: 16), color: Palette.muted, size: 11, weight: .semibold)
         }
 
-        var y = 60 + CGFloat(projects.count) * rowHeight
-        for section in sections {
+        var y = 74 + CGFloat(projects.count) * rowHeight
+        for section in browserSections() {
             drawText(section.0, in: NSRect(x: 2, y: y, width: bounds.width - 4, height: 16), color: Palette.muted, size: 11, weight: .black)
             y += 22
             for item in section.1 {
@@ -789,25 +923,47 @@ final class BrowserProjectsView: NSView {
     }
 
     private func project(atVisualY y: CGFloat) -> LocalProject? {
-        let index = Int((y - 52) / rowHeight)
+        let index = Int((y - 66) / rowHeight)
         guard index >= 0, index < projects.count else { return nil }
-        let rowMin = 52 + CGFloat(index) * rowHeight
+        let rowMin = 66 + CGFloat(index) * rowHeight
         let rowMax = rowMin + rowHeight - 10
         guard y >= rowMin, y <= rowMax else { return nil }
         return projects[index]
     }
 
-    private func drawSearchIcon(in rect: NSRect) {
-        Palette.dim.setStroke()
-        let glass = NSBezierPath(ovalIn: NSRect(x: rect.minX, y: rect.minY, width: 11, height: 11))
-        glass.lineWidth = 1.7
-        glass.stroke()
+    private func browserSections() -> [(String, [String])] {
+        guard let project = currentProject else {
+            return [("Projects", projects.prefix(8).map { "\($0.name) · \(Int($0.snapshot.bpm)) BPM" })]
+        }
 
-        let handle = NSBezierPath()
-        handle.move(to: NSPoint(x: rect.minX + 10, y: rect.minY + 10))
-        handle.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
-        handle.lineWidth = 1.7
-        handle.stroke()
+        let tracks = project.snapshot.tracks.map { track in
+            "\(track.name) · \(track.instrument ?? track.kind ?? "Track")"
+        }
+
+        let recipe = (project.snapshot.recipe ?? []).prefix(8).map { item in
+            if let section = item.section, !section.isEmpty {
+                return "\(section): \(item.label)"
+            }
+            return item.label
+        }
+
+        let effectNames = Array(NSOrderedSet(array: Array(project.snapshot.tracks.map { track in
+            (track.effects ?? []).map(\.name)
+        }.joined()))) as? [String] ?? []
+
+        let assets = project.snapshot.tracks.compactMap { track -> String? in
+            guard let file = track.file, !file.isEmpty else { return nil }
+            return "\(track.name) · \(URL(fileURLWithPath: file).lastPathComponent)"
+        }
+
+        var sections: [(String, [String])] = [
+            ("Tracks", tracks),
+            ("Recipe", Array(recipe)),
+            ("Effects", effectNames),
+            ("Audio Assets", assets)
+        ]
+        sections.removeAll { $0.1.isEmpty }
+        return sections
     }
 }
 
@@ -1170,6 +1326,8 @@ final class PlaylistView: NSView {
     var onEffectAmount: ((String, String, Double) -> Void)?
     var onSampleNormalize: (() -> Void)?
     var onSampleReverse: (() -> Void)?
+    var onSampleReveal: (() -> Void)?
+    var onSampleEdit: (() -> Void)?
 
     private var totalBars: Double = 72
     private let leftWidth: CGFloat = 142
@@ -1245,14 +1403,14 @@ final class PlaylistView: NSView {
             }
         }
 
-        let sectionNames = ["Intro", "Pre", "Drop 1", "Break", "Build", "Drop 2", "Outro"]
-        for (index, name) in sectionNames.enumerated() {
-            let start = leftWidth + CGFloat(index * 8) * pixelsPerBar
-            let rect = NSRect(x: start, y: 0, width: 8 * pixelsPerBar, height: 4)
+        let markers = recipeSectionMarkers()
+        for (index, marker) in markers.enumerated() {
+            let start = leftWidth + CGFloat(marker.startBar) * pixelsPerBar
+            let rect = NSRect(x: start, y: 0, width: max(28, CGFloat(marker.bars) * pixelsPerBar), height: 4)
             let tint: NSColor = index.isMultiple(of: 2) ? Palette.blue.withAlphaComponent(0.55) : Palette.yellow.withAlphaComponent(0.65)
             tint.setFill()
             rect.fill()
-            drawText(name, in: NSRect(x: start + 8, y: 17, width: 70, height: 14), color: Palette.dim, size: 9, weight: .bold)
+            drawText(marker.title, in: NSRect(x: start + 8, y: 17, width: max(70, rect.width - 12), height: 14), color: Palette.dim, size: 9, weight: .bold)
         }
 
         if loopEnabled {
@@ -1309,6 +1467,25 @@ final class PlaylistView: NSView {
                     drawPatternDots(in: clipRect.insetBy(dx: 8, dy: 22), color: textColor.withAlphaComponent(0.38))
                 }
             }
+        }
+    }
+
+    private func recipeSectionMarkers() -> [(title: String, startBar: Double, bars: Double)] {
+        let orderedSections = (recipe.compactMap(\.section)).filter { !$0.isEmpty }
+        guard !orderedSections.isEmpty else { return [] }
+        let uniqueOrdered = orderedSections.reduce(into: [String]()) { result, section in
+            if result.last != section && !result.contains(section) {
+                result.append(section)
+            }
+        }
+        let filtered = uniqueOrdered.filter { !["Foundation", "Mix", "Advanced"].contains($0) }
+        let displaySections = filtered.isEmpty ? uniqueOrdered : filtered
+        guard !displaySections.isEmpty else { return [] }
+        let barsPerSection = max(4.0, totalBars / Double(displaySections.count))
+        return displaySections.enumerated().map { index, title in
+            let start = Double(index) * barsPerSection
+            let length = index == displaySections.count - 1 ? max(4.0, totalBars - start) : barsPerSection
+            return (title, start, length)
         }
     }
 
@@ -1417,26 +1594,56 @@ final class PlaylistView: NSView {
             return
         }
         drawText("Sample", in: NSRect(x: 18, y: 16, width: 120, height: 22), color: Palette.text, size: 18, weight: .black)
-        drawText(track.name, in: NSRect(x: 128, y: 20, width: 360, height: 16), color: Palette.muted, size: 11, weight: .bold)
-        let normalize = NSRect(x: bounds.width - 216, y: 12, width: 92, height: 26)
-        let reverse = NSRect(x: bounds.width - 112, y: 12, width: 92, height: 26)
+        drawText(track.name, in: NSRect(x: 128, y: 20, width: max(120, bounds.width - 580), height: 16), color: Palette.muted, size: 11, weight: .bold)
+        let edit = NSRect(x: bounds.width - 420, y: 12, width: 92, height: 26)
+        let normalize = NSRect(x: bounds.width - 318, y: 12, width: 92, height: 26)
+        let reverse = NSRect(x: bounds.width - 216, y: 12, width: 92, height: 26)
+        let reveal = NSRect(x: bounds.width - 114, y: 12, width: 92, height: 26)
+        roundedFill(edit, radius: 6, color: Palette.panelRaised)
+        roundedStroke(edit, radius: 6, color: Palette.stroke)
+        drawText("Edit", in: edit.insetBy(dx: 8, dy: 6), color: Palette.text, size: 10, weight: .black, alignment: .center)
         roundedFill(normalize, radius: 6, color: Palette.panelRaised)
         roundedStroke(normalize, radius: 6, color: Palette.stroke)
         drawText("Normalize", in: normalize.insetBy(dx: 8, dy: 6), color: Palette.text, size: 10, weight: .black, alignment: .center)
         roundedFill(reverse, radius: 6, color: Palette.panelRaised)
         roundedStroke(reverse, radius: 6, color: Palette.stroke)
         drawText("Reverse", in: reverse.insetBy(dx: 8, dy: 6), color: Palette.text, size: 10, weight: .black, alignment: .center)
+        roundedFill(reveal, radius: 6, color: Palette.panelRaised)
+        roundedStroke(reveal, radius: 6, color: Palette.stroke)
+        drawText("Reveal", in: reveal.insetBy(dx: 8, dy: 6), color: Palette.text, size: 10, weight: .black, alignment: .center)
         let waveRect = NSRect(x: 18, y: 60, width: bounds.width - 36, height: 260)
         roundedFill(waveRect, radius: 8, color: Palette.panel)
         drawWaveform(in: waveRect.insetBy(dx: 16, dy: 32), color: color(from: track.color, fallback: Palette.blue), seed: track.id.hashValue)
-        let controls = ["In", "Out", "Pitch", "Stretch"]
-        for (index, label) in controls.enumerated() {
-            let rect = NSRect(x: 18 + CGFloat(index) * ((bounds.width - 54) / 4), y: 344, width: (bounds.width - 72) / 4, height: 64)
+        let sampleEdit = normalizeSampleEdit(track.sampleEdit)
+        let cards: [(String, String)] = [
+            ("Trim", sampleTrimSummary(sampleEdit)),
+            ("Pitch", "\(String(format: "%+.1f", sampleEdit.pitchSemitones ?? 0)) st"),
+            ("Stretch", "\(String(format: "%.2f", sampleEdit.stretch ?? 1))x"),
+            ("Flags", "\(sampleEdit.normalize == true ? "Normalized" : "Raw") / \(sampleEdit.reverse == true ? "Reverse" : "Forward")")
+        ]
+        for (index, card) in cards.enumerated() {
+            let rect = NSRect(x: 18 + CGFloat(index) * ((bounds.width - 54) / 4), y: 344, width: (bounds.width - 72) / 4, height: 74)
             roundedFill(rect, radius: 8, color: Palette.panel)
-            drawText(label, in: NSRect(x: rect.minX + 12, y: rect.minY + 12, width: 80, height: 16), color: Palette.text, size: 12, weight: .black)
-            roundedFill(NSRect(x: rect.minX + 12, y: rect.minY + 42, width: rect.width - 24, height: 6), radius: 3, color: Palette.panelRaised)
-            roundedFill(NSRect(x: rect.minX + 12, y: rect.minY + 42, width: (rect.width - 24) * (index < 2 ? (index == 0 ? 0.1 : 0.92) : 0.5), height: 6), radius: 3, color: Palette.yellow)
+            roundedStroke(rect, radius: 8, color: Palette.subtleStroke)
+            drawText(card.0, in: NSRect(x: rect.minX + 12, y: rect.minY + 12, width: rect.width - 24, height: 16), color: Palette.text, size: 12, weight: .black)
+            drawText(card.1, in: NSRect(x: rect.minX + 12, y: rect.minY + 34, width: rect.width - 24, height: 28), color: Palette.muted, size: 10, weight: .bold, lineBreak: .byWordWrapping)
         }
+    }
+
+    private func clipSummary(for track: Track) -> String {
+        let clips = track.clips ?? []
+        guard let first = clips.first else { return "No clips" }
+        let startBar = Int((first.startBar ?? 0) + 1)
+        let bars = Int(first.bars ?? 0)
+        return "\(clips.count) clip\(clips.count == 1 ? "" : "s") · starts \(startBar) · \(max(1, bars)) bars"
+    }
+
+    private func sampleTrimSummary(_ edit: SampleEdit) -> String {
+        let start = edit.trimStart ?? 0
+        if let end = edit.trimEnd {
+            return "\(String(format: "%.2f", start))s to \(String(format: "%.2f", end))s"
+        }
+        return "\(String(format: "%.2f", start))s to end"
     }
 
     private func drawRecipeCoverage() {
@@ -1538,12 +1745,18 @@ final class PlaylistView: NSView {
     }
 
     private func handleSampleMouseDown(_ point: NSPoint) {
-        let normalize = NSRect(x: bounds.width - 216, y: 12, width: 92, height: 26)
-        let reverse = NSRect(x: bounds.width - 112, y: 12, width: 92, height: 26)
-        if normalize.contains(point) {
+        let edit = NSRect(x: bounds.width - 420, y: 12, width: 92, height: 26)
+        let normalize = NSRect(x: bounds.width - 318, y: 12, width: 92, height: 26)
+        let reverse = NSRect(x: bounds.width - 216, y: 12, width: 92, height: 26)
+        let reveal = NSRect(x: bounds.width - 114, y: 12, width: 92, height: 26)
+        if edit.contains(point) {
+            onSampleEdit?()
+        } else if normalize.contains(point) {
             onSampleNormalize?()
         } else if reverse.contains(point) {
             onSampleReverse?()
+        } else if reveal.contains(point) {
+            onSampleReveal?()
         }
     }
 
@@ -1652,9 +1865,17 @@ final class MixerView: NSView {
 }
 
 final class AutomationScopeView: NSView {
+    private struct AutomationRowLayout {
+        var lane: AutomationLane
+        var card: NSRect
+        var curve: NSRect
+    }
+
     var project: LocalProject? {
         didSet { needsDisplay = true }
     }
+    var onLaneAdded: (() -> Void)?
+    var onLaneChanged: ((AutomationLane) -> Void)?
 
     override var isFlipped: Bool { true }
 
@@ -1662,21 +1883,60 @@ final class AutomationScopeView: NSView {
         NSColor(calibratedRed: 0.075, green: 0.083, blue: 0.095, alpha: 1).setFill()
         dirtyRect.fill()
 
+        let rects = panelRects()
+
+        drawText("Master scope", in: NSRect(x: rects.scope.minX, y: rects.scope.minY, width: rects.scope.width, height: 18), color: Palette.text, size: 12, weight: .black)
+        roundedFill(NSRect(x: rects.scope.minX, y: rects.scope.minY + 28, width: rects.scope.width, height: rects.scope.height - 28), radius: 7, color: Palette.panel)
+        drawScope(in: NSRect(x: rects.scope.minX + 12, y: rects.scope.minY + 44, width: rects.scope.width - 24, height: rects.scope.height - 58))
+
+        drawText("Automation lanes", in: NSRect(x: rects.automation.minX, y: rects.automation.minY, width: rects.automation.width - 76, height: 18), color: Palette.text, size: 12, weight: .black)
+        roundedFill(rects.addButton, radius: 6, color: Palette.panelRaised)
+        roundedStroke(rects.addButton, radius: 6, color: Palette.stroke)
+        drawText("+ Lane", in: rects.addButton.insetBy(dx: 6, dy: 5), color: Palette.text, size: 10, weight: .black, alignment: .center)
+        roundedFill(rects.box, radius: 7, color: Palette.panel)
+        drawAutomation(in: rects.box.insetBy(dx: 14, dy: 14))
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        guard let project else { return }
+        let rects = panelRects()
+        if rects.addButton.contains(point) {
+            onLaneAdded?()
+            return
+        }
+
+        let rows = automationRows(in: rects.box.insetBy(dx: 14, dy: 14), project: project)
+        for row in rows where row.card.contains(point) {
+            var lane = row.lane
+            if row.curve.contains(point) {
+                lane = laneBySettingPoint(lane, at: point, in: row.curve, project: project)
+            } else {
+                lane.enabled = !(lane.enabled ?? true)
+            }
+            onLaneChanged?(lane)
+            return
+        }
+
+        if rects.box.contains(point), (project.snapshot.automationLanes ?? []).isEmpty {
+            onLaneAdded?()
+        }
+    }
+
+    private func panelRects() -> (scope: NSRect, automation: NSRect, addButton: NSRect, box: NSRect) {
         let left = bounds.insetBy(dx: 14, dy: 12)
         let scopeRect = NSRect(x: left.minX, y: left.minY, width: left.width * 0.42, height: left.height)
         let automationRect = NSRect(x: scopeRect.maxX + 18, y: left.minY, width: left.width - scopeRect.width - 18, height: left.height)
-
-        drawText("Master scope", in: NSRect(x: scopeRect.minX, y: scopeRect.minY, width: scopeRect.width, height: 18), color: Palette.text, size: 12, weight: .black)
-        roundedFill(NSRect(x: scopeRect.minX, y: scopeRect.minY + 28, width: scopeRect.width, height: scopeRect.height - 28), radius: 7, color: Palette.panel)
-        drawScope(in: NSRect(x: scopeRect.minX + 12, y: scopeRect.minY + 44, width: scopeRect.width - 24, height: scopeRect.height - 58))
-
-        drawText("Automation lanes", in: NSRect(x: automationRect.minX, y: automationRect.minY, width: automationRect.width, height: 18), color: Palette.text, size: 12, weight: .black)
+        let addButton = NSRect(x: automationRect.maxX - 64, y: automationRect.minY - 2, width: 64, height: 22)
         let box = NSRect(x: automationRect.minX, y: automationRect.minY + 28, width: automationRect.width, height: automationRect.height - 28)
-        roundedFill(box, radius: 7, color: Palette.panel)
-        drawAutomation(in: box.insetBy(dx: 14, dy: 14))
+        return (scopeRect, automationRect, addButton, box)
     }
 
     private func drawScope(in rect: NSRect) {
+        guard let project else {
+            drawText("No project open", in: rect, color: Palette.muted, size: 11, weight: .bold)
+            return
+        }
         Palette.subtleStroke.setStroke()
         for i in 0..<6 {
             let y = rect.minY + CGFloat(i) * rect.height / 5
@@ -1688,13 +1948,20 @@ final class AutomationScopeView: NSView {
         }
 
         let path = NSBezierPath()
-        let points = 84
-        for i in 0..<points {
-            let t = CGFloat(i) / CGFloat(points - 1)
+        let tracks = project.snapshot.tracks
+        let controls = project.snapshot.controls ?? makeDefaultControls(for: tracks)
+        guard !tracks.isEmpty else {
+            drawText("No tracks", in: rect, color: Palette.muted, size: 11, weight: .bold)
+            return
+        }
+        for (index, track) in tracks.enumerated() {
+            let t = CGFloat(index) / CGFloat(max(1, tracks.count - 1))
             let x = rect.minX + t * rect.width
-            let wave = sin(t * CGFloat.pi * 8) * 0.35 + sin(t * CGFloat.pi * 21) * 0.12
-            let y = rect.midY + wave * rect.height * 0.42
-            if i == 0 {
+            let control = controls[track.id] ?? MixerControl(gain: track.gain ?? 0.82, pan: track.pan ?? 0, mute: false, solo: false, arm: false, sendA: 0.15, sendB: 0.08)
+            let gain = CGFloat(max(0.05, min(control.gain, 1.4))) / 1.4
+            let panLift = CGFloat(control.pan) * rect.height * 0.08
+            let y = rect.maxY - gain * rect.height + panLift
+            if index == 0 {
                 path.move(to: NSPoint(x: x, y: y))
             } else {
                 path.line(to: NSPoint(x: x, y: y))
@@ -1706,6 +1973,10 @@ final class AutomationScopeView: NSView {
     }
 
     private func drawAutomation(in rect: NSRect) {
+        guard let project else {
+            drawText("No project open", in: rect, color: Palette.muted, size: 11, weight: .bold)
+            return
+        }
         Palette.subtleStroke.setStroke()
         for i in 0..<5 {
             let x = rect.minX + CGFloat(i) * rect.width / 4
@@ -1715,24 +1986,112 @@ final class AutomationScopeView: NSView {
             line.lineWidth = 0.7
             line.stroke()
         }
+        let lanes = project.snapshot.automationLanes ?? []
 
+        if lanes.isEmpty {
+            drawText(
+                "No automation lanes are stored yet. Click + Lane to add an editable lane for the selected track.",
+                in: rect.insetBy(dx: 8, dy: 8),
+                color: Palette.muted,
+                size: 11,
+                weight: .bold,
+                lineBreak: .byWordWrapping
+            )
+            return
+        }
+
+        let totalBars = automationTotalBars(for: project)
+        for row in automationRows(in: rect, project: project) {
+            let lane = row.lane
+            let card = row.card
+            let enabled = lane.enabled ?? true
+            let track = project.snapshot.tracks.first { $0.id == lane.trackId }
+            let tint = enabled ? color(from: lane.color ?? track?.color, fallback: Palette.yellow) : Palette.dim
+            roundedFill(card, radius: 6, color: Palette.panelAlt)
+            roundedStroke(card, radius: 6, color: Palette.subtleStroke)
+            roundedFill(NSRect(x: card.minX + 8, y: card.minY + 7, width: 8, height: 14), radius: 2, color: tint)
+            drawText(lane.label, in: NSRect(x: card.minX + 24, y: card.minY + 7, width: 112, height: 14), color: enabled ? Palette.text : Palette.dim, size: 10, weight: .black)
+            let detail = "\(track?.name ?? lane.trackId) / \(lane.parameter) / \(lane.points.count) pts"
+            drawText(detail, in: NSRect(x: card.minX + 24, y: card.minY + 22, width: 116, height: 12), color: Palette.dim, size: 8.5, weight: .bold)
+            drawLaneCurve(lane, in: row.curve, totalBars: totalBars, tint: tint)
+        }
+    }
+
+    private func automationRows(in rect: NSRect, project: LocalProject) -> [AutomationRowLayout] {
+        let lanes = project.snapshot.automationLanes ?? []
+        guard !lanes.isEmpty else { return [] }
+        let rowHeight: CGFloat = 44
+        let gap: CGFloat = 8
+        let visibleCount = max(1, min(lanes.count, Int((rect.height + gap) / (rowHeight + gap))))
+        return lanes.prefix(visibleCount).enumerated().map { index, lane in
+            let y = rect.minY + CGFloat(index) * (rowHeight + gap)
+            let card = NSRect(x: rect.minX + 8, y: y, width: rect.width - 16, height: rowHeight)
+            let curve = NSRect(x: card.minX + 148, y: card.minY + 9, width: max(72, card.width - 160), height: card.height - 18)
+            return AutomationRowLayout(lane: lane, card: card, curve: curve)
+        }
+    }
+
+    private func drawLaneCurve(_ lane: AutomationLane, in rect: NSRect, totalBars: Double, tint: NSColor) {
+        roundedFill(rect, radius: 4, color: Palette.panelRaised)
+        Palette.subtleStroke.setStroke()
+        let midline = NSBezierPath()
+        midline.move(to: NSPoint(x: rect.minX, y: rect.midY))
+        midline.line(to: NSPoint(x: rect.maxX, y: rect.midY))
+        midline.lineWidth = 0.6
+        midline.stroke()
+
+        let points = lane.points.sorted { $0.bar < $1.bar }
+        guard !points.isEmpty else { return }
         let path = NSBezierPath()
-        path.move(to: NSPoint(x: rect.minX, y: rect.maxY - rect.height * 0.18))
-        path.curve(
-            to: NSPoint(x: rect.minX + rect.width * 0.38, y: rect.minY + rect.height * 0.18),
-            controlPoint1: NSPoint(x: rect.minX + rect.width * 0.10, y: rect.maxY - rect.height * 0.10),
-            controlPoint2: NSPoint(x: rect.minX + rect.width * 0.25, y: rect.minY + rect.height * 0.22)
-        )
-        path.curve(
-            to: NSPoint(x: rect.maxX, y: rect.minY + rect.height * 0.32),
-            controlPoint1: NSPoint(x: rect.minX + rect.width * 0.58, y: rect.maxY - rect.height * 0.08),
-            controlPoint2: NSPoint(x: rect.minX + rect.width * 0.82, y: rect.minY + rect.height * 0.42)
-        )
-        Palette.yellow.setStroke()
-        path.lineWidth = 2.5
+        for (index, point) in points.enumerated() {
+            let x = rect.minX + CGFloat(max(0, min(1, point.bar / max(1, totalBars)))) * rect.width
+            let y = rect.maxY - CGFloat(max(0, min(1, point.value))) * rect.height
+            if index == 0 {
+                path.move(to: NSPoint(x: x, y: y))
+            } else {
+                path.line(to: NSPoint(x: x, y: y))
+            }
+        }
+        tint.setStroke()
+        path.lineWidth = 2
         path.stroke()
 
-        drawText("filter cut  /  reverb throw  /  sidechain", in: NSRect(x: rect.minX, y: rect.maxY - 18, width: rect.width, height: 14), color: Palette.muted, size: 10, weight: .bold)
+        tint.setFill()
+        for point in points.prefix(12) {
+            let x = rect.minX + CGFloat(max(0, min(1, point.bar / max(1, totalBars)))) * rect.width
+            let y = rect.maxY - CGFloat(max(0, min(1, point.value))) * rect.height
+            NSBezierPath(ovalIn: NSRect(x: x - 3, y: y - 3, width: 6, height: 6)).fill()
+        }
+    }
+
+    private func laneBySettingPoint(_ lane: AutomationLane, at point: NSPoint, in rect: NSRect, project: LocalProject) -> AutomationLane {
+        var next = lane
+        let totalBars = automationTotalBars(for: project)
+        let rawBar = Double((point.x - rect.minX) / max(1, rect.width)) * totalBars
+        let snappedBar = (max(0, min(totalBars, rawBar)) * 4).rounded() / 4
+        let rawValue = Double((rect.maxY - point.y) / max(1, rect.height))
+        let snappedValue = (max(0, min(1, rawValue)) * 100).rounded() / 100
+        let edited = AutomationPoint(bar: snappedBar, value: snappedValue, curve: next.curve ?? "linear")
+        let threshold = max(0.5, totalBars * 0.025)
+        if let nearest = next.points.indices.min(by: { abs(next.points[$0].bar - snappedBar) < abs(next.points[$1].bar - snappedBar) }),
+           abs(next.points[nearest].bar - snappedBar) <= threshold {
+            next.points[nearest] = edited
+        } else {
+            next.points.append(edited)
+        }
+        return normalizeAutomationLane(next, tracks: project.snapshot.tracks)
+    }
+
+    private func automationTotalBars(for project: LocalProject) -> Double {
+        let clipEnd = project.snapshot.tracks
+            .flatMap { $0.clips ?? [] }
+            .map { ($0.startBar ?? 0) + ($0.bars ?? 0) }
+            .max() ?? 16
+        let pointEnd = (project.snapshot.automationLanes ?? [])
+            .flatMap(\.points)
+            .map(\.bar)
+            .max() ?? 0
+        return max(16, max(clipEnd, pointEnd + 1))
     }
 }
 
@@ -1788,13 +2147,14 @@ final class MainWindowController: NSWindowController {
     private var audioRecorder: AVAudioRecorder?
     private var recordingURL: URL?
     private var lastVocalAnalysis: [String: Any]?
+    private var lastSoundCheck: [String: Any]?
     private var isPlaying = false
     private var isRecording = false
     private var zoom: CGFloat = 38
     private lazy var projectBrowserController = ProjectBrowserWindowController()
 
     private let titleLabel = makeLabel("Neon Studio", size: 26, weight: .black)
-    private let subtitleLabel = makeLabel("Native Mac DAW shell", size: 12, weight: .bold, color: Palette.muted)
+    private let subtitleLabel = makeLabel("Local projects, mixdown, vocal takes, and portable .neon.json sessions", size: 12, weight: .bold, color: Palette.muted)
     private let statusLabel = makeLabel("Ready", size: 11, weight: .bold, color: Palette.muted, mono: true)
     private let toolbarStatusLabel = makeLabel("Snap: 1/4   Loop: Off   P01   Swing: 0", size: 11, weight: .bold, color: Palette.muted, mono: true)
     private let projectReadout = ReadoutView(title: "Project", value: "None")
@@ -2245,6 +2605,8 @@ final class MainWindowController: NSWindowController {
             ClosureButton(title: "Import", symbol: "folder.badge.plus", fontSize: 10.5) { [weak self] in self?.importProjectFile() },
             ClosureButton(title: "Audio", symbol: "waveform.badge.plus", fontSize: 10.5) { [weak self] in self?.importAudioFile() },
             ClosureButton(title: "Mix", symbol: "arrow.down.doc", fontSize: 10.5) { [weak self] in self?.exportMixdown() },
+            ClosureButton(title: "Transcript", symbol: "doc.text", fontSize: 10.5) { [weak self] in self?.materializeTranscriptProject() },
+            ClosureButton(title: "Check", symbol: "waveform.path.ecg", fontSize: 10.5) { [weak self] in self?.runSoundCheck() },
             ClosureButton(title: "Backup", symbol: "doc.zipper", fontSize: 10.5) { [weak self] in self?.backupProjectFile() },
             ClosureButton(title: "Vocal", symbol: "wand.and.stars", fontSize: 10.5) { [weak self] in self?.runVocalLab() },
             ClosureButton(title: "Delete", symbol: "trash", fontSize: 10.5) { [weak self] in self?.confirmDeleteCurrentProject() },
@@ -2328,16 +2690,29 @@ final class MainWindowController: NSWindowController {
         playlistView.onSampleReverse = { [weak self] in
             self?.reverseSelectedSample()
         }
+        playlistView.onSampleReveal = { [weak self] in
+            self?.revealSelectedSample()
+        }
+        playlistView.onSampleEdit = { [weak self] in
+            self?.editSelectedSample()
+        }
         mixerView.onTrackSelected = { [weak self] trackId in
             self?.selectTrack(trackId)
         }
         mixerView.onControlChanged = { [weak self] trackId, control in
             self?.updateControl(trackId: trackId, control: control)
         }
+        automationScopeView.onLaneAdded = { [weak self] in
+            self?.addAutomationLaneForSelectedTrack()
+        }
+        automationScopeView.onLaneChanged = { [weak self] lane in
+            self?.upsertAutomationLane(lane)
+        }
 
         if let first = projects.first {
             open(first)
         } else {
+            browserView.currentProject = nil
             statusLabel.stringValue = "No .neon.json projects found at \(store.rootURL.path)"
         }
     }
@@ -2357,9 +2732,11 @@ final class MainWindowController: NSWindowController {
         guard let project = currentProject else { return }
         browserView.selectedId = project.id
         browserView.projects = projects
+        browserView.currentProject = project
+        browserView.setFrameSize(browserView.intrinsicContentSize)
         titleLabel.stringValue = project.name
         let itemCount = project.snapshot.recipe?.count ?? 0
-        subtitleLabel.stringValue = "\(Int(project.snapshot.bpm)) BPM  \(project.snapshot.tracks.count) tracks  \(itemCount) recipe items"
+        subtitleLabel.stringValue = project.description ?? "\(Int(project.snapshot.bpm)) BPM  \(project.snapshot.tracks.count) tracks  \(itemCount) recipe items"
         projectReadout.value = project.name
         bpmReadout.value = "\(Int(project.snapshot.bpm))"
         barReadout.value = "\(Int(maxClipEnd(project)))"
@@ -2626,6 +3003,56 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    private func addAutomationLaneForSelectedTrack() {
+        guard let project = currentProject else { return }
+        guard let track = project.snapshot.tracks.first(where: { $0.id == selectedTrackId }) ?? project.snapshot.tracks.first else {
+            statusLabel.stringValue = "Add a track before creating automation"
+            return
+        }
+        let existing = (project.snapshot.automationLanes ?? []).filter { $0.trackId == track.id }
+        let parameter = automationParameter(forExistingLaneCount: existing.count, track: track)
+        let totalBars = max(8, min(32, maxClipEnd(project)))
+        let lane = AutomationLane(
+            id: makeId("auto-\(safeProjectId(track.id))"),
+            trackId: track.id,
+            parameter: parameter,
+            label: "\(track.name) \(parameter.capitalized)",
+            color: track.color,
+            enabled: true,
+            curve: "linear",
+            points: [
+                AutomationPoint(bar: 0, value: parameter == "gain" ? 0.72 : 0.2, curve: "linear"),
+                AutomationPoint(bar: totalBars, value: parameter == "gain" ? 0.88 : 0.86, curve: "linear")
+            ]
+        )
+        mutateProject("Added automation lane") { project in
+            var lanes = project.snapshot.automationLanes ?? []
+            lanes.append(normalizeAutomationLane(lane, tracks: project.snapshot.tracks))
+            project.snapshot.automationLanes = lanes
+        }
+    }
+
+    private func upsertAutomationLane(_ lane: AutomationLane) {
+        mutateProject("Edited \(lane.label)") { project in
+            var lanes = project.snapshot.automationLanes ?? []
+            let normalized = normalizeAutomationLane(lane, tracks: project.snapshot.tracks)
+            if let index = lanes.firstIndex(where: { $0.id == normalized.id }) {
+                lanes[index] = normalized
+            } else {
+                lanes.append(normalized)
+            }
+            project.snapshot.automationLanes = lanes
+        }
+    }
+
+    private func automationParameter(forExistingLaneCount count: Int, track: Track) -> String {
+        if count == 0 {
+            return inferAutomationParameter(for: track) == "gain" ? "gain" : inferAutomationParameter(for: track)
+        }
+        let sequence = ["filter", "sendA", "pan", "reverb", "delay", "gain"]
+        return sequence[min(count - 1, sequence.count - 1)]
+    }
+
     private func addPianoNote(_ note: PianoNote) {
         mutateProject("Added note") { project in
             var notes = project.snapshot.notes ?? []
@@ -2665,6 +3092,10 @@ final class MainWindowController: NSWindowController {
         guard !selectedTrackId.isEmpty else { return }
         mutateProject("Normalized sample") { project in
             guard let trackIndex = project.snapshot.tracks.firstIndex(where: { $0.id == selectedTrackId }) else { return }
+            var edit = normalizeSampleEdit(project.snapshot.tracks[trackIndex].sampleEdit)
+            edit.normalize = true
+            edit.gain = 0.92
+            project.snapshot.tracks[trackIndex].sampleEdit = edit
             project.snapshot.tracks[trackIndex].gain = 0.92
             upsertEffect(name: "Normalize Gain", id: "normalize", amount: 0.92, track: &project.snapshot.tracks[trackIndex])
             var controls = project.snapshot.controls ?? makeDefaultControls(for: project.snapshot.tracks)
@@ -2677,10 +3108,104 @@ final class MainWindowController: NSWindowController {
 
     private func reverseSelectedSample() {
         guard !selectedTrackId.isEmpty else { return }
-        mutateProject("Reversed sample intent") { project in
+        mutateProject("Toggled sample reverse") { project in
             guard let trackIndex = project.snapshot.tracks.firstIndex(where: { $0.id == selectedTrackId }) else { return }
-            upsertEffect(name: "Reverse Sample", id: "reverse", amount: 1, track: &project.snapshot.tracks[trackIndex])
+            var edit = normalizeSampleEdit(project.snapshot.tracks[trackIndex].sampleEdit)
+            edit.reverse = !(edit.reverse ?? false)
+            project.snapshot.tracks[trackIndex].sampleEdit = edit
+            if edit.reverse == true {
+                upsertEffect(name: "Reverse Sample", id: "reverse", amount: 1, track: &project.snapshot.tracks[trackIndex])
+            } else {
+                setEffectActive(id: "reverse", active: false, amount: 0, track: &project.snapshot.tracks[trackIndex])
+            }
         }
+    }
+
+    private func editSelectedSample() {
+        guard let project = currentProject,
+              let track = project.snapshot.tracks.first(where: { $0.id == selectedTrackId }) else {
+            statusLabel.stringValue = "Select a sample track first"
+            return
+        }
+        let edit = normalizeSampleEdit(track.sampleEdit)
+        let alert = NSAlert()
+        alert.messageText = "Sample Edit"
+        alert.informativeText = "Trim, pitch, and stretch settings are saved into the selected track in the portable .neon.json project."
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.spacing = 8
+        stack.frame = NSRect(x: 0, y: 0, width: 280, height: 178)
+
+        let trimStart = NSTextField(string: String(format: "%.2f", edit.trimStart ?? 0))
+        let trimEnd = NSTextField(string: edit.trimEnd.map { String(format: "%.2f", $0) } ?? "")
+        let pitch = NSTextField(string: String(format: "%.1f", edit.pitchSemitones ?? 0))
+        let stretch = NSTextField(string: String(format: "%.2f", edit.stretch ?? 1))
+        trimStart.placeholderString = "0.00"
+        trimEnd.placeholderString = "blank = end"
+        pitch.placeholderString = "semitones"
+        stretch.placeholderString = "1.00"
+        [trimStart, trimEnd, pitch, stretch].forEach { $0.frame = NSRect(x: 0, y: 0, width: 120, height: 24) }
+
+        stack.addArrangedSubview(formRow("Trim start seconds", field: trimStart))
+        stack.addArrangedSubview(formRow("Trim end seconds", field: trimEnd))
+        stack.addArrangedSubview(formRow("Pitch semitones", field: pitch))
+        stack.addArrangedSubview(formRow("Stretch ratio", field: stretch))
+
+        let flags = NSStackView()
+        flags.orientation = .horizontal
+        flags.spacing = 14
+        let normalize = NSButton(checkboxWithTitle: "Normalize", target: nil, action: nil)
+        normalize.state = edit.normalize == true ? .on : .off
+        let reverse = NSButton(checkboxWithTitle: "Reverse", target: nil, action: nil)
+        reverse.state = edit.reverse == true ? .on : .off
+        flags.addArrangedSubview(normalize)
+        flags.addArrangedSubview(reverse)
+        stack.addArrangedSubview(flags)
+
+        alert.accessoryView = stack
+        alert.addButton(withTitle: "Save Sample Edit")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let trimStartValue = max(0, trimStart.doubleValue)
+        let trimEndText = trimEnd.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimEndValue = trimEndText.isEmpty ? nil : max(trimStartValue, trimEnd.doubleValue)
+        let pitchValue = max(-48, min(48, pitch.doubleValue))
+        let stretchValue = max(0.25, min(4, stretch.doubleValue))
+        mutateProject("Edited sample settings") { project in
+            guard let trackIndex = project.snapshot.tracks.firstIndex(where: { $0.id == selectedTrackId }) else { return }
+            var next = normalizeSampleEdit(project.snapshot.tracks[trackIndex].sampleEdit)
+            next.trimStart = trimStartValue
+            next.trimEnd = trimEndValue
+            next.pitchSemitones = pitchValue
+            next.stretch = stretchValue
+            next.normalize = normalize.state == .on
+            next.reverse = reverse.state == .on
+            next.gain = next.normalize == true ? 0.92 : next.gain
+            project.snapshot.tracks[trackIndex].sampleEdit = next
+            if next.normalize == true {
+                project.snapshot.tracks[trackIndex].gain = 0.92
+                upsertEffect(name: "Normalize Gain", id: "normalize", amount: 0.92, track: &project.snapshot.tracks[trackIndex])
+            }
+            if next.reverse == true {
+                upsertEffect(name: "Reverse Sample", id: "reverse", amount: 1, track: &project.snapshot.tracks[trackIndex])
+            } else {
+                setEffectActive(id: "reverse", active: false, amount: 0, track: &project.snapshot.tracks[trackIndex])
+            }
+        }
+    }
+
+    private func revealSelectedSample() {
+        guard let project = currentProject,
+              let track = project.snapshot.tracks.first(where: { $0.id == selectedTrackId }),
+              let url = store.audioURL(for: track),
+              FileManager.default.fileExists(atPath: url.path) else {
+            statusLabel.stringValue = "No audio file linked to the selected track"
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+        statusLabel.stringValue = "Revealed \(url.lastPathComponent)"
     }
 
     private func upsertEffect(name: String, id: String, amount: Double, track: inout Track) {
@@ -2692,6 +3217,27 @@ final class MainWindowController: NSWindowController {
             effects.append(Effect(id: id, name: name, active: true, amount: amount))
         }
         track.effects = effects
+    }
+
+    private func setEffectActive(id: String, active: Bool, amount: Double, track: inout Track) {
+        var effects = track.effects ?? []
+        if let index = effects.firstIndex(where: { $0.id == id }) {
+            effects[index].active = active
+            effects[index].amount = amount
+        }
+        track.effects = effects
+    }
+
+    private func formRow(_ label: String, field: NSTextField) -> NSStackView {
+        let title = makeLabel(label, size: 11, weight: .bold, color: Palette.muted)
+        title.widthAnchor.constraint(equalToConstant: 138).isActive = true
+        field.translatesAutoresizingMaskIntoConstraints = false
+        field.widthAnchor.constraint(equalToConstant: 120).isActive = true
+        let row = NSStackView(views: [title, field])
+        row.orientation = .horizontal
+        row.spacing = 10
+        row.alignment = .centerY
+        return row
     }
 
     private func deleteSelection() {
@@ -2743,7 +3289,8 @@ final class MainWindowController: NSWindowController {
             effects: [
                 Effect(id: "eq", name: "EQ Eight", active: false, amount: 0.35),
                 Effect(id: "comp", name: "Compressor", active: false, amount: 0.35)
-            ]
+            ],
+            sampleEdit: normalizeSampleEdit(nil)
         )
         let snapshot = ProjectSnapshot(
             version: 3,
@@ -2755,6 +3302,7 @@ final class MainWindowController: NSWindowController {
             loopEndBar: 16,
             tracks: [track],
             controls: makeDefaultControls(for: [track]),
+            automationLanes: [],
             notes: [],
             selectedTrackId: track.id,
             selectedClipId: "",
@@ -2847,7 +3395,8 @@ final class MainWindowController: NSWindowController {
             effects: [
                 Effect(id: "eq", name: "EQ Eight", active: false, amount: 0.35),
                 Effect(id: "comp", name: "Compressor", active: false, amount: 0.35)
-            ]
+            ],
+            sampleEdit: normalizeSampleEdit(nil)
         )
         selectedTrackId = id
         mutateProject("Imported \(url.lastPathComponent)") { project in
@@ -2898,6 +3447,179 @@ final class MainWindowController: NSWindowController {
         } catch {
             statusLabel.stringValue = "Mixdown failed: \(error.localizedDescription)"
         }
+    }
+
+    private func runSoundCheck() {
+        guard let project = currentProject else {
+            statusLabel.stringValue = "Open a project first"
+            return
+        }
+        let tempProject = FileManager.default.temporaryDirectory.appendingPathComponent("\(project.id)-sound-check-\(timestampForId()).neon.json")
+        do {
+            try store.exportProject(project, to: tempProject)
+            statusLabel.stringValue = "Checking sound"
+            let stdout = try runProcess(
+                executable: URL(fileURLWithPath: "/usr/bin/python3"),
+                arguments: [
+                    store.rootURL.appendingPathComponent("tools/does_this_sound_good.py").path,
+                    "--root", store.rootURL.path,
+                    "--project", tempProject.path,
+                    "--format", "json"
+                ]
+            )
+            let analysis = parseLastJSONLine(stdout)
+            guard !analysis.isEmpty else {
+                throw NSError(domain: "NeonStudio", code: 2, userInfo: [NSLocalizedDescriptionKey: "Sound check returned no JSON"])
+            }
+            lastSoundCheck = analysis
+            showSoundCheckReport(analysis)
+        } catch {
+            statusLabel.stringValue = "Sound check failed: \(error.localizedDescription)"
+        }
+        try? FileManager.default.removeItem(at: tempProject)
+    }
+
+    private func showSoundCheckReport(_ analysis: [String: Any]) {
+        let verdict = analysis["verdict"] as? [String: Any] ?? [:]
+        let project = analysis["project"] as? [String: Any] ?? [:]
+        let projectName = project["name"] as? String ?? currentProject?.name ?? "this project"
+        let score = numberValue(verdict["score"])
+        let answer = verdict["answer"] as? String ?? "Sound check complete"
+        let summary = verdict["summary"] as? String ?? answer
+        let strengths = analysis["strengths"] as? [String] ?? []
+        let issues = analysis["issues"] as? [[String: Any]] ?? []
+        let actions = analysis["nextActions"] as? [String] ?? []
+
+        var lines = [summary]
+        if !strengths.isEmpty {
+            lines.append("")
+            lines.append("What works:")
+            lines.append(contentsOf: strengths.prefix(3).map { "- \($0)" })
+        }
+        if !issues.isEmpty {
+            lines.append("")
+            lines.append("Issues:")
+            for issue in issues.prefix(4) {
+                let area = issue["area"] as? String ?? "Issue"
+                let detail = issue["detail"] as? String ?? ""
+                lines.append("- \(area): \(detail)")
+            }
+        }
+        if !actions.isEmpty {
+            lines.append("")
+            lines.append("Next:")
+            lines.append(contentsOf: actions.prefix(4).map { "- \($0)" })
+        }
+
+        statusLabel.stringValue = "Sound check \(score)/100: \(answer)"
+        let alert = NSAlert()
+        alert.messageText = "Does \(projectName) sound good?"
+        alert.informativeText = lines.joined(separator: "\n")
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    private func numberValue(_ value: Any?) -> Int {
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        if let int = value as? Int {
+            return int
+        }
+        if let double = value as? Double {
+            return Int(double.rounded())
+        }
+        if let string = value as? String, let int = Int(string) {
+            return int
+        }
+        return 0
+    }
+
+    private func materializeTranscriptProject() {
+        guard let project = currentProject else {
+            statusLabel.stringValue = "Open or create a project first"
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Choose a transcript text file (.txt, .md, .srt, or .vtt) to ingest and materialize into the current Neon Studio project."
+        guard panel.runModal() == .OK, let transcriptURL = panel.url else { return }
+        guard isSupportedTranscriptURL(transcriptURL) else {
+            statusLabel.stringValue = "Choose a text transcript file (.txt, .md, .srt, or .vtt)"
+            return
+        }
+        guard let settings = promptTranscriptMaterializationSettings(for: project, transcriptURL: transcriptURL) else { return }
+
+        do {
+            statusLabel.stringValue = "Materializing transcript"
+            var arguments = [
+                store.rootURL.appendingPathComponent("tools/songlab.py").path,
+                "init",
+                "--project-id", settings.projectId,
+                "--prompt", settings.prompt,
+                "--transcript-file", transcriptURL.path
+            ]
+            if settings.force {
+                arguments.append("--force-materialize")
+            }
+            _ = try runProcess(
+                executable: URL(fileURLWithPath: "/usr/bin/python3"),
+                arguments: arguments
+            )
+            projects = store.loadProjects()
+            if let materialized = projects.first(where: { $0.id == settings.projectId }) {
+                open(materialized)
+            } else if let current = projects.first(where: { $0.id == project.id }) {
+                open(current)
+            } else {
+                refreshProjectUI(status: "Transcript materialized")
+            }
+            statusLabel.stringValue = "Materialized \(transcriptURL.lastPathComponent)"
+        } catch {
+            statusLabel.stringValue = "Transcript materialization failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func isSupportedTranscriptURL(_ url: URL) -> Bool {
+        let allowedExtensions = Set(["txt", "text", "md", "markdown", "srt", "vtt"])
+        return allowedExtensions.contains(url.pathExtension.lowercased())
+    }
+
+    private func promptTranscriptMaterializationSettings(for project: LocalProject, transcriptURL: URL) -> (projectId: String, prompt: String, force: Bool)? {
+        let alert = NSAlert()
+        alert.messageText = "Materialize Transcript"
+        alert.informativeText = "Songlab will ingest \(transcriptURL.lastPathComponent), create or refresh the session files, and write the materialized .neon.json project."
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.spacing = 8
+        stack.frame = NSRect(x: 0, y: 0, width: 360, height: 118)
+
+        let projectIdField = NSTextField(string: project.id)
+        let promptField = NSTextField(string: project.description ?? project.name)
+        projectIdField.placeholderString = "project-id"
+        promptField.placeholderString = "Brief for Songlab"
+        stack.addArrangedSubview(formRow("Project ID", field: projectIdField))
+        stack.addArrangedSubview(formRow("Prompt", field: promptField))
+
+        let force = NSButton(checkboxWithTitle: "Overwrite materialized project files", target: nil, action: nil)
+        force.state = .on
+        stack.addArrangedSubview(force)
+
+        alert.accessoryView = stack
+        alert.addButton(withTitle: "Materialize")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+
+        let projectId = safeProjectId(projectIdField.stringValue)
+        let prompt = promptField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (
+            projectId.isEmpty ? project.id : projectId,
+            prompt.isEmpty ? project.name : prompt,
+            force.state == .on
+        )
     }
 
     private func confirmDeleteCurrentProject() {
@@ -3114,7 +3836,8 @@ final class MainWindowController: NSWindowController {
                 Effect(id: "autotune", name: instrument.contains("AutoTune") ? "Scale AutoTune" : "EQ Eight", active: instrument.contains("AutoTune"), amount: 0.82),
                 Effect(id: "comp", name: "Compressor", active: true, amount: 0.58),
                 Effect(id: "delay", name: "Stereo Delay", active: instrument.contains("Vocal"), amount: 0.34)
-            ]
+            ],
+            sampleEdit: normalizeSampleEdit(nil)
         )
         selectedTrackId = id
         selectedClipId = "\(id)-clip"
@@ -3240,6 +3963,7 @@ final class MainWindowController: NSWindowController {
         Delete: Delete selected clip, note, or track
 
         File/Edit/Add/View/Options menus expose the core DAW controls. Project actions export mixdowns, backup .neon.json files, import audio/projects, record audio, and run Vocal Lab.
+        Use Check or Options > Does This Sound Good? for a local production-quality read on the current project.
         """
         alert.addButton(withTitle: "OK")
         alert.runModal()
@@ -3294,6 +4018,7 @@ final class MainWindowController: NSWindowController {
     @objc func menuUndo(_ sender: Any?) { undo() }
     @objc func menuRedo(_ sender: Any?) { redo() }
     @objc func menuDeleteSelection(_ sender: Any?) { deleteSelection() }
+    @objc func menuSoundCheck(_ sender: Any?) { runSoundCheck() }
     @objc func menuVocalLab(_ sender: Any?) { runVocalLab() }
     @objc func menuToggleRecord(_ sender: Any?) { toggleRecording() }
     @objc func menuPlaylist(_ sender: Any?) { setWorkView(.playlist) }
@@ -3342,11 +4067,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         copySeedDirectory("factory", from: seed, to: support)
         copySeedDirectory("data", from: seed, to: support)
         copySeedDirectory("exports", from: seed, to: support)
-        copySeedDirectory("tools", from: seed, to: support)
+        copySeedDirectory("tools", from: seed, to: support, replaceExistingFiles: true)
+        copySeedDirectory("skills", from: seed, to: support, replaceExistingFiles: true)
         return support
     }
 
-    private func copySeedDirectory(_ name: String, from seed: URL, to support: URL) {
+    private func copySeedDirectory(_ name: String, from seed: URL, to support: URL, replaceExistingFiles: Bool = false) {
         let source = seed.appendingPathComponent(name, isDirectory: true)
         let destination = support.appendingPathComponent(name, isDirectory: true)
         guard FileManager.default.fileExists(atPath: source.path) else { return }
@@ -3354,10 +4080,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try? FileManager.default.copyItem(at: source, to: destination)
             return
         }
-        copyMissingContents(from: source, to: destination)
+        copyMissingContents(from: source, to: destination, replaceExistingFiles: replaceExistingFiles)
     }
 
-    private func copyMissingContents(from source: URL, to destination: URL) {
+    private func copyMissingContents(from source: URL, to destination: URL, replaceExistingFiles: Bool = false) {
         guard let urls = try? FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey]) else {
             return
         }
@@ -3365,10 +4091,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let target = destination.appendingPathComponent(item.lastPathComponent)
             var isDirectory: ObjCBool = false
             let exists = FileManager.default.fileExists(atPath: target.path, isDirectory: &isDirectory)
+            let sourceValues = try? item.resourceValues(forKeys: [.isDirectoryKey])
             if exists {
-                let values = try? item.resourceValues(forKeys: [.isDirectoryKey])
-                if values?.isDirectory == true {
-                    copyMissingContents(from: item, to: target)
+                if sourceValues?.isDirectory == true {
+                    copyMissingContents(from: item, to: target, replaceExistingFiles: replaceExistingFiles)
+                } else if replaceExistingFiles {
+                    try? FileManager.default.removeItem(at: target)
+                    try? FileManager.default.copyItem(at: item, to: target)
                 }
                 continue
             }
@@ -3432,6 +4161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let optionsMenuItem = NSMenuItem()
         mainMenu.addItem(optionsMenuItem)
         let optionsMenu = NSMenu(title: "Options")
+        addMenuItem("Does This Sound Good?", #selector(MainWindowController.menuSoundCheck(_:)), "d", modifiers: [.command, .shift], to: optionsMenu, target: controller)
+        optionsMenu.addItem(.separator())
         addMenuItem("Set BPM...", #selector(MainWindowController.menuEditBPM(_:)), "t", modifiers: [.command, .shift], to: optionsMenu, target: controller)
         addMenuItem("Toggle Song/Pattern Mode", #selector(MainWindowController.menuToggleMode(_:)), "m", modifiers: [.command, .shift], to: optionsMenu, target: controller)
         addMenuItem("Cycle Snap", #selector(MainWindowController.menuCycleSnap(_:)), "g", modifiers: [.command, .shift], to: optionsMenu, target: controller)

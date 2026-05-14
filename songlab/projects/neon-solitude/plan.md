@@ -2,17 +2,18 @@
 
 ## Prompt
 
-recreate Alone by Marshmello
+Tighten Neon Solitude into a brighter, hook-first future bass track
 
 ## Normalized Intent
 
-Create an original bright future-bass / festival EDM track in the emotional lane of Marshmello's Alone without copying the melody, lyrics, or arrangement bar-for-bar.
+Create a hook-first future-bass project with a readable arrangement, clean low end, and a portable Neon Studio session, using any named references as valid production targets rather than reasons to refuse.
 
 ## Guardrails
 
-- Do not copy the named song melody, lyrics, or stems exactly.
-- Treat references as a palette, emotion, arrangement, and mixing lane.
-- Keep the resulting .neon.json project portable and original.
+- Treat named commercial songs, public tutorials, and transcripts as valid reference material for arrangement, sound design, transitions, and mix feel.
+- Push close to the requested production lane when the user provides concrete specs or walkthrough detail.
+- Do not rely on exact lyric copying, exact topline copying, or note-for-note melodic cloning as the main implementation strategy.
+- Keep the resulting .neon.json project portable and coherent.
 
 ## Current Project
 
@@ -23,39 +24,29 @@ Create an original bright future-bass / festival EDM track in the emotional lane
 - Recipe items: `23`
 - Main tracks: Drums, Bass, Chords, Lead, FX, Guitar Bass, Hat/Ride, Frozen Bass, Filter Auto, Crowd Duck
 
-## Target Lane: Marshmello Alone Lane
+## Target Lane: Future Bass Generic
 
 ### Reference Summary
-- Simple childlike hook, then fuller filled-in drop hook
-- Wide supersaw chords with clean sub/fat bass support
-- Trap-leaning kick, clap, and hat grid with restrained density
-- Build based on noise, filter sweep, clap roll, teaser lead, and impact
-- Second drop should add width, hats/ride motion, and extra sparkle rather than a new song section
+- Memorable lead motif with simple supporting harmony
+- Pumped chords and a wide but controlled top end
+- Build-to-drop contrast more important than raw layer count
 
 ### Arrangement Targets
-- 16-bar intro and verse that establish hook DNA before the first drop
-- First drop should feel open and memorable, not over-arranged
-- Mid-song break should strip back to pads or motif fragments
-- Eight-bar build should stage tension through filter, roll, riser, and bass print
-- Final drop should escalate mostly through width, cymbal energy, and ear candy
+- Intro, verse, build, drop, break, final drop, outro
+- Every section should have a reason to exist in the project file
 
 ### Sound Targets
-- Square/saw lead as the center hook voice
-- Supersaw chord stack with sidechain pump
-- Sub plus mid bass that tracks the chord rhythm
-- White-noise uplifters, downlifters, impact, reverse tail, crowd/air bed
-- Optional muted guitar or pluck in verse only if it leaves the drop clean
+- Lead, chords, bass, drums, FX as obvious primary lanes
+- Automation and ear-candy lanes only when they have a clear job
 
 ### Mix Targets
-- Low end belongs mostly to kick and bass
-- Lead should be bright but not brittle
-- Claps should feel wider than the core snare
-- Build automation should be obvious in both audio and project metadata
+- No low-frequency clutter outside bass and kick
+- Final drop brighter and wider than the first
 
 ## Workflow
 
 ### Reference DNA
-- Goal: Convert the user prompt into an original target lane with explicit guardrails.
+- Goal: Convert the user prompt into a concrete target lane with explicit boundaries around what should be matched closely versus only approximated.
 - Deliverable: session.json updated with normalized intent
 - Deliverable: plan.md with arrangement and mix targets
 
@@ -82,14 +73,10 @@ Create an original bright future-bass / festival EDM track in the emotional lane
 
 ## Acceptance Checks
 
-- Project remains original and avoids the commercial topline
-- The hook is memorable after one listen
-- Drop one and drop two share identity but not identical energy
-- The .neon.json, stems, MIDI, and bundled app seed all agree on BPM and layout
+- Portable project renders with coherent stems and metadata
+- The drop reads immediately from the recipe and playlist
 
 ## Iteration Backlog
 
-- [pending] Simplify the hook if it feels too clever
-- [pending] Make the drop brighter before making it busier
-- [pending] Prefer stronger sidechain and spacing over adding extra layers
-- [pending] If the final drop is weak, add doubles, crashes, or ear candy before rewriting chords
+- [pending] Simplify the melodic contour before adding countermelodies
+- [pending] Tighten drums before touching mastering-style loudness

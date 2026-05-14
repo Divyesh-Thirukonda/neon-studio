@@ -14,9 +14,13 @@ from ingest_transcript import (
     render_markdown as render_transcript_markdown,
     read_transcript,
 )
-from project_scaffold import (
-    build_project_scaffold,
-    ensure_renderer_stub,
+from fill_in_blanks import (
+    fill_in_blanks,
+    render_markdown as render_fill_in_blanks_markdown,
+)
+from project_materializer import (
+    build_project_materialization,
+    ensure_project_renderer,
     write_project_files,
 )
 
@@ -227,18 +231,19 @@ def build_phase_plan(archetype: Archetype, paths: dict[str, Path], transcript_sp
                     "transcript.txt copied into the songlab session",
                     "transcript_spec.json with sections, tracks, plugins, and techniques",
                     "transcript_spec.md human-readable coverage summary",
+                    "fill_in_blanks.md with inferred defaults for missing production details",
                 ],
             }
         )
         phases.append(
             {
-                "id": "scaffold",
-                "title": "Project Scaffold",
-                "goal": "Generate a first-pass .neon.json track layout, clip map, and recipe from the transcript before detailed renderer work.",
+                "id": "materialize",
+                "title": "Project Materialization",
+                "goal": "Generate the actual .neon.json project layout, clip map, and renderer entrypoint from the transcript before detailed song work.",
                 "deliverables": [
-                    "data/projects/<project-id>.neon.json scaffold",
-                    "factory/projects/<project-id>.neon.json scaffold",
-                    "render_<project>.py section-aware scaffold if no renderer exists yet",
+                    "data/projects/<project-id>.neon.json project",
+                    "factory/projects/<project-id>.neon.json bundled project",
+                    "render_<project>.py generated product renderer if no renderer exists yet",
                 ],
             }
         )
@@ -294,6 +299,7 @@ def build_phase_plan(archetype: Archetype, paths: dict[str, Path], transcript_sp
 
 
 def summarize_transcript(spec: dict[str, Any]) -> dict[str, Any]:
+    fill = spec.get("fillInBlanks") or {}
     return {
         "titleHint": spec.get("titleHint"),
         "wordCount": spec.get("wordCount"),
@@ -305,6 +311,10 @@ def summarize_transcript(spec: dict[str, Any]) -> dict[str, Any]:
         "topPlugins": [item["name"] for item in spec.get("globalPlugins", [])[:8]],
         "sectionLabels": [item["label"] for item in spec.get("sections", [])[:10]],
         "openQuestions": spec.get("openQuestions", []),
+        "fillInBlanks": {
+            "styleLane": fill.get("styleLane"),
+            "decisionCount": len(fill.get("decisions") or []),
+        } if fill else None,
     }
 
 
@@ -354,15 +364,16 @@ def build_session(prompt: str, project_id: str, transcript_spec: dict[str, Any] 
             "sourcePath": str(session_paths(project_id)["transcript"].relative_to(ROOT)),
             "specPath": str(session_paths(project_id)["transcript_spec_json"].relative_to(ROOT)),
             "summaryPath": str(session_paths(project_id)["transcript_spec_md"].relative_to(ROOT)),
+            "fillInBlanksPath": str(session_paths(project_id)["fill_in_blanks_md"].relative_to(ROOT)),
             "analysis": summarize_transcript(transcript_spec),
         }
     return session
 
 
-def render_scaffold_markdown(project: dict[str, Any], project_id: str) -> str:
+def render_project_summary_markdown(project: dict[str, Any], project_id: str) -> str:
     snap = project["snapshot"]
     lines = [
-        f"# {project['name']} Scaffold",
+        f"# {project['name']} Project Summary",
         "",
         f"- Project id: `{project_id}`",
         f"- BPM: `{snap['bpm']}`",
@@ -411,6 +422,10 @@ def render_plan_markdown(session: dict[str, Any]) -> str:
         lines.append(f"- Tempo hint: `{analysis.get('tempoHint') or 'unset'}`")
         key_hints = analysis.get("keyHints") or []
         lines.append(f"- Key hints: `{', '.join(key_hints) if key_hints else 'unset'}`")
+        fill_analysis = analysis.get("fillInBlanks") or {}
+        if fill_analysis:
+            lines.append(f"- Fill-in-blanks lane: `{fill_analysis.get('styleLane') or 'unset'}`")
+            lines.append(f"- Inferred decisions: `{fill_analysis.get('decisionCount') or 0}`")
         top_tracks = analysis.get("topTrackRoles") or []
         if top_tracks:
             lines.append(f"- Top track roles: {', '.join(top_tracks)}")
@@ -496,7 +511,8 @@ def session_paths(project_id: str) -> dict[str, Path]:
         "transcript": base / "transcript.txt",
         "transcript_spec_json": base / "transcript_spec.json",
         "transcript_spec_md": base / "transcript_spec.md",
-        "scaffold_md": base / "project_scaffold.md",
+        "fill_in_blanks_md": base / "fill_in_blanks.md",
+        "project_summary_md": base / "project_summary.md",
     }
 
 
@@ -539,12 +555,13 @@ def render_handoff_prompt(session: dict[str, Any]) -> str:
     if transcript:
         prompt += (
             f" Read `{transcript['specPath']}` and `{transcript['summaryPath']}` first. "
-            "Make sure every concrete section, track role, plugin note, and technique from the transcript is either represented in the project or called out as approximate."
+            f"Read `{transcript.get('fillInBlanksPath', '')}` for inferred defaults and expected ambiguities. "
+            "Make sure every concrete section, track role, plugin note, and technique from the transcript is represented, and fill missing exact details with plausible production decisions rather than treating them as blockers."
         )
-    scaffold = session.get("scaffold")
-    if scaffold:
+    materialization = session.get("materialization")
+    if materialization:
         prompt += (
-            f" Start from the scaffold at `{scaffold['dataProject']}` and `{scaffold['summaryPath']}` instead of rebuilding the track layout from scratch."
+            f" Start from the generated project at `{materialization['dataProject']}` and `{materialization['summaryPath']}` instead of rebuilding the track layout from scratch."
         )
     return prompt
 
@@ -568,7 +585,7 @@ def build_fallback_spec_from_session(session: dict[str, Any]) -> dict[str, Any]:
                 "id": f"section-{index:02d}",
                 "type": section_type,
                 "label": label,
-                "summary": f"{label} scaffold generated from the Songlab session.",
+                "summary": f"{label} project generated from the Songlab session.",
                 "trackRoles": [role.split()[0].lower() for role in archetype.get("soundTargets", [])[:5] if role],
                 "plugins": [],
                 "techniques": [],
@@ -587,7 +604,7 @@ def build_fallback_spec_from_session(session: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def scaffold_project(project_id: str, session: dict[str, Any], transcript_spec: dict[str, Any] | None = None, *, force: bool = False) -> dict[str, Any]:
+def materialize_project(project_id: str, session: dict[str, Any], transcript_spec: dict[str, Any] | None = None, *, force: bool = False) -> dict[str, Any]:
     paths = session_paths(project_id)
     spec = transcript_spec
     if spec is None:
@@ -600,9 +617,9 @@ def scaffold_project(project_id: str, session: dict[str, Any], transcript_spec: 
     if data_project.exists() and not force:
         return {"skipped": True, "reason": "existing-project"}
 
-    project = build_project_scaffold(spec, project_id=project_id, prompt=session["sourcePrompt"])
+    project = build_project_materialization(spec, project_id=project_id, prompt=session["sourcePrompt"])
     written = write_project_files(ROOT, project, project_id)
-    renderer_path = ensure_renderer_stub(
+    renderer_path = ensure_project_renderer(
         ROOT,
         project_id,
         project["name"],
@@ -611,13 +628,13 @@ def scaffold_project(project_id: str, session: dict[str, Any], transcript_spec: 
         prompt=session["sourcePrompt"],
         overwrite=force,
     )
-    paths["scaffold_md"].write_text(render_scaffold_markdown(project, project_id) + "\n", encoding="utf-8")
-    session["scaffold"] = {
+    paths["project_summary_md"].write_text(render_project_summary_markdown(project, project_id) + "\n", encoding="utf-8")
+    session["materialization"] = {
         "generatedAt": now_iso(),
         "dataProject": str(written["data"].relative_to(ROOT)),
         "factoryProject": str(written["factory"].relative_to(ROOT)),
         "renderer": str(renderer_path.relative_to(ROOT)),
-        "summaryPath": str(paths["scaffold_md"].relative_to(ROOT)),
+        "summaryPath": str(paths["project_summary_md"].relative_to(ROOT)),
     }
     return {"skipped": False, "project": project, "written": written, "renderer": renderer_path}
 
@@ -633,6 +650,8 @@ def command_init(args: argparse.Namespace) -> int:
         project_id = infer_project_id(prompt or transcript_text, args.project_id)
         if project_id != seed_project_id:
             transcript_spec = analyze_transcript(transcript_text, project_id=project_id, prompt=prompt)
+        if not args.no_fill_blanks:
+            transcript_spec = fill_in_blanks(transcript_spec, prompt=prompt)
     else:
         prompt = resolve_init_prompt(args)
         project_id = infer_project_id(prompt, args.project_id)
@@ -643,17 +662,18 @@ def command_init(args: argparse.Namespace) -> int:
         paths["transcript"].write_text(transcript_text.strip() + "\n", encoding="utf-8")
         paths["transcript_spec_json"].write_text(json.dumps(transcript_spec, indent=2) + "\n", encoding="utf-8")
         paths["transcript_spec_md"].write_text(render_transcript_markdown(transcript_spec) + "\n", encoding="utf-8")
-    scaffold_result = None
-    if transcript_spec is not None and not args.no_scaffold:
-        scaffold_result = scaffold_project(project_id, session, transcript_spec=transcript_spec, force=args.force_scaffold)
+        paths["fill_in_blanks_md"].write_text(render_fill_in_blanks_markdown(transcript_spec), encoding="utf-8")
+    materialize_result = None
+    if transcript_spec is not None and not args.no_materialize:
+        materialize_result = materialize_project(project_id, session, transcript_spec=transcript_spec, force=args.force_materialize)
         session = build_session(prompt, project_id, transcript_spec=transcript_spec)
-        if scaffold_result and not scaffold_result.get("skipped"):
-            session["scaffold"] = {
+        if materialize_result and not materialize_result.get("skipped"):
+            session["materialization"] = {
                 "generatedAt": now_iso(),
                 "dataProject": f"data/projects/{project_id}.neon.json",
                 "factoryProject": f"factory/projects/{project_id}.neon.json",
-                "renderer": str(scaffold_result["renderer"].relative_to(ROOT)),
-                "summaryPath": str(session_paths(project_id)["scaffold_md"].relative_to(ROOT)),
+                "renderer": str(materialize_result["renderer"].relative_to(ROOT)),
+                "summaryPath": str(session_paths(project_id)["project_summary_md"].relative_to(ROOT)),
             }
         write_session_files(project_id, session)
     print(f"Initialized songlab session for {project_id}")
@@ -661,8 +681,9 @@ def command_init(args: argparse.Namespace) -> int:
     print(session_paths(project_id)["plan"].relative_to(ROOT))
     if transcript_spec is not None:
         print(session_paths(project_id)["transcript_spec_json"].relative_to(ROOT))
-        if scaffold_result and not scaffold_result.get("skipped"):
-            print(session_paths(project_id)["scaffold_md"].relative_to(ROOT))
+        print(session_paths(project_id)["fill_in_blanks_md"].relative_to(ROOT))
+        if materialize_result and not materialize_result.get("skipped"):
+            print(session_paths(project_id)["project_summary_md"].relative_to(ROOT))
     return 0
 
 
@@ -678,7 +699,7 @@ def command_status(args: argparse.Namespace) -> int:
         "currentProject": project_summary,
         "workspace": session.get("workspace") if session else None,
         "transcript": session.get("transcript") if session else None,
-        "scaffold": session.get("scaffold") if session else None,
+        "materialization": session.get("materialization") if session else None,
         "nextBacklog": next((item["focus"] for item in session.get("iterationBacklog", []) if item.get("status") != "done"), None) if session else None,
     }
     print(json.dumps(payload, indent=2))
@@ -730,28 +751,28 @@ def command_transcript(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_scaffold(args: argparse.Namespace) -> int:
+def command_materialize(args: argparse.Namespace) -> int:
     project_id = infer_project_id(args.prompt or "", args.project_id)
     session = read_session(project_id)
-    result = scaffold_project(project_id, session, force=args.force)
+    result = materialize_project(project_id, session, force=args.force)
     if result.get("skipped"):
         print(json.dumps({"projectId": project_id, "skipped": True, "reason": result["reason"]}, indent=2))
         return 0
     session = read_session(project_id)
-    session["scaffold"] = {
+    session["materialization"] = {
         "generatedAt": now_iso(),
         "dataProject": f"data/projects/{project_id}.neon.json",
         "factoryProject": f"factory/projects/{project_id}.neon.json",
         "renderer": str(result["renderer"].relative_to(ROOT)),
-        "summaryPath": str(session_paths(project_id)["scaffold_md"].relative_to(ROOT)),
+        "summaryPath": str(session_paths(project_id)["project_summary_md"].relative_to(ROOT)),
     }
     write_session_files(project_id, session)
     print(json.dumps({
         "projectId": project_id,
-        "dataProject": session["scaffold"]["dataProject"],
-        "factoryProject": session["scaffold"]["factoryProject"],
-        "renderer": session["scaffold"]["renderer"],
-        "summaryPath": session["scaffold"]["summaryPath"],
+        "dataProject": session["materialization"]["dataProject"],
+        "factoryProject": session["materialization"]["factoryProject"],
+        "renderer": session["materialization"]["renderer"],
+        "summaryPath": session["materialization"]["summaryPath"],
     }, indent=2))
     return 0
 
@@ -761,13 +782,14 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_cmd = subparsers.add_parser("init", help="Create or refresh a songlab session from a user prompt.")
-    init_cmd.add_argument("--prompt", help="User request or musical brief.")
+    init_cmd.add_argument("--prompt", help="User request or musical brief. By itself this creates a planning session; transcript inputs trigger fill-in-the-blanks/materialization.")
     init_cmd.add_argument("--project-id", help="Project id, e.g. neon-solitude.")
-    init_cmd.add_argument("--transcript-text", help="Raw transcript text.")
-    init_cmd.add_argument("--transcript-file", help="Path to a transcript text file.")
-    init_cmd.add_argument("--transcript-stdin", action="store_true", help="Read transcript text from stdin.")
-    init_cmd.add_argument("--no-scaffold", action="store_true", help="Do not auto-generate a project scaffold when a transcript is provided.")
-    init_cmd.add_argument("--force-scaffold", action="store_true", help="Allow scaffold generation to overwrite a missing-or-new project path during init.")
+    init_cmd.add_argument("--transcript-text", help="Raw transcript, walkthrough, step-by-step, or direct song description to enrich and materialize.")
+    init_cmd.add_argument("--transcript-file", help="Path to a transcript, walkthrough, step-by-step, or song-description text file.")
+    init_cmd.add_argument("--transcript-stdin", action="store_true", help="Read transcript, walkthrough, step-by-step, or direct song description from stdin.")
+    init_cmd.add_argument("--no-fill-blanks", action="store_true", help="Keep raw transcript analysis without inferred production defaults.")
+    init_cmd.add_argument("--no-materialize", action="store_true", help="Do not auto-generate the real project files when a transcript is provided.")
+    init_cmd.add_argument("--force-materialize", action="store_true", help="Allow project materialization to overwrite a missing-or-new project path during init.")
     init_cmd.set_defaults(func=command_init)
 
     status_cmd = subparsers.add_parser("status", help="Show current songlab and project status.")
@@ -793,11 +815,11 @@ def build_parser() -> argparse.ArgumentParser:
     transcript_cmd.add_argument("--format", choices=("json", "markdown"), default="json")
     transcript_cmd.set_defaults(func=command_transcript)
 
-    scaffold_cmd = subparsers.add_parser("scaffold", help="Generate a first-pass project scaffold from the current session.")
-    scaffold_cmd.add_argument("--project-id", help="Project id, e.g. neon-solitude.")
-    scaffold_cmd.add_argument("--prompt", help="Optional prompt to infer the project id.")
-    scaffold_cmd.add_argument("--force", action="store_true", help="Overwrite an existing scaffold target.")
-    scaffold_cmd.set_defaults(func=command_scaffold)
+    materialize_cmd = subparsers.add_parser("materialize", help="Generate or refresh the actual project files from the current session.")
+    materialize_cmd.add_argument("--project-id", help="Project id, e.g. neon-solitude.")
+    materialize_cmd.add_argument("--prompt", help="Optional prompt to infer the project id.")
+    materialize_cmd.add_argument("--force", action="store_true", help="Overwrite an existing materialized project target.")
+    materialize_cmd.set_defaults(func=command_materialize)
 
     return parser
 

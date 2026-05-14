@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "createdAt": "2026-05-13T18:49:39Z",
-  "updatedAt": "2026-05-13T18:49:39Z",
-  "projectId": "neon-solitude",
-  "projectName": "Neon Solitude",
-  "sourcePrompt": "Tighten Neon Solitude into a brighter, hook-first future bass track",
+  "createdAt": "2026-05-13T20:02:38Z",
+  "updatedAt": "2026-05-13T20:14:29Z",
+  "projectId": "just-cant-stop",
+  "projectName": "Just Cant Stop",
+  "sourcePrompt": "Document the Just Cant Stop local project approximation into a reproducible producer arrangement map and implementation notes.",
   "sourceMode": "prompt",
   "normalizedIntent": "Create a hook-first future-bass project with a readable arrangement, clean low end, and a portable Neon Studio session, using any named references as valid production targets rather than reasons to refuse.",
   "archetype": {
@@ -36,44 +36,15 @@
   ],
   "workspace": {
     "root": "/Users/divy/Downloads/summer",
-    "generator": "render_neon_solitude.py",
-    "dataProject": "data/projects/neon-solitude.neon.json",
-    "factoryProject": "factory/projects/neon-solitude.neon.json",
-    "fullMix": "exports/neon_solitude_full_mix.wav",
-    "arrangementMidi": "midi/neon_solitude_arrangement.mid"
+    "generator": "render_just_cant_stop.py",
+    "dataProject": "data/projects/just-cant-stop.neon.json",
+    "factoryProject": "factory/projects/just-cant-stop.neon.json",
+    "fullMix": "exports/just_cant_stop_full_mix.wav",
+    "arrangementMidi": "midi/just_cant_stop_arrangement.mid"
   },
   "currentProject": {
-    "exists": true,
-    "path": "data/projects/neon-solitude.neon.json",
-    "name": "Neon Solitude",
-    "description": "Original bright future-bass/festival EDM project rebuilt in a Marshmello-inspired Alone lane without reusing the commercial melody.",
-    "keyCenter": "E minor / G major",
-    "bpm": 142,
-    "trackCount": 14,
-    "trackNames": [
-      "Drums",
-      "Bass",
-      "Chords",
-      "Lead",
-      "FX",
-      "Guitar Bass",
-      "Hat/Ride",
-      "Frozen Bass",
-      "Filter Auto",
-      "Crowd Duck",
-      "Lead Double",
-      "Clap Stack",
-      "Ghost Key",
-      "Ear Candy"
-    ],
-    "recipeCount": 23,
-    "loopRange": [
-      16,
-      32
-    ],
-    "snap": "1/4",
-    "swing": 18,
-    "generatorLikely": "render_neon_solitude.py"
+    "exists": false,
+    "path": "data/projects/just-cant-stop.neon.json"
   },
   "phasePlan": [
     {
@@ -90,9 +61,9 @@
       "title": "Current Project Audit",
       "goal": "Read the current .neon.json and generator so edits land on the real project, not a stale seed.",
       "deliverables": [
-        "data/projects/neon-solitude.neon.json",
-        "factory/projects/neon-solitude.neon.json",
-        "render_neon_solitude.py (exists)"
+        "data/projects/just-cant-stop.neon.json",
+        "factory/projects/just-cant-stop.neon.json",
+        "render_just_cant_stop.py (exists)"
       ]
     },
     {
@@ -109,8 +80,8 @@
       "title": "Render + Sync",
       "goal": "Render the mix, stems, and MIDI and ensure the factory/data project files match.",
       "deliverables": [
-        "exports/neon_solitude_full_mix.wav",
-        "midi/neon_solitude_arrangement.mid"
+        "exports/just_cant_stop_full_mix.wav",
+        "midi/just_cant_stop_arrangement.mid"
       ]
     },
     {
@@ -125,11 +96,11 @@
   ],
   "iterationBacklog": [
     {
-      "status": "pending",
+      "status": "in_progress",
       "focus": "Simplify the melodic contour before adding countermelodies"
     },
     {
-      "status": "pending",
+      "status": "in_progress",
       "focus": "Tighten drums before touching mastering-style loudness"
     }
   ],

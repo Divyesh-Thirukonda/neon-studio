@@ -1,0 +1,4 @@
+interface:
+  display_name: "Does This Sound Good"
+  short_description: "Neon Studio mix verdicts and fixes"
+  default_prompt: "Use $does-this-sound-good to run the local checker and give a direct verdict on whether the current Neon Studio project sounds finished."
