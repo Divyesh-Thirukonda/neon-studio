@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "songlab": "python3 tools/songlab.py",
+    "fill-blanks": "python3 tools/fill_in_blanks.py",
+    "soundcheck": "python3 tools/does_this_sound_good.py",
     "build:mac": "./mac/NeonStudio/build.sh",
     "open:mac": "open \"mac/build/Neon Studio.app\"",
     "render:neon": "python3 render_neon_solitude.py",

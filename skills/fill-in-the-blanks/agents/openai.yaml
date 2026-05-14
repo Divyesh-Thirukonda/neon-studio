@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fill In The Blanks"
+  short_description: "Enrich ambiguous Neon song specs"
+  default_prompt: "Use $fill-in-the-blanks to turn this song idea or transcript into an enriched Neon Studio step-by-step before building the project."

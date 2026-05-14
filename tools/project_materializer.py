@@ -284,7 +284,7 @@ def infer_title_from_project(project_id: str, spec: dict[str, Any]) -> str:
 
 def infer_description(project_name: str, spec: dict[str, Any], prompt: str | None) -> str:
     source = "transcript-driven"
-    focus = "portable Neon Studio project scaffold"
+    focus = "portable Neon Studio project"
     if prompt:
         return f"{source.capitalize()} {focus} built from a production walkthrough for {project_name}."
     return f"{source.capitalize()} {focus} built from a production walkthrough."
@@ -330,11 +330,11 @@ def normalized_sections(spec: dict[str, Any]) -> list[dict[str, Any]]:
     musical = [section for section in sections if SECTION_BAR_HINTS.get(section["type"], 0) > 0]
     if not musical:
         return [
-            {"id": "section-01", "type": "intro", "label": "Intro", "summary": "Scaffold intro", "trackRoles": ["chords", "lead", "fx"], "plugins": [], "techniques": []},
-            {"id": "section-02", "type": "verse", "label": "Verse", "summary": "Scaffold verse", "trackRoles": ["drums", "bass", "chords"], "plugins": [], "techniques": []},
-            {"id": "section-03", "type": "build", "label": "Build", "summary": "Scaffold build", "trackRoles": ["drums", "fx", "lead"], "plugins": [], "techniques": ["automation"]},
-            {"id": "section-04", "type": "drop", "label": "Drop", "summary": "Scaffold drop", "trackRoles": ["drums", "bass", "chords", "lead", "fx"], "plugins": [], "techniques": []},
-            {"id": "section-05", "type": "outro", "label": "Outro", "summary": "Scaffold outro", "trackRoles": ["chords", "fx"], "plugins": [], "techniques": []},
+            {"id": "section-01", "type": "intro", "label": "Intro", "summary": "Generated intro", "trackRoles": ["chords", "lead", "fx"], "plugins": [], "techniques": []},
+            {"id": "section-02", "type": "verse", "label": "Verse", "summary": "Generated verse", "trackRoles": ["drums", "bass", "chords"], "plugins": [], "techniques": []},
+            {"id": "section-03", "type": "build", "label": "Build", "summary": "Generated build", "trackRoles": ["drums", "fx", "lead"], "plugins": [], "techniques": ["automation"]},
+            {"id": "section-04", "type": "drop", "label": "Drop", "summary": "Generated drop", "trackRoles": ["drums", "bass", "chords", "lead", "fx"], "plugins": [], "techniques": []},
+            {"id": "section-05", "type": "outro", "label": "Outro", "summary": "Generated outro", "trackRoles": ["chords", "fx"], "plugins": [], "techniques": []},
         ]
     return musical
 
@@ -435,16 +435,16 @@ def enrich_effects(track: dict[str, Any], section: dict[str, Any], global_plugin
 def make_recipe(section_layout: list[dict[str, Any]], all_track_ids: list[str], spec: dict[str, Any]) -> list[dict[str, Any]]:
     recipe = [
         {
-            "id": "transcript-scaffold",
+            "id": "transcript-project",
             "section": "Foundation",
-            "label": "Transcript-derived scaffold",
+            "label": "Transcript-derived project",
             "detail": "Track layout, clips, and coverage were generated from the transcript before manual sound design and rendering.",
             "status": "mapped",
             "trackIds": all_track_ids,
         }
     ]
     for section in section_layout:
-        tracks = section.get("scaffoldTrackIds", [])
+        tracks = section.get("sectionTrackIds", [])
         detail = compact_detail(
             section.get("summary"),
             ("Tracks: " + ", ".join(tracks)) if tracks else None,
@@ -472,6 +472,18 @@ def make_recipe(section_layout: list[dict[str, Any]], all_track_ids: list[str], 
                 "detail": f"Plugin mentioned {item['mentions']} time(s) in the transcript and should be reflected in the eventual renderer or track effect chain.",
                 "status": "mapped",
                 "trackIds": all_track_ids[:3],
+            }
+        )
+    fill = spec.get("fillInBlanks") or {}
+    for index, item in enumerate(fill.get("decisions", [])[:8], start=1):
+        recipe.append(
+            {
+                "id": f"fill-{index:02d}",
+                "section": "Fill In The Blanks",
+                "label": f"{item.get('area', 'inference')}: {item.get('detail', '')}"[:96],
+                "detail": f"{item.get('detail', '')} Reason: {item.get('reason', '')}",
+                "status": "inferred",
+                "trackIds": all_track_ids[:4],
             }
         )
     return recipe
@@ -502,7 +514,7 @@ def infer_loop_range(section_layout: list[dict[str, Any]]) -> tuple[int, int]:
     return 0, 16
 
 
-def build_project_scaffold(spec: dict[str, Any], project_id: str, prompt: str | None = None) -> dict[str, Any]:
+def build_project_materialization(spec: dict[str, Any], project_id: str, prompt: str | None = None) -> dict[str, Any]:
     project_name = infer_title_from_project(project_id, spec)
     chosen_track_ids = choose_track_ids(spec)
     tracks = [make_track(TRACK_BLUEPRINTS[track_id]) for track_id in chosen_track_ids]
@@ -512,9 +524,9 @@ def build_project_scaffold(spec: dict[str, Any], project_id: str, prompt: str | 
     global_plugins = [item["name"] for item in spec.get("globalPlugins", [])]
 
     for section in section_layout:
-        scaffold_track_ids = track_ids_for_section(section, chosen_track_ids)
-        section["scaffoldTrackIds"] = scaffold_track_ids
-        for track_id in scaffold_track_ids:
+        section_track_ids = track_ids_for_section(section, chosen_track_ids)
+        section["sectionTrackIds"] = section_track_ids
+        for track_id in section_track_ids:
             track = track_by_id[track_id]
             clip_index = sum(1 for clip in track["clips"] if clip["startBar"] == section["startBar"])
             track["clips"].append(
@@ -586,21 +598,21 @@ def python_literal(value: Any) -> str:
 
 def renderer_doc(prompt: str | None, project_id: str, project_name: str) -> str:
     title = prompt or project_name
-    return f"""Renderer scaffold for {project_name}.
+    return f"""Generated renderer for {project_name}.
 
-This file was scaffolded from a transcript-driven Songlab session.
-It is not a finished renderer, but it already carries the project structure:
+This file was generated from a transcript-driven Songlab session.
+It already carries the project structure:
 - transcript-derived section plan
-- track layout from the scaffolded .neon.json
+- track layout from the generated .neon.json
 - section-specific production notes, plugin hints, and techniques
 
-Edit this file when turning the scaffold into a real render implementation.
+Edit this file when turning the generated project into a fuller render implementation.
 
 Primary inputs:
 - data/projects/{project_id}.neon.json
 - factory/projects/{project_id}.neon.json
 - songlab/projects/{project_id}/transcript_spec.json
-- songlab/projects/{project_id}/project_scaffold.md
+- songlab/projects/{project_id}/project_summary.md
 
 Original brief:
 {title}
@@ -639,8 +651,11 @@ def render_section_plan(project: dict[str, Any], spec: dict[str, Any]) -> list[d
     sections = normalized_sections(spec)
     layout = section_bar_layout(sections)
     plan: list[dict[str, Any]] = []
+    defaults_by_section_id: dict[str, dict[str, Any]] = {}
     for section in layout:
-        scaffold_track_ids = track_ids_for_section(section, list(tracks.keys()))
+        section_track_ids = track_ids_for_section(section, list(tracks.keys()))
+        starter_defaults = infer_section_starter_defaults(section, spec, plan, defaults_by_section_id)
+        defaults_by_section_id[section["id"]] = starter_defaults
         plan.append(
             {
                 "id": section["id"],
@@ -650,17 +665,19 @@ def render_section_plan(project: dict[str, Any], spec: dict[str, Any]) -> list[d
                 "bars": section["bars"],
                 "summary": section.get("summary"),
                 "trackRoles": section.get("trackRoles", []),
-                "trackIds": scaffold_track_ids,
+                "trackIds": section_track_ids,
                 "plugins": section.get("plugins", []),
                 "techniques": section.get("techniques", []),
+                "laneEvents": deep_copy_jsonish(section.get("laneEvents", {}) or {}),
+                "laneTransforms": deep_copy_jsonish(section.get("laneTransforms", {}) or {}),
                 "recipeDetail": recipe_by_section.get(section["label"], {}).get("detail"),
-                "starterDefaults": infer_section_starter_defaults(section, spec),
+                "starterDefaults": starter_defaults,
             }
         )
     return plan
 
 
-ROLE_STUB_GUIDANCE: dict[str, str] = {
+ROLE_GUIDANCE: dict[str, str] = {
     "drums": "Program the core groove, kick placement, and transient balance for this section.",
     "clap-stack": "Decide whether this lane is backbeat support, clap roll, or a wider impact layer.",
     "hat-ride": "Define the high-frequency motion, hat density, and any ride/crash escalation.",
@@ -726,6 +743,47 @@ LEAD_MOTIF_LIBRARY: dict[str, list[list[dict[str, float | int]]]] = {
 }
 
 
+NOTE_TO_SEMITONE = {
+    "C": 0,
+    "C#": 1,
+    "Db": 1,
+    "D": 2,
+    "D#": 3,
+    "Eb": 3,
+    "E": 4,
+    "F": 5,
+    "F#": 6,
+    "Gb": 6,
+    "G": 7,
+    "G#": 8,
+    "Ab": 8,
+    "A": 9,
+    "A#": 10,
+    "Bb": 10,
+    "B": 11,
+}
+
+CHORD_QUALITY_INTERVALS: list[tuple[re.Pattern[str], list[int], str]] = [
+    (re.compile(r"maj9$", re.IGNORECASE), [0, 4, 7, 11, 14], "maj9"),
+    (re.compile(r"maj7$", re.IGNORECASE), [0, 4, 7, 11], "maj7"),
+    (re.compile(r"m9$|min9$", re.IGNORECASE), [0, 3, 7, 10, 14], "m9"),
+    (re.compile(r"m7$|min7$", re.IGNORECASE), [0, 3, 7, 10], "m7"),
+    (re.compile(r"add9$", re.IGNORECASE), [0, 4, 7, 14], "add9"),
+    (re.compile(r"sus2$", re.IGNORECASE), [0, 2, 7], "sus2"),
+    (re.compile(r"sus4$", re.IGNORECASE), [0, 5, 7], "sus4"),
+    (re.compile(r"dim$", re.IGNORECASE), [0, 3, 6], "dim"),
+    (re.compile(r"aug$", re.IGNORECASE), [0, 4, 8], "aug"),
+    (re.compile(r"m$|min$", re.IGNORECASE), [0, 3, 7], "m"),
+    (re.compile(r"9$", re.IGNORECASE), [0, 4, 7, 10, 14], "9"),
+    (re.compile(r"7$", re.IGNORECASE), [0, 4, 7, 10], "7"),
+    (re.compile(r"5$", re.IGNORECASE), [0, 7], "5"),
+]
+
+CHORD_SYMBOL_RE = re.compile(
+    r"\b([A-G](?:#|b)?(?:maj9|maj7|min9|min7|min|m9|m7|m|add9|sus2|sus4|dim|aug|9|7|5)?)\b"
+)
+
+
 def overlapping_clips(track: dict[str, Any], section: dict[str, Any]) -> list[dict[str, Any]]:
     section_start = int(section["startBar"])
     section_end = section_start + int(section["bars"])
@@ -741,6 +799,529 @@ def overlapping_clips(track: dict[str, Any], section: dict[str, Any]) -> list[di
 
 def lower_join(*parts: Any) -> str:
     return " ".join(str(part).lower() for part in parts if part)
+
+
+def deep_copy_jsonish(value: Any) -> Any:
+    return json.loads(json.dumps(value))
+
+
+def find_section_reference(text: str, prior_sections: list[dict[str, Any]], fallback_section: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    lowered = text.lower()
+    for keyword, section_type in (
+        ("pre intro", "pre_intro"),
+        ("intro", "intro"),
+        ("verse", "verse"),
+        ("pre build", "pre_build"),
+        ("build", "build"),
+        ("drop", "drop"),
+        ("second drop", "second_drop"),
+        ("break", "break"),
+        ("outro", "outro"),
+    ):
+        if keyword in lowered:
+            for section in reversed(prior_sections):
+                if section["type"] == section_type:
+                    return section
+    return fallback_section
+
+
+def find_section_by_type(prior_sections: list[dict[str, Any]], section_type: str) -> dict[str, Any] | None:
+    for section in reversed(prior_sections):
+        if section["type"] == section_type:
+            return section
+    return None
+
+
+def extract_referenced_section_type(text: str) -> str | None:
+    for pattern, section_type in (
+        (r"second drop", "second_drop"),
+        (r"pre[\s-]?build", "pre_build"),
+        (r"pre[\s-]?intro", "pre_intro"),
+        (r"\bintro\b", "intro"),
+        (r"\bverse\b", "verse"),
+        (r"\bbuild\b", "build"),
+        (r"\bdrop\b", "drop"),
+        (r"\bbreak\b", "break"),
+        (r"\boutro\b", "outro"),
+    ):
+        if re.search(pattern, text):
+            return section_type
+    return None
+
+
+def nearest_prior_with_roles(prior_sections: list[dict[str, Any]], roles: tuple[str, ...]) -> dict[str, Any] | None:
+    role_set = set(roles)
+    for section in reversed(prior_sections):
+        if role_set & set(section.get("trackRoles", [])):
+            return section
+    return prior_sections[-1] if prior_sections else None
+
+
+def resolve_lead_reference(text: str, prior_sections: list[dict[str, Any]]) -> dict[str, Any] | None:
+    explicit = re.search(r"same melody(?:\s+from\s+the\s+([a-z\s-]+))?", text)
+    if explicit:
+        target = extract_referenced_section_type(explicit.group(1) or "")
+        if target:
+            found = find_section_by_type(prior_sections, target)
+            if found:
+                return found
+        return nearest_prior_with_roles(prior_sections, ("lead", "chords", "pluck"))
+    return None
+
+
+def resolve_bass_reference(text: str, prior_sections: list[dict[str, Any]]) -> dict[str, Any] | None:
+    explicit = re.search(r"bass .*same notes from the ([a-z\s-]+)", text)
+    if not explicit:
+        explicit = re.search(r"plays the same notes from the ([a-z\s-]+)", text)
+    if explicit:
+        target = extract_referenced_section_type(explicit.group(1))
+        if target:
+            found = find_section_by_type(prior_sections, target)
+            if found:
+                return found
+    if "same notes" in text:
+        return nearest_prior_with_roles(prior_sections, ("bass", "sub", "chords"))
+    return None
+
+
+def resolve_chord_reference(text: str, prior_sections: list[dict[str, Any]]) -> dict[str, Any] | None:
+    explicit = re.search(r"same (?:chords?|progression)(?:\s+from\s+the\s+([a-z\s-]+))?", text)
+    if explicit:
+        target = extract_referenced_section_type(explicit.group(1) or "")
+        if target:
+            found = find_section_by_type(prior_sections, target)
+            if found:
+                return found
+        return nearest_prior_with_roles(prior_sections, ("chords", "pad", "pluck"))
+    return None
+
+
+def resolve_drum_reference(text: str, prior_sections: list[dict[str, Any]]) -> dict[str, Any] | None:
+    explicit = re.search(r"same drum(?:s| pattern| beat)?(?:\s+from\s+the\s+([a-z\s-]+))?", text)
+    if explicit:
+        target = extract_referenced_section_type(explicit.group(1) or "")
+        if target:
+            found = find_section_by_type(prior_sections, target)
+            if found:
+                return found
+        return nearest_prior_with_roles(prior_sections, ("drums", "kick", "snare", "clap", "hat", "ride"))
+    return None
+
+
+def densify_motif(motif: list[list[dict[str, float | int]]]) -> list[list[dict[str, float | int]]]:
+    densified: list[list[dict[str, float | int]]] = []
+    for bar in motif:
+        ordered = [dict(item) for item in bar]
+        extra: list[dict[str, float | int]] = []
+        for left, right in zip(ordered, ordered[1:]):
+            gap = float(right["beat"]) - float(left["beat"])
+            if gap < 0.55:
+                continue
+            extra.append(
+                {
+                    "beat": round(float(left["beat"]) + gap / 2.0, 2),
+                    "duration": round(min(0.34, max(0.18, gap / 2.4)), 2),
+                    "note": int(right["note"]),
+                }
+            )
+        merged = ordered + extra
+        merged.sort(key=lambda item: (float(item["beat"]), int(item["note"])))
+        densified.append(merged)
+    return densified
+
+
+def lighten_progression(progression: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    light: list[dict[str, Any]] = []
+    for chord in progression:
+        notes = [int(note) for note in chord["notes"]]
+        lifted = [note + 1 if idx == len(notes) - 1 and note % 12 in {10, 11} else note for idx, note in enumerate(notes)]
+        updated = dict(chord)
+        updated["notes"] = lifted
+        updated["root"] = int(chord["root"])
+        light.append(updated)
+    return light
+
+
+def transpose_progression(progression: list[dict[str, Any]], semitones: int) -> list[dict[str, Any]]:
+    shifted: list[dict[str, Any]] = []
+    for chord in progression:
+        updated = dict(chord)
+        updated["notes"] = [int(note) + semitones for note in chord["notes"]]
+        updated["root"] = int(chord["root"]) + semitones
+        shifted.append(updated)
+    return shifted
+
+
+def transpose_motif(motif: list[list[dict[str, float | int]]], semitones: int) -> list[list[dict[str, float | int]]]:
+    shifted: list[list[dict[str, float | int]]] = []
+    for bar in motif:
+        shifted.append([{**event, "note": int(event["note"]) + semitones} for event in bar])
+    return shifted
+
+
+def chord_symbol_to_shape(symbol: str, *, base_octave: int = 48) -> dict[str, Any] | None:
+    match = re.match(r"^([A-G](?:#|b)?)(.*)$", symbol)
+    if not match:
+        return None
+    root_name, suffix = match.groups()
+    semitone = NOTE_TO_SEMITONE.get(root_name)
+    if semitone is None:
+        return None
+    intervals = [0, 4, 7]
+    normalized_suffix = suffix or ""
+    quality_name = "maj"
+    for pattern, candidate_intervals, candidate_name in CHORD_QUALITY_INTERVALS:
+        if pattern.search(normalized_suffix):
+            intervals = candidate_intervals
+            quality_name = candidate_name
+            break
+    root = base_octave + semitone
+    return {
+        "name": symbol,
+        "quality": quality_name,
+        "notes": [root + interval for interval in intervals],
+        "root": root,
+    }
+
+
+def extract_explicit_progression(text: str) -> list[dict[str, Any]] | None:
+    symbols = [match.group(1) for match in CHORD_SYMBOL_RE.finditer(text)]
+    if len(symbols) < 2:
+        return None
+    progression: list[dict[str, Any]] = []
+    seen_run: list[str] = []
+    for symbol in symbols[:8]:
+        shape = chord_symbol_to_shape(symbol)
+        if not shape:
+            continue
+        progression.append(shape)
+        seen_run.append(symbol)
+    return progression or None
+
+
+def parse_transpose_instruction(text: str) -> int:
+    lowered = text.lower()
+    if "down an octave" in lowered:
+        return -12
+    if "up an octave" in lowered:
+        return 12
+    match = re.search(r"(?:transpose|transposed|pitched?)\s+(up|down)\s+(\d+)\s*(?:semi(?:tone)?s?|st)\b", lowered)
+    if match:
+        sign = 1 if match.group(1) == "up" else -1
+        return sign * int(match.group(2))
+    match = re.search(r"([+-]\d+)\s*(?:semi(?:tone)?s?|st)\b", lowered)
+    if match:
+        return int(match.group(1))
+    return 0
+
+
+def parse_beat_value(token: str) -> float | None:
+    normalized = token.strip().lower()
+    if normalized in {"offbeat", "off beat", "off-beat"}:
+        return None
+    match = re.match(r"(\d(?:\.\d+)?)$", normalized)
+    if not match:
+        return None
+    raw = float(match.group(1))
+    if raw < 1.0:
+        return round(raw, 2)
+    return round(raw - 1.0, 2)
+
+
+def parse_beat_list(fragment: str) -> list[float]:
+    lowered = fragment.lower()
+    if "offbeat" in lowered or "off beat" in lowered or "off-beat" in lowered:
+        return [0.5, 1.5, 2.5, 3.5]
+    tokens = re.findall(r"\d(?:\.\d+)?", lowered)
+    beats: list[float] = []
+    for token in tokens:
+        parsed = parse_beat_value(token)
+        if parsed is not None:
+            beats.append(parsed)
+    return beats
+
+
+def extract_lane_beat_overrides(text: str) -> dict[str, Any]:
+    lowered = text.lower()
+    overrides: dict[str, Any] = {}
+    stop = r"(?:kick(?: drums?)?|snare(?: drums?)?|clap(?: stacks?)?|hi-hats?|hihats?|hats?|rides?|crashes?)"
+    pattern_specs = (
+        ("kicks", rf"kick(?: drum)?s?(?:\s+(?:on|at|hits? on|plays? on))?\s+(.+?)(?=(?:\b{stop}\b|[.;]|$))"),
+        ("snares", rf"snare(?: drum)?s?(?:\s+(?:on|at|hits? on|plays? on))?\s+(.+?)(?=(?:\b{stop}\b|[.;]|$))"),
+        ("claps", rf"clap(?: stack)?s?(?:\s+(?:on|at|hits? on|plays? on))?\s+(.+?)(?=(?:\b{stop}\b|[.;]|$))"),
+        ("hats", rf"(?:hi-hat|hihat|hat)s?(?:\s+(?:on|at|hits? on|plays? on))?\s+(.+?)(?=(?:\b{stop}\b|[.;]|$))"),
+        ("ride", rf"ride(?:s)?(?:\s+(?:on|at|hits? on|plays? on))?\s+(.+?)(?=(?:\b{stop}\b|[.;]|$))"),
+        ("crashBars", rf"crash(?:es)?(?:\s+(?:on|at|hits? on|plays? on))?\s+(.+?)(?=(?:\b{stop}\b|[.;]|$))"),
+    )
+    for key, pattern in pattern_specs:
+        match = re.search(pattern, lowered)
+        if not match:
+            continue
+        beats = parse_beat_list(match.group(1))
+        if not beats:
+            continue
+        if key == "ride":
+            overrides["ride"] = True
+        elif key == "crashBars":
+            overrides["crashBars"] = [int(beat) for beat in beats]
+        else:
+            overrides[key] = beats
+    if "eighth note" in lowered or "eighth-note" in lowered:
+        overrides["hatSpacing"] = 0.5
+    if "sixteenth note" in lowered or "sixteenth-note" in lowered:
+        overrides["hatSpacing"] = 0.25
+    if "triplet" in lowered:
+        overrides["hatSpacing"] = round(1.0 / 3.0, 3)
+    return overrides
+
+
+def merge_drum_pattern(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    for key, value in overrides.items():
+        merged[key] = value
+    return merged
+
+
+def resolve_transform_reference(reference: dict[str, Any] | None, prior_sections: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not reference:
+        return None
+    section_id = reference.get("sectionId")
+    if section_id:
+        for section in prior_sections:
+            if section.get("id") == section_id:
+                return section
+    section_type = reference.get("sectionType")
+    ordinal = reference.get("ordinal")
+    if not section_type:
+        return None
+    matches = [section for section in prior_sections if section.get("type") == section_type]
+    if ordinal is not None:
+        for section in matches:
+            if section.get("ordinalWithinType") == ordinal:
+                return section
+    return matches[-1] if matches else None
+
+
+def progression_from_symbols(symbols: list[str]) -> list[dict[str, Any]] | None:
+    progression: list[dict[str, Any]] = []
+    for symbol in symbols:
+        shape = chord_symbol_to_shape(symbol)
+        if shape:
+            progression.append(shape)
+    return progression or None
+
+
+def motif_from_lane_events(
+    events: list[dict[str, Any]],
+    template_motif: list[list[dict[str, float | int]]],
+) -> list[list[dict[str, float | int]]]:
+    if not events:
+        return deep_copy_jsonish(template_motif)
+    default_events = [event for event in events if "barOffset" not in event]
+    scoped_by_bar: dict[int, list[dict[str, Any]]] = {}
+    for event in events:
+        if "barOffset" in event:
+            scoped_by_bar.setdefault(int(event["barOffset"]), []).append(event)
+    total_bars = max(len(template_motif), (max(scoped_by_bar) + 1) if scoped_by_bar else 0)
+    if total_bars <= 0:
+        total_bars = len(template_motif) or 1
+    motif: list[list[dict[str, float | int]]] = []
+    for local_bar in range(total_bars):
+        template_bar = template_motif[local_bar % len(template_motif)] if template_motif else []
+        source_events = scoped_by_bar.get(local_bar) or default_events
+        if not source_events:
+            motif.append(deep_copy_jsonish(template_bar))
+            continue
+        notes = [int(item["note"]) for item in template_bar] or [76, 79, 83]
+        durations = [float(item["duration"]) for item in template_bar] or [0.42]
+        bar_events: list[dict[str, float | int]] = []
+        for index, event in enumerate(source_events):
+            item: dict[str, float | int] = {
+                "beat": round(float(event["beat"]), 2),
+                "duration": round(float(event.get("duration", durations[index % len(durations)])), 2),
+                "note": int(event.get("note", notes[index % len(notes)])),
+            }
+            for key in ("accent", "gain", "pan", "ghost"):
+                if key in event:
+                    item[key] = event[key]
+            bar_events.append(item)
+        motif.append(bar_events)
+    return motif
+
+
+def materialize_chord_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    materialized: list[dict[str, Any]] = []
+    for event in events:
+        updated = deep_copy_jsonish(event)
+        symbol = updated.get("symbol")
+        if symbol and "notes" not in updated:
+            shape = chord_symbol_to_shape(str(symbol))
+            if shape:
+                updated["notes"] = shape["notes"]
+                updated["root"] = shape["root"]
+                updated["name"] = shape["name"]
+        materialized.append(updated)
+    return materialized
+
+
+def lane_events_to_pattern(events: list[dict[str, Any]]) -> list[float]:
+    return [round(float(event["beat"]), 2) for event in events if "beat" in event]
+
+
+def infer_spacing_from_beats(beats: list[float]) -> float | None:
+    if len(beats) < 2:
+        return None
+    diffs = [round(float(right) - float(left), 3) for left, right in zip(beats, beats[1:]) if float(right) > float(left)]
+    if not diffs:
+        return None
+    first = diffs[0]
+    if all(abs(diff - first) <= 0.02 for diff in diffs[1:]):
+        return first
+    return None
+
+
+def scoped_events_for_bar(events: list[dict[str, Any]], local_bar: int) -> list[dict[str, Any]]:
+    scoped = [event for event in events if event.get("barOffset") == local_bar]
+    if scoped:
+        return scoped
+    return [event for event in events if "barOffset" not in event]
+
+
+def grouped_pattern_for_bar(events: list[dict[str, Any]]) -> tuple[list[float], dict[int, list[float]]]:
+    defaults = lane_events_to_pattern([event for event in events if "barOffset" not in event])
+    scoped: dict[int, list[float]] = {}
+    for event in events:
+        if "barOffset" not in event:
+            continue
+        bar = int(event["barOffset"])
+        scoped.setdefault(bar, []).append(round(float(event["beat"]), 2))
+    for bar, beats in list(scoped.items()):
+        ordered: list[float] = []
+        seen: set[float] = set()
+        for beat in sorted(beats):
+            if beat in seen:
+                continue
+            seen.add(beat)
+            ordered.append(beat)
+        scoped[bar] = ordered
+    return defaults, scoped
+
+
+def grouped_event_data_for_bar(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]]]:
+    defaults = [deep_copy_jsonish({key: value for key, value in event.items() if key != "barOffset"}) for event in events if "barOffset" not in event]
+    scoped: dict[int, list[dict[str, Any]]] = {}
+    for event in events:
+        if "barOffset" not in event:
+            continue
+        bar = int(event["barOffset"])
+        scoped.setdefault(bar, []).append(deep_copy_jsonish({key: value for key, value in event.items() if key != "barOffset"}))
+    return defaults, scoped
+
+
+def bass_events_from_follow_chords(omit_beats: list[float] | None = None) -> list[dict[str, Any]]:
+    omit = {round(float(beat), 2) for beat in (omit_beats or [])}
+    beats = [beat for beat in [0.0, 1.0, 2.0, 3.0] if round(beat, 2) not in omit]
+    if not beats:
+        beats = [0.0, 2.0]
+    events: list[dict[str, Any]] = []
+    for index, beat in enumerate(beats):
+        next_beat = beats[index + 1] if index + 1 < len(beats) else 4.0
+        duration = round(max(0.35, next_beat - beat - 0.08), 2)
+        events.append({"beat": round(beat, 2), "duration": duration})
+    return events
+
+
+def apply_lane_events_to_drum_pattern(base: dict[str, Any], lane_events: dict[str, Any]) -> dict[str, Any]:
+    pattern = dict(base)
+    scoped_bars: dict[str, dict[str, Any]] = deep_copy_jsonish(pattern.get("scopedBars", {}))
+    event_data: dict[str, list[dict[str, Any]]] = deep_copy_jsonish(pattern.get("eventData", {}))
+    scoped_event_data: dict[str, dict[str, list[dict[str, Any]]]] = deep_copy_jsonish(pattern.get("scopedEventData", {}))
+    mapping = (
+        ("kick", "kicks"),
+        ("snare", "snares"),
+        ("clap", "claps"),
+        ("hat", "hats"),
+    )
+    for lane, target_key in mapping:
+        payload = lane_events.get(lane) or {}
+        if payload.get("events"):
+            defaults, scoped = grouped_pattern_for_bar(payload["events"])
+            default_event_data, scoped_event_map = grouped_event_data_for_bar(payload["events"])
+            if defaults:
+                pattern[target_key] = defaults
+                event_data[target_key] = default_event_data
+            for bar, beats in scoped.items():
+                scoped_bars.setdefault(str(bar), {})[target_key] = beats
+                scoped_event_data.setdefault(str(bar), {})[target_key] = scoped_event_map.get(bar, [])
+                if lane == "hat":
+                    spacing = infer_spacing_from_beats(beats)
+                    if spacing is not None:
+                        scoped_bars[str(bar)]["hatSpacing"] = spacing
+        if lane == "hat" and payload.get("spacingBeats") is not None and payload.get("events"):
+            pattern["hatSpacing"] = float(payload["spacingBeats"])
+    ride_payload = lane_events.get("ride") or {}
+    if ride_payload.get("events"):
+        defaults, scoped = grouped_pattern_for_bar(ride_payload["events"])
+        default_event_data, scoped_event_map = grouped_event_data_for_bar(ride_payload["events"])
+        if defaults:
+            pattern["ride"] = True
+            pattern["rideBeats"] = defaults
+            event_data["rideBeats"] = default_event_data
+        for bar, beats in scoped.items():
+            scoped_bars.setdefault(str(bar), {})["rideBeats"] = beats
+            scoped_bars[str(bar)]["ride"] = True
+            scoped_event_data.setdefault(str(bar), {})["rideBeats"] = scoped_event_map.get(bar, [])
+    crash_payload = lane_events.get("crash") or {}
+    if crash_payload.get("events"):
+        defaults, scoped = grouped_pattern_for_bar(crash_payload["events"])
+        default_event_data, scoped_event_map = grouped_event_data_for_bar(crash_payload["events"])
+        if defaults:
+            pattern["crashBeats"] = defaults
+            event_data["crashBeats"] = default_event_data
+        for bar, beats in scoped.items():
+            scoped_bars.setdefault(str(bar), {})["crashBeats"] = beats
+            scoped_event_data.setdefault(str(bar), {})["crashBeats"] = scoped_event_map.get(bar, [])
+    if scoped_bars:
+        pattern["scopedBars"] = scoped_bars
+    if event_data:
+        pattern["eventData"] = event_data
+    if scoped_event_data:
+        pattern["scopedEventData"] = scoped_event_data
+    return pattern
+
+
+def infer_automation_profile(section: dict[str, Any], lane_events: dict[str, Any]) -> dict[str, Any]:
+    automation_payload = lane_events.get("automation") or {}
+    if automation_payload.get("envelopes"):
+        envelopes = deep_copy_jsonish(automation_payload["envelopes"])
+        for envelope in envelopes:
+            target_lane = envelope.get("targetLane")
+            if target_lane and not envelope.get("targetTrackId"):
+                track_ids = ROLE_TO_TRACKS.get(str(target_lane), ())
+                if track_ids:
+                    envelope["targetTrackId"] = track_ids[0]
+                elif str(target_lane) in TRACK_BLUEPRINTS:
+                    envelope["targetTrackId"] = str(target_lane)
+        return {
+            "source": automation_payload.get("source", "spec"),
+            "envelopes": envelopes,
+        }
+    text = lower_join(section.get("summary"), section.get("excerpt"), section.get("transcriptText"), " ".join(section.get("techniques", [])))
+    if "automation" in text or "filter" in text or "macro" in text:
+        return {
+            "source": "heuristic",
+            "envelopes": [
+                {
+                    "parameter": "filter",
+                    "start": 0.15 if section["type"] == "build" else 0.55,
+                    "end": 0.92 if section["type"] in {"build", "drop", "second_drop"} else 0.75,
+                    "barOffset": 0,
+                    "bars": max(1, int(section.get("bars", 4))),
+                    "curve": "linear",
+                }
+            ],
+        }
+    return {}
 
 
 def choose_progression_template(spec: dict[str, Any], section: dict[str, Any]) -> list[dict[str, Any]]:
@@ -773,6 +1354,8 @@ def choose_lead_motif_key(section: dict[str, Any]) -> str:
 def infer_chord_events(section: dict[str, Any]) -> list[dict[str, Any]]:
     text = lower_join(section.get("summary"), " ".join(section.get("trackRoles", [])))
     if section["type"] in {"drop", "second_drop"}:
+        if "filled in" in text:
+            return [{"beat": 0.0, "duration": 0.65, "stab": True, "bright": 0.88}, {"beat": 0.75, "duration": 0.32, "stab": True, "bright": 0.90}, {"beat": 1.5, "duration": 0.40, "stab": True, "bright": 0.92}, {"beat": 2.0, "duration": 0.50, "stab": True, "bright": 0.94}, {"beat": 3.0, "duration": 0.60, "stab": True, "bright": 0.96}]
         if "simple" in text and "filled in" not in text:
             return [{"beat": 0.0, "duration": 1.55}, {"beat": 2.0, "duration": 1.45}]
         return [{"beat": 0.0, "duration": 0.80}, {"beat": 1.5, "duration": 0.45}, {"beat": 2.0, "duration": 0.55}, {"beat": 3.0, "duration": 0.68}]
@@ -786,6 +1369,8 @@ def infer_chord_events(section: dict[str, Any]) -> list[dict[str, Any]]:
 def infer_bass_events(section: dict[str, Any]) -> list[dict[str, Any]]:
     text = lower_join(section.get("summary"), " ".join(section.get("trackRoles", [])))
     if section["type"] in {"drop", "second_drop"}:
+        if "same notes" in text or "plays the same notes" in text:
+            return [{"beat": 0.0, "duration": 1.45}, {"beat": 2.0, "duration": 1.35}]
         return [{"beat": 0.0, "duration": 0.82}, {"beat": 1.5, "duration": 0.45}, {"beat": 2.0, "duration": 0.55}, {"beat": 3.0, "duration": 0.68}]
     if section["type"] == "build":
         return [{"beat": 0.0, "duration": 1.35}, {"beat": 2.0, "duration": 1.35}, {"beat": 3.35, "duration": 0.32}]
@@ -801,6 +1386,7 @@ def infer_drum_pattern(section: dict[str, Any]) -> dict[str, Any]:
             "kicks": [0.0],
             "snares": [step * 0.5 for step in range(8)],
             "hats": [step * 0.5 for step in range(8)],
+            "claps": [step * 0.5 for step in range(8)],
             "clapRoll": True,
             "hatSpacing": 0.5,
             "ride": False,
@@ -808,9 +1394,21 @@ def infer_drum_pattern(section: dict[str, Any]) -> dict[str, Any]:
         }
     ride_enabled = "ride" in text or section["type"] == "second_drop"
     hat_spacing = 0.25 if any(keyword in text for keyword in ("fast hi-hat", "speed", "ride")) or section["type"] in {"drop", "second_drop"} else 0.5
+    if "simple trap beat" in text:
+        return {
+            "kicks": [0.0, 1.5, 2.75],
+            "snares": [1.0, 3.0],
+            "claps": [1.0, 3.0],
+            "hats": [round(step * 0.5, 2) for step in range(8)],
+            "clapRoll": False,
+            "hatSpacing": 0.5,
+            "ride": False,
+            "crashBars": [],
+        }
     return {
         "kicks": [0.0, 1.45, 2.0, 3.05] if section["type"] in {"drop", "second_drop"} else [0.0, 1.5, 2.75],
         "snares": [1.0, 3.0] if section["type"] not in {"drop", "second_drop"} else [2.0],
+        "claps": [1.0, 3.0] if section["type"] not in {"drop", "second_drop"} else [2.0],
         "hats": [round(step * hat_spacing, 2) for step in range(int(4 / hat_spacing))],
         "clapRoll": False,
         "hatSpacing": hat_spacing,
@@ -829,31 +1427,172 @@ def infer_fx_profile(section: dict[str, Any]) -> dict[str, bool]:
     }
 
 
-def infer_section_starter_defaults(section: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any]:
+def infer_section_starter_defaults(
+    section: dict[str, Any],
+    spec: dict[str, Any],
+    prior_sections: list[dict[str, Any]],
+    prior_defaults: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    text = lower_join(
+        section.get("summary"),
+        section.get("excerpt"),
+        section.get("transcriptText"),
+        " ".join(section.get("trackRoles", [])),
+        " ".join(section.get("techniques", [])),
+    )
+    section_lane_events = deep_copy_jsonish(section.get("laneEvents", {}) or {})
+    section_lane_transforms = deep_copy_jsonish(section.get("laneTransforms", {}) or {})
+    fallback_reference = prior_sections[-1] if prior_sections else None
+    reference_section = find_section_reference(text, prior_sections, fallback_reference)
+    reference_defaults = prior_defaults.get(reference_section["id"], {}) if reference_section else {}
+    lead_reference_section = resolve_transform_reference((section_lane_transforms.get("lead") or {}).get("copyFrom"), prior_sections)
+    if lead_reference_section is None:
+        lead_reference_section = resolve_lead_reference(text, prior_sections)
+    lead_reference_defaults = prior_defaults.get(lead_reference_section["id"], {}) if lead_reference_section else {}
+    bass_reference_section = resolve_transform_reference((section_lane_transforms.get("bass") or {}).get("copyFrom"), prior_sections)
+    if bass_reference_section is None:
+        bass_reference_section = resolve_bass_reference(text, prior_sections)
+    bass_reference_defaults = prior_defaults.get(bass_reference_section["id"], {}) if bass_reference_section else {}
+    chord_reference_section = resolve_transform_reference((section_lane_transforms.get("chords") or {}).get("copyFrom"), prior_sections)
+    if chord_reference_section is None:
+        chord_reference_section = resolve_chord_reference(text, prior_sections)
+    chord_reference_defaults = prior_defaults.get(chord_reference_section["id"], {}) if chord_reference_section else {}
+    drum_reference_section = resolve_transform_reference((section_lane_transforms.get("drums") or {}).get("copyFrom"), prior_sections)
+    if drum_reference_section is None:
+        drum_reference_section = resolve_drum_reference(text, prior_sections)
+    drum_reference_defaults = prior_defaults.get(drum_reference_section["id"], {}) if drum_reference_section else {}
     progression = choose_progression_template(spec, section)
     lead_motif_key = choose_lead_motif_key(section)
-    text = lower_join(section.get("summary"), " ".join(section.get("trackRoles", [])), " ".join(section.get("techniques", [])))
     lead_soft = section["type"] in {"intro", "verse", "break", "outro"} and lead_motif_key != "dense"
-    octave_shift = 12 if "up an octave" in text else 0
-    if section["type"] == "second_drop":
-        octave_shift = max(octave_shift, 12)
+    chord_lane_events = section_lane_events.get("chords") or {}
+    explicit_progression = progression_from_symbols(chord_lane_events.get("progressionSymbols") or [])
+    if explicit_progression is None:
+        explicit_progression = extract_explicit_progression(text)
+    if explicit_progression:
+        progression = explicit_progression
+    lead_shift = int((section_lane_transforms.get("lead") or {}).get("transposeSemitones") or 0)
+    if lead_shift == 0:
+        lead_shift = parse_transpose_instruction(text)
+    if section["type"] == "second_drop" and lead_shift == 0:
+        lead_shift = 12
+    lead_motif = deep_copy_jsonish(LEAD_MOTIF_LIBRARY[lead_motif_key])
+    reference_notes: dict[str, Any] = {}
+    lead_transform = section_lane_transforms.get("lead") or {}
+    if lead_transform.get("copyFrom") and lead_reference_defaults.get("leadMotif"):
+        lead_motif = deep_copy_jsonish(lead_reference_defaults["leadMotif"])
+        lead_motif_key = str(lead_reference_defaults.get("leadMotifKey", lead_motif_key))
+        reference_notes["leadSourceSectionId"] = lead_reference_section["id"] if lead_reference_section else None
+        if lead_transform.get("transform") == "fill_in":
+            lead_motif = densify_motif(lead_motif)
+            lead_motif_key = "dense"
+            reference_notes["leadTransform"] = "fill_in"
+    elif "same melody" in text and lead_reference_defaults.get("leadMotif"):
+        lead_motif = deep_copy_jsonish(lead_reference_defaults["leadMotif"])
+        lead_motif_key = str(lead_reference_defaults.get("leadMotifKey", lead_motif_key))
+        reference_notes["leadSourceSectionId"] = lead_reference_section["id"] if lead_reference_section else None
+        if "filled in" in text:
+            lead_motif = densify_motif(lead_motif)
+            lead_motif_key = "dense"
+            reference_notes["leadTransform"] = "fill_in"
+    elif "filled in" in text and lead_motif_key != "dense":
+        lead_motif = densify_motif(lead_motif)
+        lead_motif_key = "dense"
+    lead_lane_events = section_lane_events.get("lead") or {}
+    if lead_lane_events.get("events"):
+        lead_motif = motif_from_lane_events(lead_lane_events["events"], lead_motif)
+        reference_notes["leadEventSource"] = lead_lane_events.get("source", "spec")
+    if lead_shift:
+        lead_motif = transpose_motif(lead_motif, lead_shift)
+        reference_notes["leadTransposeSemitones"] = lead_shift
+    chord_transform = section_lane_transforms.get("chords") or {}
+    if chord_transform.get("copyFrom") and chord_reference_defaults.get("progression"):
+        progression = deep_copy_jsonish(chord_reference_defaults["progression"])
+        reference_notes["chordProgressionSourceSectionId"] = chord_reference_section["id"] if chord_reference_section else None
+    elif chord_reference_defaults.get("progression") and "same chord" in text:
+        progression = deep_copy_jsonish(chord_reference_defaults["progression"])
+        reference_notes["chordProgressionSourceSectionId"] = chord_reference_section["id"] if chord_reference_section else None
+    if chord_lane_events.get("events"):
+        chord_events = materialize_chord_events(chord_lane_events["events"])
+        reference_notes["chordEventSource"] = chord_lane_events.get("source", "spec")
+    else:
+        chord_events = None
+    bass_lane_events = section_lane_events.get("bass") or {}
+    bass_transform = section_lane_transforms.get("bass") or {}
+    if bass_lane_events.get("events"):
+        bass_events = deep_copy_jsonish(bass_lane_events["events"])
+        reference_notes["bassEventSource"] = bass_lane_events.get("source", "spec")
+    else:
+        bass_events = None
+    if bass_transform.get("followChords"):
+        bass_events = bass_events_from_follow_chords(bass_transform.get("omitBeats"))
+        reference_notes["bassFollowChords"] = True
+        if bass_transform.get("omitBeats"):
+            reference_notes["bassOmitBeats"] = [round(float(beat), 2) for beat in bass_transform["omitBeats"]]
+    elif (bass_transform.get("copyFrom") or "same notes" in text or "plays the same notes" in text):
+        if bass_reference_defaults.get("progression"):
+            progression = deep_copy_jsonish(bass_reference_defaults["progression"])
+            reference_notes["progressionSourceSectionId"] = bass_reference_section["id"] if bass_reference_section else None
+        if bass_events is None and bass_reference_defaults.get("bassEvents"):
+            bass_events = deep_copy_jsonish(bass_reference_defaults["bassEvents"])
+            reference_notes["bassSourceSectionId"] = bass_reference_section["id"] if bass_reference_section else None
+        elif bass_events is None:
+            bass_events = infer_bass_events(section)
+        if chord_events is None and bass_reference_defaults.get("chordEvents"):
+            chord_events = deep_copy_jsonish(bass_reference_defaults["chordEvents"])
+            reference_notes["chordSourceSectionId"] = bass_reference_section["id"] if bass_reference_section else None
+        elif chord_events is None:
+            chord_events = infer_chord_events(section)
+    else:
+        if bass_events is None:
+            bass_events = infer_bass_events(section)
+        if chord_events is None:
+            chord_events = infer_chord_events(section)
+    if lead_shift and explicit_progression and any(keyword in text for keyword in ("chords up", "progression up", "transpose chords", "transpose progression")):
+        progression = transpose_progression(progression, lead_shift)
+        reference_notes["progressionTransposeSemitones"] = lead_shift
+    if "happy" in text and "dark" not in text and reference_defaults.get("progression"):
+        progression = lighten_progression(reference_defaults["progression"])
+    drum_pattern = infer_drum_pattern(section)
+    drum_transform = section_lane_transforms.get("drums") or {}
+    if drum_transform.get("copyFrom") and drum_reference_defaults.get("drumPattern"):
+        drum_pattern = deep_copy_jsonish(drum_reference_defaults["drumPattern"])
+        reference_notes["drumSourceSectionId"] = drum_reference_section["id"] if drum_reference_section else None
+    elif drum_reference_defaults.get("drumPattern") and "same drum" in text:
+        drum_pattern = deep_copy_jsonish(drum_reference_defaults["drumPattern"])
+        reference_notes["drumSourceSectionId"] = drum_reference_section["id"] if drum_reference_section else None
+    drum_pattern = apply_lane_events_to_drum_pattern(drum_pattern, section_lane_events)
+    if any(section_lane_events.get(lane) for lane in ("kick", "snare", "clap", "hat", "ride", "crash")):
+        reference_notes["drumEventLanes"] = sorted(lane for lane in ("kick", "snare", "clap", "hat", "ride", "crash") if section_lane_events.get(lane))
+    if drum_transform.get("overrides"):
+        drum_pattern = merge_drum_pattern(drum_pattern, drum_transform["overrides"])
+        reference_notes["drumOverrides"] = sorted(drum_transform["overrides"].keys())
+    beat_overrides = extract_lane_beat_overrides(text)
+    if beat_overrides and not any(section_lane_events.get(lane) for lane in ("kick", "snare", "clap", "hat", "ride", "crash")):
+        drum_pattern = merge_drum_pattern(drum_pattern, beat_overrides)
+        reference_notes["explicitBeatOverrides"] = sorted(beat_overrides.keys())
+    automation_profile = infer_automation_profile(section, section_lane_events)
+    if automation_profile.get("envelopes"):
+        reference_notes["automationSource"] = automation_profile.get("source", "spec")
     defaults = {
         "progression": progression,
-        "chordEvents": infer_chord_events(section),
-        "bassEvents": infer_bass_events(section),
+        "chordEvents": chord_events,
+        "bassEvents": bass_events,
         "leadMotifKey": lead_motif_key,
-        "leadMotif": LEAD_MOTIF_LIBRARY[lead_motif_key],
+        "leadMotif": lead_motif,
         "leadSoft": lead_soft,
-        "leadOctaveShift": octave_shift,
-        "drumPattern": infer_drum_pattern(section),
+        "leadOctaveShift": lead_shift,
+        "drumPattern": drum_pattern,
         "fxProfile": infer_fx_profile(section),
+        "automationProfile": automation_profile,
         "energy": 1.25 if section["type"] in {"drop", "second_drop"} else (1.05 if section["type"] == "build" else 0.85),
     }
+    if reference_notes:
+        defaults["references"] = reference_notes
     return defaults
 
 
 def role_guidance(track_id: str) -> str:
-    return ROLE_STUB_GUIDANCE.get(track_id, "Translate the transcript cues into a concrete part for this lane.")
+    return ROLE_GUIDANCE.get(track_id, "Translate the transcript cues into a concrete part for this lane.")
 
 
 def render_role_helper_name(section: dict[str, Any], index: int, track_id: str) -> str:
@@ -870,7 +1609,7 @@ def render_role_helper_functions(section_plan: list[dict[str, Any]], track_plan:
             clips = overlapping_clips(track, section)
             lines = [
                 f"def {helper_name}(ctx: RenderContext, section: dict) -> None:",
-                f'    """{section["label"]} / {track["name"]} role stub."""',
+                f'    """{section["label"]} / {track["name"]} role helper."""',
                 f"    track = TRACK_PLAN_BY_ID[{track_id!r}]",
                 f"    # Instrument: {track['instrument']}",
                 f"    # Guidance: {role_guidance(track_id)}",
@@ -888,7 +1627,7 @@ def render_role_helper_functions(section_plan: list[dict[str, Any]], track_plan:
                         f"    # - {clip['name']} (bars {clip['startBar'] + 1}-{clip['startBar'] + clip['bars']}, {clip['type']})"
                     )
             else:
-                lines.append("    # No overlapping clips were scaffolded for this lane yet.")
+                lines.append("    # No overlapping clips were materialized for this lane yet.")
             lines.extend(
                 [
                     "    # TODO: Refine or replace the starter render body for this lane.",
@@ -896,7 +1635,7 @@ def render_role_helper_functions(section_plan: list[dict[str, Any]], track_plan:
                     f"        f\"    -> {track['name']}: {{track['instrument']}} | effects {{', '.join(track.get('effects', [])) or 'none'}}\"",
                     "    )",
                     "    _render_lane_starter(ctx, section, track)",
-                    f"    _placeholder_track(ctx, {track_id!r}, section['startBar'], section['bars'], note=track['name'])",
+                    f"    _render_track_baseline(ctx, {track_id!r}, section['startBar'], section['bars'], note=track['name'])",
                     "",
                 ]
             )
@@ -927,13 +1666,17 @@ def render_section_functions(section_plan: list[dict[str, Any]], track_plan: lis
             lines.append(f"    # Plugin hints: {', '.join(section['plugins'])}")
         if section.get("techniques"):
             lines.append(f"    # Techniques: {', '.join(section['techniques'])}")
+        if section.get("laneEvents"):
+            lines.append(f"    # Lane events: {json.dumps(section['laneEvents'], sort_keys=True)}")
+        if section.get("laneTransforms"):
+            lines.append(f"    # Lane transforms: {json.dumps(section['laneTransforms'], sort_keys=True)}")
         if section.get("trackIds"):
             lines.append("    # Tracks to touch in this section:")
             for track_id in section["trackIds"]:
                 lines.append(f"    # - {track_id}: {track_names.get(track_id, track_id)}")
         lines.extend([
             "    _log_section(ctx, section)",
-            "    # TODO: Replace the role helper stubs below with real synthesis / sample arrangement.",
+            "    # Refine the role helpers below with the final synthesis and sample arrangement.",
         ])
         for track_id in section.get("trackIds", []):
             lines.append(f"    {render_role_helper_name(section, index, track_id)}(ctx, section)")
@@ -946,6 +1689,7 @@ def render_section_functions(section_plan: list[dict[str, Any]], track_plan: lis
 
 def render_runtime_support() -> str:
     return '''
+import json
 import math
 import wave
 
@@ -955,7 +1699,6 @@ import numpy as np
 TOTAL_SECONDS = TOTAL_BARS * 4 * BEAT + TAIL_SECONDS
 N_SAMPLES = int(TOTAL_SECONDS * SR)
 STEM_PREFIX = PROJECT_ID.replace("-", "_")
-SCAFFOLD_STEM_PREFIX = f"{STEM_PREFIX}_scaffold"
 FALLBACK_PROGRESSION = [
     {"name": "Em7", "notes": [52, 55, 59, 62], "root": 40},
     {"name": "Cmaj7", "notes": [48, 52, 55, 59], "root": 36},
@@ -1173,37 +1916,90 @@ def _lead_motif_for_section(section: dict) -> list[list[dict]]:
     return _section_defaults(section).get("leadMotif") or FALLBACK_LEAD_MOTIF
 
 
+def scoped_events_for_bar(events: list[dict], local_bar: int) -> list[dict]:
+    scoped = [event for event in events if event.get("barOffset") == local_bar]
+    if scoped:
+        return scoped
+    return [event for event in events if "barOffset" not in event]
+
+
+def _drum_values_for_bar(drum_pattern: dict, key: str, local_bar: int, fallback: list[float]) -> list[float]:
+    scoped = (drum_pattern.get("scopedBars") or {}).get(str(local_bar), {})
+    values = scoped.get(key)
+    if values is not None:
+        return values
+    return drum_pattern.get(key) or fallback
+
+
+def _drum_flag_for_bar(drum_pattern: dict, key: str, local_bar: int, fallback: bool = False) -> bool:
+    scoped = (drum_pattern.get("scopedBars") or {}).get(str(local_bar), {})
+    if key in scoped:
+        return bool(scoped[key])
+    return bool(drum_pattern.get(key, fallback))
+
+
+def _drum_event_data_for_bar(drum_pattern: dict, key: str, local_bar: int, fallback: list[float]) -> list[dict]:
+    scoped = (drum_pattern.get("scopedEventData") or {}).get(str(local_bar), {})
+    if key in scoped:
+        return scoped[key]
+    defaults = (drum_pattern.get("eventData") or {}).get(key)
+    if defaults:
+        return defaults
+    return [{"beat": float(beat)} for beat in fallback]
+
+
 def _schedule_note(buffer: np.ndarray, start_beat: float, duration_beats: float, midi_note: int, synth, *, gain: float, pan: float = 0.0, **kwargs) -> None:
     audio = synth(note_to_freq(midi_note), duration_beats * BEAT, **kwargs)
     add_mono(buffer, beat_to_seconds(start_beat), audio, gain=gain, pan=pan)
 
 
+def _curve_progress(progress: np.ndarray, curve: str) -> np.ndarray:
+    curve = str(curve or "linear").lower()
+    if curve == "exp":
+        return np.power(progress, 2.0).astype(np.float32)
+    if curve == "ease_in":
+        return np.power(progress, 1.6).astype(np.float32)
+    if curve == "ease_out":
+        return (1.0 - np.power(1.0 - progress, 1.6)).astype(np.float32)
+    if curve == "ease_in_out":
+        eased = np.where(progress < 0.5, 2.0 * progress * progress, 1.0 - np.power(-2.0 * progress + 2.0, 2.0) / 2.0)
+        return eased.astype(np.float32)
+    if curve == "step":
+        return np.where(progress < 0.5, 0.0, 1.0).astype(np.float32)
+    return progress.astype(np.float32)
+
+
 def _starter_chords(ctx: RenderContext, section: dict, track: dict) -> None:
     buffer = _track_buffer(ctx, track["id"])
     defaults = _section_defaults(section)
-    for bar in range(section["startBar"], section["startBar"] + section["bars"]):
+    for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
         chord = _progression_for_bar(section, bar)
-        chord_events = defaults.get("chordEvents") or [{"beat": 0.0, "duration": 3.7}]
+        chord_events = scoped_events_for_bar(defaults.get("chordEvents") or [{"beat": 0.0, "duration": 3.7}], local_bar)
         for event in chord_events:
             onset = float(event["beat"])
             dur = float(event["duration"])
             stab = bool(event.get("stab", section["type"] in {"drop", "second_drop"}))
             bright = float(event.get("bright", 0.55 if section["type"] == "build" else (0.84 if stab else 0.30)))
-            for idx, note in enumerate(chord["notes"]):
-                _schedule_note(buffer, bar_beat(bar, onset), dur, int(note), synth_supersaw, gain=track.get("gain", 0.8) * (0.10 if stab else 0.06) * float(defaults.get("energy", 1.0)), pan=-0.45 + idx * 0.30, bright=bright, stab=stab)
+            event_notes = event.get("notes") or chord["notes"]
+            for idx, note in enumerate(event_notes):
+                accent_gain = 1.18 if event.get("accent") else 1.0
+                event_gain = float(event.get("gain", 1.0))
+                _schedule_note(buffer, bar_beat(bar, onset), dur, int(note), synth_supersaw, gain=track.get("gain", 0.8) * (0.10 if stab else 0.06) * float(defaults.get("energy", 1.0)) * accent_gain * event_gain, pan=float(event.get("pan", -0.45 + idx * 0.30)), bright=bright, stab=stab)
 
 
 def _starter_bass(ctx: RenderContext, section: dict, track: dict) -> None:
     buffer = _track_buffer(ctx, track["id"])
     defaults = _section_defaults(section)
-    for bar in range(section["startBar"], section["startBar"] + section["bars"]):
+    for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
         root = int(_progression_for_bar(section, bar)["root"])
-        bass_events = defaults.get("bassEvents") or [{"beat": 0.0, "duration": 3.85}]
+        bass_events = scoped_events_for_bar(defaults.get("bassEvents") or [{"beat": 0.0, "duration": 3.85}], local_bar)
         for event in bass_events:
             onset = float(event["beat"])
             dur = float(event["duration"])
-            gain = track.get("gain", 0.8) * (0.20 if section["type"] in {"drop", "second_drop"} else 0.10) * float(defaults.get("energy", 1.0))
-            _schedule_note(buffer, bar_beat(bar, onset), dur, root + int(event.get("octaveShift", 0)), synth_bass, gain=gain, pan=track.get("pan", 0.0), grit=float(event.get("grit", 0.46)))
+            accent_gain = 1.15 if event.get("accent") else (0.7 if event.get("ghost") else 1.0)
+            gain = track.get("gain", 0.8) * (0.20 if section["type"] in {"drop", "second_drop"} else 0.10) * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * accent_gain
+            target_note = int(event.get("note", root + int(event.get("octaveShift", 0))))
+            _schedule_note(buffer, bar_beat(bar, onset), dur, target_note, synth_bass, gain=gain, pan=float(event.get("pan", track.get("pan", 0.0))), grit=float(event.get("grit", 0.46)))
 
 
 def _starter_sub(ctx: RenderContext, section: dict, track: dict) -> None:
@@ -1228,7 +2024,8 @@ def _starter_lead(ctx: RenderContext, section: dict, track: dict) -> None:
             note = int(event["note"])
             if soft and onset > 2.6 and local_bar % 2 == 0:
                 continue
-            _schedule_note(buffer, bar_beat(bar, onset), dur, note + transpose, synth_lead, gain=track.get("gain", 0.8) * (0.10 if not soft else 0.06) * float(defaults.get("energy", 1.0)), pan=-0.08 if (local_bar + int(onset * 10)) % 2 else 0.08, soft=soft)
+            accent_gain = 1.18 if event.get("accent") else (0.72 if event.get("ghost") else 1.0)
+            _schedule_note(buffer, bar_beat(bar, onset), dur, note + transpose, synth_lead, gain=track.get("gain", 0.8) * (0.10 if not soft else 0.06) * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * accent_gain, pan=float(event.get("pan", (-0.08 if (local_bar + int(onset * 10)) % 2 else 0.08))), soft=soft)
 
 
 def _starter_drums(ctx: RenderContext, section: dict, track: dict) -> None:
@@ -1238,17 +2035,26 @@ def _starter_drums(ctx: RenderContext, section: dict, track: dict) -> None:
     k = kick()
     s = snare(False)
     h = hat(False)
-    for bar in range(section["startBar"], section["startBar"] + section["bars"]):
-        kicks = drum_pattern.get("kicks") or [0.0, 1.5, 2.75]
-        snares = drum_pattern.get("snares") or [1.0, 3.0]
-        hats = drum_pattern.get("hats") or [step * 0.5 for step in range(8)]
-        for beat in kicks:
-            add_mono(buffer, beat_to_seconds(bar_beat(bar, float(beat))), k, gain=track.get("gain", 0.8) * 0.95 * float(defaults.get("energy", 1.0)), pan=track.get("pan", 0.0))
-        for beat in snares:
-            add_mono(buffer, beat_to_seconds(bar_beat(bar, float(beat))), s, gain=track.get("gain", 0.8) * 0.34 * float(defaults.get("energy", 1.0)))
-        for beat in hats:
-            beat_value = float(beat)
-            add_mono(buffer, beat_to_seconds(bar_beat(bar, beat_value)), h, gain=0.14 + (0.05 if int(beat_value * 2) % 2 else 0.0), pan=0.22)
+    for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
+        kicks = _drum_event_data_for_bar(drum_pattern, "kicks", local_bar, [0.0, 1.5, 2.75])
+        snares = _drum_event_data_for_bar(drum_pattern, "snares", local_bar, [1.0, 3.0])
+        hats = _drum_event_data_for_bar(drum_pattern, "hats", local_bar, [step * 0.5 for step in range(8)])
+        for event in kicks:
+            beat = float(event["beat"])
+            accent_gain = 1.18 if event.get("accent") else (0.7 if event.get("ghost") else 1.0)
+            add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), k, gain=track.get("gain", 0.8) * 0.95 * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * accent_gain, pan=float(event.get("pan", track.get("pan", 0.0))))
+        for event in snares:
+            beat = float(event["beat"])
+            ghost_gain = 0.55 if event.get("ghost") else 1.0
+            accent_gain = 1.18 if event.get("accent") else 1.0
+            add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), s, gain=track.get("gain", 0.8) * 0.34 * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * ghost_gain * accent_gain)
+        for event in hats:
+            beat_value = float(event["beat"])
+            open_hat = bool(event.get("open"))
+            hat_audio = hat(open_hat)
+            accent_gain = 1.15 if event.get("accent") else (0.7 if event.get("ghost") else 1.0)
+            base_gain = (0.17 if open_hat else 0.14) + (0.05 if int(beat_value * 2) % 2 else 0.0)
+            add_mono(buffer, beat_to_seconds(bar_beat(bar, beat_value)), hat_audio, gain=base_gain * float(event.get("gain", 1.0)) * accent_gain, pan=float(event.get("pan", 0.22)))
 
 
 def _starter_clap_stack(ctx: RenderContext, section: dict, track: dict) -> None:
@@ -1256,10 +2062,16 @@ def _starter_clap_stack(ctx: RenderContext, section: dict, track: dict) -> None:
     defaults = _section_defaults(section)
     drum_pattern = defaults.get("drumPattern") or {}
     c = snare(True)
-    for bar in range(section["startBar"], section["startBar"] + section["bars"]):
-        beats = [step * 0.5 for step in range(8)] if drum_pattern.get("clapRoll") else (drum_pattern.get("snares") or [1.0, 3.0])
-        for beat in beats:
-            add_mono(buffer, beat_to_seconds(bar_beat(bar, float(beat))), c, gain=track.get("gain", 0.8) * (0.18 if drum_pattern.get("clapRoll") else 0.24) * float(defaults.get("energy", 1.0)), pan=0.18)
+    for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
+        beats = (
+            [{"beat": step * 0.5} for step in range(8)]
+            if _drum_flag_for_bar(drum_pattern, "clapRoll", local_bar)
+            else _drum_event_data_for_bar(drum_pattern, "claps", local_bar, _drum_values_for_bar(drum_pattern, "snares", local_bar, [1.0, 3.0]))
+        )
+        for event in beats:
+            beat = float(event["beat"])
+            accent_gain = 1.16 if event.get("accent") else (0.72 if event.get("ghost") else 1.0)
+            add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), c, gain=track.get("gain", 0.8) * (0.18 if _drum_flag_for_bar(drum_pattern, "clapRoll", local_bar) else 0.24) * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * accent_gain, pan=float(event.get("pan", 0.18)))
 
 
 def _starter_hat_ride(ctx: RenderContext, section: dict, track: dict) -> None:
@@ -1268,15 +2080,35 @@ def _starter_hat_ride(ctx: RenderContext, section: dict, track: dict) -> None:
     drum_pattern = defaults.get("drumPattern") or {}
     closed = hat(False)
     open_h = hat(True)
-    for bar in range(section["startBar"], section["startBar"] + section["bars"]):
-        spacing = float(drum_pattern.get("hatSpacing", 0.5))
-        steps = int(4 / spacing)
-        for step in range(steps):
-            add_mono(buffer, beat_to_seconds(bar_beat(bar, step * spacing)), closed, gain=track.get("gain", 0.8) * 0.16, pan=-0.28 if step % 2 else 0.28)
-        add_mono(buffer, beat_to_seconds(bar_beat(bar, 3.5)), open_h, gain=track.get("gain", 0.8) * 0.16, pan=-0.20)
-        if drum_pattern.get("ride") and bar % 4 == 3:
-            add_mono(buffer, beat_to_seconds(bar_beat(bar, 0.0)), open_h, gain=track.get("gain", 0.8) * 0.18, pan=0.18)
-        if drum_pattern.get("crashBars") and (bar - section["startBar"]) in set(int(item) for item in drum_pattern["crashBars"]):
+    for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
+        hat_events = _drum_event_data_for_bar(drum_pattern, "hats", local_bar, [])
+        if hat_events:
+            for index, event in enumerate(hat_events):
+                beat = float(event["beat"])
+                hat_audio = open_h if event.get("open") else closed
+                accent_gain = 1.16 if event.get("accent") else (0.72 if event.get("ghost") else 1.0)
+                base_gain = track.get("gain", 0.8) * (0.19 if event.get("open") else 0.16) * float(event.get("gain", 1.0)) * accent_gain
+                add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), hat_audio, gain=base_gain, pan=float(event.get("pan", (-0.28 if index % 2 else 0.28))))
+        else:
+            scoped = (drum_pattern.get("scopedBars") or {}).get(str(local_bar), {})
+            spacing = float(scoped.get("hatSpacing", drum_pattern.get("hatSpacing", 0.5)))
+            steps = int(4 / spacing)
+            for step in range(steps):
+                add_mono(buffer, beat_to_seconds(bar_beat(bar, step * spacing)), closed, gain=track.get("gain", 0.8) * 0.16, pan=-0.28 if step % 2 else 0.28)
+        if not hat_events:
+            add_mono(buffer, beat_to_seconds(bar_beat(bar, 3.5)), open_h, gain=track.get("gain", 0.8) * 0.16, pan=-0.20)
+        ride_events = _drum_event_data_for_bar(drum_pattern, "rideBeats", local_bar, ([0.0] if _drum_flag_for_bar(drum_pattern, "ride", local_bar) and bar % 4 == 3 else []))
+        for event in ride_events:
+            beat = float(event["beat"])
+            accent_gain = 1.14 if event.get("accent") else 1.0
+            add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), open_h, gain=track.get("gain", 0.8) * 0.18 * float(event.get("gain", 1.0)) * accent_gain, pan=float(event.get("pan", 0.18)))
+        crash_events = _drum_event_data_for_bar(drum_pattern, "crashBeats", local_bar, [])
+        if crash_events:
+            for event in crash_events:
+                beat = float(event["beat"])
+                accent_gain = 1.14 if event.get("accent") else 1.0
+                add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), crash(), gain=track.get("gain", 0.8) * 0.18 * float(event.get("gain", 1.0)) * accent_gain, pan=float(event.get("pan", 0.22)))
+        elif drum_pattern.get("crashBars") and local_bar in set(int(item) for item in drum_pattern["crashBars"]):
             add_mono(buffer, beat_to_seconds(bar_beat(bar)), crash(), gain=track.get("gain", 0.8) * 0.18, pan=0.22)
 
 
@@ -1303,9 +2135,107 @@ def _starter_guitar(ctx: RenderContext, section: dict, track: dict) -> None:
             _schedule_note(buffer, bar_beat(bar, onset), 0.30, root, synth_pluck, gain=track.get("gain", 0.8) * 0.08, pan=-0.10)
 
 
+def _automation_target_buffer(ctx: RenderContext, envelope: dict, fallback_track_id: str) -> np.ndarray:
+    target_track_id = envelope.get("targetTrackId")
+    if target_track_id and target_track_id in TRACK_PLAN_BY_ID:
+        return _track_buffer(ctx, str(target_track_id))
+    return _track_buffer(ctx, fallback_track_id)
+
+
 def _starter_filter_auto(ctx: RenderContext, section: dict, track: dict) -> None:
-    buffer = _track_buffer(ctx, track["id"])
-    add_mono(buffer, beat_to_seconds(bar_beat(section["startBar"])), riser(section["bars"] * 4 * BEAT, 180.0, 900.0), gain=track.get("gain", 0.8) * 0.12, pan=0.0)
+    defaults = _section_defaults(section)
+    automation = defaults.get("automationProfile") or {}
+    envelopes = automation.get("envelopes") or []
+    if not envelopes:
+        buffer = _track_buffer(ctx, track["id"])
+        add_mono(buffer, beat_to_seconds(bar_beat(section["startBar"])), riser(section["bars"] * 4 * BEAT, 180.0, 900.0), gain=track.get("gain", 0.8) * 0.12, pan=0.0)
+        return
+    for envelope in envelopes:
+        buffer = _automation_target_buffer(ctx, envelope, track["id"])
+        parameter = str(envelope.get("parameter", "filter")).lower()
+        curve = str(envelope.get("curve", "linear"))
+        bar_offset = int(envelope.get("barOffset", 0))
+        bar_count = max(1, int(envelope.get("bars", section["bars"])))
+        start = float(envelope.get("start", 0.15))
+        end = float(envelope.get("end", 0.9))
+        start_seconds = beat_to_seconds(bar_beat(section["startBar"] + bar_offset))
+        duration_seconds = bar_count * 4 * BEAT
+        gain = track.get("gain", 0.8) * (0.08 + 0.14 * abs(end - start))
+        if parameter in {"filter", "cutoff", "macro"}:
+            curve_probe = _curve_progress(np.linspace(0.0, 1.0, 64, dtype=np.float32), curve)
+            start_freq = 120.0 + 2600.0 * start
+            end_freq = 220.0 + 6200.0 * (start + (end - start) * float(curve_probe[-1]))
+            add_mono(
+                buffer,
+                start_seconds,
+                riser(duration_seconds, start_freq, end_freq),
+                gain=gain,
+                pan=0.0,
+            )
+            continue
+        if parameter == "volume":
+            n = max(1, int(duration_seconds * SR))
+            body = one_pole_lowpass(highpass_noise(n), 1800.0 + 2000.0 * end)
+            progress = _curve_progress(np.linspace(0.0, 1.0, n, dtype=np.float32), curve)
+            ramp = (max(0.05, start) + (max(0.05, end) - max(0.05, start)) * progress) ** 1.2
+            add_mono(buffer, start_seconds, body * ramp, gain=gain * 0.9, pan=0.0)
+            continue
+        if parameter == "reverb":
+            n = max(1, int(duration_seconds * SR))
+            tail = one_pole_lowpass(highpass_noise(n), 3200.0)
+            shimmer = 0.12 * np.sin(2.0 * np.pi * np.linspace(330.0, 880.0, n, dtype=np.float32) * (np.arange(n, dtype=np.float32) / SR))
+            progress = _curve_progress(np.linspace(0.0, 1.0, n, dtype=np.float32), curve)
+            env = (start + (end - start) * progress) ** 0.8
+            add_mono(buffer, start_seconds, (tail * 0.22 + shimmer) * env, gain=gain, pan=-0.24)
+            add_mono(buffer, start_seconds, (tail * 0.22 + shimmer) * env, gain=gain, pan=0.24)
+            continue
+        if parameter == "delay":
+            steps = max(4, bar_count * 4)
+            interval = max(0.16, 0.82 - 0.52 * end)
+            for step in range(steps):
+                progress = float(_curve_progress(np.array([step / max(1, steps - 1)], dtype=np.float32), curve)[0])
+                onset = start_seconds + step * interval * BEAT * (0.8 + 0.4 * progress)
+                pan = -0.65 if step % 2 else 0.65
+                pitch = 74 + (step % 3) * 3
+                add_mono(buffer, onset, synth_pluck(note_to_freq(pitch), 0.20 * BEAT), gain=gain * (0.9 - min(0.7, progress)), pan=pan)
+            continue
+        if parameter == "pan":
+            steps = max(6, bar_count * 4)
+            for step in range(steps):
+                progress = float(_curve_progress(np.array([step / max(1, steps - 1)], dtype=np.float32), curve)[0])
+                pan = -0.9 + 1.8 * progress * (1.0 if end >= start else -1.0)
+                onset = start_seconds + progress * max(0.0, duration_seconds - 0.16)
+                add_mono(buffer, onset, hat(True), gain=gain * 0.75, pan=pan)
+            continue
+        if parameter == "width":
+            steps = max(4, bar_count * 2)
+            spread = 0.15 + 0.8 * max(start, end)
+            for step in range(steps):
+                progress = float(_curve_progress(np.array([step / max(1, steps - 1)], dtype=np.float32), curve)[0])
+                onset = start_seconds + progress * max(0.0, duration_seconds - 0.22)
+                pulse = highpass_noise(int(0.18 * SR)) * np.linspace(1.0, 0.0, int(0.18 * SR), dtype=np.float32)
+                add_mono(buffer, onset, pulse, gain=gain * 0.55, pan=-spread)
+                add_mono(buffer, onset, pulse, gain=gain * 0.55, pan=spread)
+            continue
+        if parameter == "distortion":
+            n = max(1, int(duration_seconds * SR))
+            t = np.arange(n, dtype=np.float32) / SR
+            progress = _curve_progress(np.linspace(0.0, 1.0, n, dtype=np.float32), curve)
+            freq = 90.0 + 120.0 * start + (180.0 + 280.0 * end - (90.0 + 120.0 * start)) * progress
+            tone = np.sin(2.0 * np.pi * np.cumsum(freq) / SR).astype(np.float32)
+            saturated = np.tanh(tone * (1.6 + 4.0 * (start + (end - start) * progress))).astype(np.float32)
+            env = 0.2 + 0.6 * start + (0.4 + 0.9 * end - (0.2 + 0.6 * start)) * progress
+            add_mono(buffer, start_seconds, saturated * env, gain=gain * 0.85, pan=0.0)
+            continue
+        start_freq = 120.0 + 2600.0 * start
+        end_freq = 220.0 + 6200.0 * end
+        add_mono(
+            buffer,
+            start_seconds,
+            riser(duration_seconds, start_freq, end_freq),
+            gain=gain,
+            pan=0.0,
+        )
 
 
 def _starter_sample(ctx: RenderContext, section: dict, track: dict) -> None:
@@ -1354,20 +2284,46 @@ def write_outputs(ctx: RenderContext) -> dict[str, str]:
     outputs: dict[str, str] = {}
     mix = stereo_buffer()
     for stem_id, audio in ctx.stems.items():
-        stem_path = EXPORTS / f"{SCAFFOLD_STEM_PREFIX}_{stem_id}.wav"
+        stem_path = EXPORTS / f"{STEM_PREFIX}_{stem_id}.wav"
         _write_wav(stem_path, audio)
         outputs[stem_id] = str(stem_path)
         mix += audio
     mix /= max(1, len(ctx.stems))
-    mix_path = EXPORTS / f"{SCAFFOLD_STEM_PREFIX}_full_mix.wav"
+    mix_path = EXPORTS / f"{STEM_PREFIX}_full_mix.wav"
     _write_wav(mix_path, mix)
     outputs["full_mix"] = str(mix_path)
     ctx.exports = outputs
     return outputs
+
+
+def sync_project_assets(outputs: dict[str, str]) -> None:
+    assets: list[dict[str, str]] = []
+    for track in TRACK_PLAN:
+        stem_key = track["id"].replace("-", "_")
+        output_path = outputs.get(stem_key)
+        if not output_path:
+            continue
+        file_value = f"/api/audio/{Path(output_path).name}"
+        assets.append({"trackId": track["id"], "file": file_value})
+    if not assets:
+        return
+    for project_path in PROJECT_PATHS:
+        if not project_path.exists():
+            continue
+        project = json.loads(project_path.read_text(encoding="utf-8"))
+        snapshot = project.setdefault("snapshot", {})
+        for track in snapshot.get("tracks", []) or []:
+            track_id = track.get("id")
+            for asset in assets:
+                if asset["trackId"] == track_id:
+                    track["file"] = asset["file"]
+                    break
+        project["assets"] = assets
+        project_path.write_text(json.dumps(project, indent=2) + "\\n", encoding="utf-8")
 '''
 
 
-def ensure_renderer_stub(root: Path, project_id: str, project_name: str, project: dict[str, Any], spec: dict[str, Any], prompt: str | None = None, overwrite: bool = False) -> Path:
+def ensure_project_renderer(root: Path, project_id: str, project_name: str, project: dict[str, Any], spec: dict[str, Any], prompt: str | None = None, overwrite: bool = False) -> Path:
     path = root / f"render_{stemify(project_id)}.py"
     if path.exists() and not overwrite:
         return path
@@ -1407,7 +2363,7 @@ PROJECT_PATHS = [
     ROOT / "factory" / "projects" / f"{{PROJECT_ID}}.neon.json",
 ]
 TRANSCRIPT_SPEC_PATH = ROOT / "songlab" / "projects" / PROJECT_ID / "transcript_spec.json"
-SCAFFOLD_SUMMARY_PATH = ROOT / "songlab" / "projects" / PROJECT_ID / "project_scaffold.md"
+PROJECT_SUMMARY_PATH = ROOT / "songlab" / "projects" / PROJECT_ID / "project_summary.md"
 EXPORTS = ROOT / "exports"
 MIDI_DIR = ROOT / "midi"
 
@@ -1432,12 +2388,12 @@ def _log_section(ctx: RenderContext, section: dict) -> None:
     )
 
 
-def _placeholder_track(ctx: RenderContext, track_id: str, start_bar: int, bars: int, *, note: str) -> None:
+def _render_track_baseline(ctx: RenderContext, track_id: str, start_bar: int, bars: int, *, note: str) -> None:
     ctx.notes.append(f"  - {{track_id}} @ bars {{start_bar + 1}}-{{start_bar + bars}} :: {{note}}")
 
 
 def describe_plan() -> None:
-    print(f"Renderer scaffold for {{PROJECT_NAME}}")
+    print(f"Generated renderer for {{PROJECT_NAME}}")
     print(f"BPM: {{BPM}} | Bars: {{TOTAL_BARS}}")
     print("Tracks:")
     for track in TRACK_PLAN:
@@ -1465,6 +2421,7 @@ def main() -> int:
     describe_plan()
     ctx = render_song()
     outputs = write_outputs(ctx)
+    sync_project_assets(outputs)
     print("")
     print("Section notes:")
     for line in ctx.notes:
@@ -1474,7 +2431,7 @@ def main() -> int:
     for key, value in outputs.items():
         print(f"  - {key}: {value}")
     print("")
-    print("TODO: refine the starter render bodies and then sync the final project metadata.")
+    print("TODO: refine the starter render bodies with project-specific sound design.")
     return 0
 
 
