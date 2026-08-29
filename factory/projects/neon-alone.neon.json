@@ -1,0 +1,1397 @@
+{
+  "assetMode": "external",
+  "assets": [
+    {
+      "file": "/api/audio/neon_alone_drums.wav",
+      "trackId": "drums"
+    },
+    {
+      "file": "/api/audio/neon_alone_clap_stack.wav",
+      "trackId": "clap-stack"
+    },
+    {
+      "file": "/api/audio/neon_alone_hat_ride.wav",
+      "trackId": "hat-ride"
+    },
+    {
+      "file": "/api/audio/neon_alone_sub.wav",
+      "trackId": "sub"
+    },
+    {
+      "file": "/api/audio/neon_alone_bass.wav",
+      "trackId": "bass"
+    },
+    {
+      "file": "/api/audio/neon_alone_chords.wav",
+      "trackId": "chords"
+    },
+    {
+      "file": "/api/audio/neon_alone_lead.wav",
+      "trackId": "lead"
+    },
+    {
+      "file": "/api/audio/neon_alone_lead_double.wav",
+      "trackId": "lead-double"
+    },
+    {
+      "file": "/api/audio/neon_alone_plucks.wav",
+      "trackId": "plucks"
+    },
+    {
+      "file": "/api/audio/neon_alone_hook_echo.wav",
+      "trackId": "vocals"
+    },
+    {
+      "file": "/api/audio/neon_alone_fx.wav",
+      "trackId": "fx"
+    }
+  ],
+  "createdAt": "2026-06-12T08:19:41Z",
+  "description": "Original bright future-bass project in the Marshmello Alone production lane; no copied lyrics, samples, or topline.",
+  "format": "neon-studio-project",
+  "formatVersion": 1,
+  "id": "neon-alone",
+  "keyCenter": "D Major",
+  "name": "Neon Alone",
+  "portable": true,
+  "projectFile": null,
+  "snapshot": {
+    "activeView": "playlist",
+    "arrangementMode": "song",
+    "automationLanes": [
+      {
+        "color": "#ffd166",
+        "curve": "ease-in",
+        "enabled": true,
+        "id": "auto-chords-filter",
+        "label": "Chords Filter",
+        "parameter": "filter",
+        "points": [
+          {
+            "bar": 0,
+            "value": 0.18
+          },
+          {
+            "bar": 8,
+            "value": 0.55
+          },
+          {
+            "bar": 24,
+            "value": 0.95
+          },
+          {
+            "bar": 72,
+            "value": 0.36
+          }
+        ],
+        "trackId": "chords"
+      },
+      {
+        "color": "#6fd6ff",
+        "curve": "ease-in",
+        "enabled": true,
+        "id": "auto-lead-filter",
+        "label": "Lead Filter Rise",
+        "parameter": "filter",
+        "points": [
+          {
+            "bar": 16,
+            "value": 0.24
+          },
+          {
+            "bar": 24,
+            "value": 0.95
+          },
+          {
+            "bar": 48,
+            "value": 0.2
+          },
+          {
+            "bar": 56,
+            "value": 1.0
+          }
+        ],
+        "trackId": "lead"
+      },
+      {
+        "color": "#d78bff",
+        "curve": "linear",
+        "enabled": true,
+        "id": "auto-master-width",
+        "label": "Build Width Macro",
+        "parameter": "width",
+        "points": [
+          {
+            "bar": 48,
+            "value": 0.45
+          },
+          {
+            "bar": 56,
+            "value": 0.85
+          },
+          {
+            "bar": 72,
+            "value": 0.58
+          }
+        ],
+        "trackId": "fx"
+      }
+    ],
+    "bpm": 142,
+    "controls": {
+      "bass": {
+        "arm": false,
+        "gain": 0.78,
+        "mute": false,
+        "pan": 0.0,
+        "sendA": 0.1,
+        "sendB": 0.06,
+        "solo": false
+      },
+      "chords": {
+        "arm": false,
+        "gain": 0.98,
+        "mute": false,
+        "pan": -0.04,
+        "sendA": 0.1,
+        "sendB": 0.12,
+        "solo": false
+      },
+      "clap-stack": {
+        "arm": false,
+        "gain": 0.62,
+        "mute": false,
+        "pan": 0.08,
+        "sendA": 0.1,
+        "sendB": 0.06,
+        "solo": false
+      },
+      "drums": {
+        "arm": false,
+        "gain": 0.72,
+        "mute": false,
+        "pan": 0.0,
+        "sendA": 0.1,
+        "sendB": 0.06,
+        "solo": false
+      },
+      "filter-auto": {
+        "arm": false,
+        "gain": 0.0,
+        "mute": false,
+        "pan": 0.0,
+        "sendA": 0.1,
+        "sendB": 0.06,
+        "solo": false
+      },
+      "fx": {
+        "arm": false,
+        "gain": 0.66,
+        "mute": false,
+        "pan": 0.0,
+        "sendA": 0.1,
+        "sendB": 0.12,
+        "solo": false
+      },
+      "hat-ride": {
+        "arm": false,
+        "gain": 0.55,
+        "mute": false,
+        "pan": 0.18,
+        "sendA": 0.1,
+        "sendB": 0.06,
+        "solo": false
+      },
+      "lead": {
+        "arm": false,
+        "gain": 0.98,
+        "mute": false,
+        "pan": 0.02,
+        "sendA": 0.18,
+        "sendB": 0.06,
+        "solo": false
+      },
+      "lead-double": {
+        "arm": false,
+        "gain": 0.58,
+        "mute": false,
+        "pan": -0.08,
+        "sendA": 0.1,
+        "sendB": 0.06,
+        "solo": false
+      },
+      "plucks": {
+        "arm": false,
+        "gain": 0.34,
+        "mute": false,
+        "pan": -0.1,
+        "sendA": 0.18,
+        "sendB": 0.06,
+        "solo": false
+      },
+      "sub": {
+        "arm": false,
+        "gain": 0.92,
+        "mute": false,
+        "pan": 0.0,
+        "sendA": 0.1,
+        "sendB": 0.06,
+        "solo": false
+      },
+      "vocals": {
+        "arm": false,
+        "gain": 0.3,
+        "mute": false,
+        "pan": 0.0,
+        "sendA": 0.18,
+        "sendB": 0.06,
+        "solo": false
+      }
+    },
+    "loopEnabled": true,
+    "loopEndBar": 72,
+    "loopStartBar": 56,
+    "notes": [
+      {
+        "beat": 0.0,
+        "color": "#6fd6ff",
+        "duration": 0.46,
+        "id": "hook-0",
+        "note": 74,
+        "velocity": 0.8976377952755905
+      },
+      {
+        "beat": 0.5,
+        "color": "#6fd6ff",
+        "duration": 0.38,
+        "id": "hook-1",
+        "note": 74,
+        "velocity": 0.7559055118110236
+      },
+      {
+        "beat": 1.0,
+        "color": "#6fd6ff",
+        "duration": 0.76,
+        "id": "hook-2",
+        "note": 78,
+        "velocity": 0.8976377952755905
+      },
+      {
+        "beat": 2.0,
+        "color": "#6fd6ff",
+        "duration": 0.46,
+        "id": "hook-3",
+        "note": 76,
+        "velocity": 0.8031496062992126
+      },
+      {
+        "beat": 2.5,
+        "color": "#6fd6ff",
+        "duration": 0.38,
+        "id": "hook-4",
+        "note": 74,
+        "velocity": 0.7716535433070866
+      },
+      {
+        "beat": 3.0,
+        "color": "#6fd6ff",
+        "duration": 0.72,
+        "id": "hook-5",
+        "note": 71,
+        "velocity": 0.8031496062992126
+      }
+    ],
+    "patternIndex": 1,
+    "recipe": [
+      {
+        "detail": "Eight-section 142 BPM D-major future-bass structure with no copied topline.",
+        "id": "foundation",
+        "label": "Original Alone-lane arrangement",
+        "section": "Foundation",
+        "status": "implemented",
+        "trackIds": [
+          "lead",
+          "chords",
+          "drums",
+          "bass",
+          "fx"
+        ]
+      },
+      {
+        "detail": "The intro states the D-major emotional identity with filtered chords and small lead fragments.",
+        "id": "intro",
+        "label": "Filtered hook DNA",
+        "section": "Intro",
+        "status": "implemented",
+        "trackIds": [
+          "lead",
+          "chords",
+          "fx"
+        ]
+      },
+      {
+        "detail": "Verse keeps the hook intimate with plucks, simple kick/snare, and enough space before the lift.",
+        "id": "verse",
+        "label": "Sparse lonely pocket",
+        "section": "Verse",
+        "status": "implemented",
+        "trackIds": [
+          "plucks",
+          "lead",
+          "drums",
+          "sub"
+        ]
+      },
+      {
+        "detail": "Build 1 opens the lead filter, raises clap/snare energy, and uses risers to stage drop one.",
+        "id": "build-1",
+        "label": "First filter and roll lift",
+        "section": "Build 1",
+        "status": "implemented",
+        "trackIds": [
+          "filter-auto",
+          "drums",
+          "clap-stack",
+          "fx"
+        ]
+      },
+      {
+        "detail": "Intro and drop use the same hook DNA, but the drop contour is original and filled in.",
+        "id": "hook",
+        "label": "Simple square/saw lead identity",
+        "section": "Hook",
+        "status": "implemented",
+        "trackIds": [
+          "lead",
+          "lead-double"
+        ]
+      },
+      {
+        "detail": "D-major chord bed is bright, simple, and sidechained for festival motion.",
+        "id": "chords",
+        "label": "D-A-Bm-G emotional harmonic lane",
+        "section": "Harmony",
+        "status": "implemented",
+        "trackIds": [
+          "chords"
+        ]
+      },
+      {
+        "detail": "Drop 1 keeps the rhythm uncluttered so the hook reads immediately.",
+        "id": "drop-1",
+        "label": "Open pumped future-bass drop",
+        "section": "Drop 1",
+        "status": "implemented",
+        "trackIds": [
+          "drums",
+          "bass",
+          "sub",
+          "chords",
+          "lead"
+        ]
+      },
+      {
+        "detail": "Break strips drums away and leaves filtered chords plus quiet hook echo.",
+        "id": "break",
+        "label": "Filtered emotional reset",
+        "section": "Break",
+        "status": "implemented",
+        "trackIds": [
+          "chords",
+          "lead",
+          "vocals",
+          "fx"
+        ]
+      },
+      {
+        "detail": "Build 2 uses double-time hats, stronger riser, and wider macro movement before the second drop.",
+        "id": "build-2",
+        "label": "Higher-tension second lift",
+        "section": "Build 2",
+        "status": "implemented",
+        "trackIds": [
+          "filter-auto",
+          "hat-ride",
+          "clap-stack",
+          "fx"
+        ]
+      },
+      {
+        "detail": "Drop 2 adds octave lead double, ride/crash lift, and small clean sparkle.",
+        "id": "drop-2",
+        "label": "Wider and brighter second drop",
+        "section": "Drop 2",
+        "status": "implemented",
+        "trackIds": [
+          "lead-double",
+          "hat-ride",
+          "vocals",
+          "fx"
+        ]
+      },
+      {
+        "detail": "Outro removes the drums and resolves into chord tail, downlifter, and soft hook echo.",
+        "id": "outro",
+        "label": "Hook echo and downlifter",
+        "section": "Outro",
+        "status": "implemented",
+        "trackIds": [
+          "lead",
+          "chords",
+          "fx"
+        ]
+      },
+      {
+        "detail": "Both builds stage the drop through visible automation, snare/clap rolls, risers, and fake-stop contrast.",
+        "id": "builds",
+        "label": "Filter, riser, and clap-roll tension",
+        "section": "Builds",
+        "status": "implemented",
+        "trackIds": [
+          "filter-auto",
+          "drums",
+          "clap-stack",
+          "fx"
+        ]
+      },
+      {
+        "detail": "Automation lanes expose chord filter, lead filter, and width movement so the app mirrors the audio lift.",
+        "id": "automation",
+        "label": "Visible filter and width macros",
+        "section": "Automation",
+        "status": "implemented",
+        "trackIds": [
+          "filter-auto",
+          "chords",
+          "lead",
+          "fx"
+        ]
+      },
+      {
+        "detail": "Sub and mid bass are ducked around the kick, with low-end ownership kept out of lead and chord lanes.",
+        "id": "low-end",
+        "label": "Kick/sub separation",
+        "section": "Mix",
+        "status": "implemented",
+        "trackIds": [
+          "drums",
+          "sub",
+          "bass"
+        ]
+      },
+      {
+        "detail": "Lead, claps, hats, and supersaws carry air while delays and low cuts keep the mix clean.",
+        "id": "air",
+        "label": "Bright but controlled top end",
+        "section": "Mix",
+        "status": "implemented",
+        "trackIds": [
+          "lead",
+          "chords",
+          "hat-ride",
+          "clap-stack"
+        ]
+      }
+    ],
+    "selectedClipId": "lead-drop-2",
+    "selectedTrackId": "lead",
+    "snap": "1/16",
+    "swing": 14,
+    "tracks": [
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#ff8d5c",
+            "id": "drums-verse",
+            "lane": "drums",
+            "name": "Verse kick/snare pocket",
+            "startBar": 8,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#ff8d5c",
+            "id": "drums-build-1",
+            "lane": "drums",
+            "name": "Build 1 roll",
+            "startBar": 16,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#ff8d5c",
+            "id": "drums-drop-1",
+            "lane": "drums",
+            "name": "Drop 1 drums",
+            "startBar": 24,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#ff8d5c",
+            "id": "drums-build-2",
+            "lane": "drums",
+            "name": "Build 2 roll",
+            "startBar": 48,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#ff8d5c",
+            "id": "drums-drop-2",
+            "lane": "drums",
+            "name": "Drop 2 drums",
+            "startBar": 56,
+            "type": "pattern"
+          }
+        ],
+        "color": "#ff8d5c",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.56,
+            "id": "eq",
+            "name": "EQ Eight"
+          },
+          {
+            "active": true,
+            "amount": 0.6,
+            "id": "bus-comp",
+            "name": "Bus Comp"
+          },
+          {
+            "active": true,
+            "amount": 0.36,
+            "id": "clip",
+            "name": "Soft Clip"
+          }
+        ],
+        "file": "/api/audio/neon_alone_drums.wav",
+        "gain": 0.72,
+        "id": "drums",
+        "instrument": "Future Trap Kit",
+        "kind": "audio",
+        "name": "Drums",
+        "pan": 0.0,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#fb7185",
+            "id": "clap-verse",
+            "lane": "clap-stack",
+            "name": "Verse clap",
+            "startBar": 8,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#fb7185",
+            "id": "clap-build-1",
+            "lane": "clap-stack",
+            "name": "Build clap roll",
+            "startBar": 16,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#fb7185",
+            "id": "clap-drop-1",
+            "lane": "clap-stack",
+            "name": "Drop clap stack",
+            "startBar": 24,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#fb7185",
+            "id": "clap-build-2",
+            "lane": "clap-stack",
+            "name": "Build 2 clap roll",
+            "startBar": 48,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#fb7185",
+            "id": "clap-drop-2",
+            "lane": "clap-stack",
+            "name": "Drop 2 clap stack",
+            "startBar": 56,
+            "type": "pattern"
+          }
+        ],
+        "color": "#fb7185",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.38,
+            "id": "verb",
+            "name": "Short Plate"
+          },
+          {
+            "active": true,
+            "amount": 0.46,
+            "id": "width",
+            "name": "Stereo Spread"
+          }
+        ],
+        "file": "/api/audio/neon_alone_clap_stack.wav",
+        "gain": 0.62,
+        "id": "clap-stack",
+        "instrument": "Wide Clap Layer",
+        "kind": "audio",
+        "name": "Clap Stack",
+        "pan": 0.08,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#f4f1a3",
+            "id": "hat-verse",
+            "lane": "hat-ride",
+            "name": "Verse hats",
+            "startBar": 8,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#f4f1a3",
+            "id": "hat-build-1",
+            "lane": "hat-ride",
+            "name": "Build hats",
+            "startBar": 16,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#f4f1a3",
+            "id": "hat-drop-1",
+            "lane": "hat-ride",
+            "name": "Drop hats",
+            "startBar": 24,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#f4f1a3",
+            "id": "hat-build-2",
+            "lane": "hat-ride",
+            "name": "Double-time build hats",
+            "startBar": 48,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#f4f1a3",
+            "id": "hat-drop-2",
+            "lane": "hat-ride",
+            "name": "Drop 2 ride/crash lift",
+            "startBar": 56,
+            "type": "pattern"
+          }
+        ],
+        "color": "#f4f1a3",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.48,
+            "id": "air",
+            "name": "Bright Air EQ"
+          },
+          {
+            "active": true,
+            "amount": 0.44,
+            "id": "human",
+            "name": "Velocity Humanize"
+          }
+        ],
+        "file": "/api/audio/neon_alone_hat_ride.wav",
+        "gain": 0.55,
+        "id": "hat-ride",
+        "instrument": "Trap Hats + Ride",
+        "kind": "audio",
+        "name": "Hat/Ride",
+        "pan": 0.18,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#34d399",
+            "id": "sub-verse",
+            "lane": "sub",
+            "name": "Verse sub anchors",
+            "startBar": 8,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#34d399",
+            "id": "sub-drop-1",
+            "lane": "sub",
+            "name": "Drop 1 sub",
+            "startBar": 24,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#34d399",
+            "id": "sub-drop-2",
+            "lane": "sub",
+            "name": "Drop 2 sub",
+            "startBar": 56,
+            "type": "pattern"
+          }
+        ],
+        "color": "#34d399",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.9,
+            "id": "mono",
+            "name": "Mono Utility"
+          },
+          {
+            "active": true,
+            "amount": 0.7,
+            "id": "duck",
+            "name": "Kick Duck"
+          }
+        ],
+        "file": "/api/audio/neon_alone_sub.wav",
+        "gain": 0.92,
+        "id": "sub",
+        "instrument": "Mono Triangle Sub",
+        "kind": "audio",
+        "name": "Sub",
+        "pan": 0.0,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#4ade80",
+            "id": "bass-verse",
+            "lane": "bass",
+            "name": "Verse bass pulses",
+            "startBar": 8,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#4ade80",
+            "id": "bass-build-1",
+            "lane": "bass",
+            "name": "Build bass lift",
+            "startBar": 16,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#4ade80",
+            "id": "bass-drop-1",
+            "lane": "bass",
+            "name": "Drop 1 mid bass",
+            "startBar": 24,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#4ade80",
+            "id": "bass-build-2",
+            "lane": "bass",
+            "name": "Build 2 bass lift",
+            "startBar": 48,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#4ade80",
+            "id": "bass-drop-2",
+            "lane": "bass",
+            "name": "Drop 2 mid bass",
+            "startBar": 56,
+            "type": "pattern"
+          }
+        ],
+        "color": "#4ade80",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.48,
+            "id": "sat",
+            "name": "Saturator"
+          },
+          {
+            "active": true,
+            "amount": 0.66,
+            "id": "duck",
+            "name": "Sidechain"
+          }
+        ],
+        "file": "/api/audio/neon_alone_bass.wav",
+        "gain": 0.78,
+        "id": "bass",
+        "instrument": "Saturated Mid Bass",
+        "kind": "audio",
+        "name": "Mid Bass",
+        "pan": 0.0,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#ffd166",
+            "id": "chords-intro",
+            "lane": "chords",
+            "name": "Filtered D major bed",
+            "startBar": 0,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#ffd166",
+            "id": "chords-verse",
+            "lane": "chords",
+            "name": "Verse chord bed",
+            "startBar": 8,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#ffd166",
+            "id": "chords-build-1",
+            "lane": "chords",
+            "name": "Build 1 opening chords",
+            "startBar": 16,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#ffd166",
+            "id": "chords-drop-1",
+            "lane": "chords",
+            "name": "Drop 1 pumped stabs",
+            "startBar": 24,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#ffd166",
+            "id": "chords-break",
+            "lane": "chords",
+            "name": "Break filtered chords",
+            "startBar": 40,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#ffd166",
+            "id": "chords-build-2",
+            "lane": "chords",
+            "name": "Build 2 opening chords",
+            "startBar": 48,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#ffd166",
+            "id": "chords-drop-2",
+            "lane": "chords",
+            "name": "Drop 2 wider stabs",
+            "startBar": 56,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#ffd166",
+            "id": "chords-outro",
+            "lane": "chords",
+            "name": "Outro chord tail",
+            "startBar": 72,
+            "type": "pattern"
+          }
+        ],
+        "color": "#ffd166",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.7,
+            "id": "eq",
+            "name": "Low Cut EQ"
+          },
+          {
+            "active": true,
+            "amount": 0.42,
+            "id": "verb",
+            "name": "Wide Plate"
+          },
+          {
+            "active": true,
+            "amount": 0.72,
+            "id": "duck",
+            "name": "Sidechain"
+          }
+        ],
+        "file": "/api/audio/neon_alone_chords.wav",
+        "gain": 0.98,
+        "id": "chords",
+        "instrument": "Wide Pumped Supersaw",
+        "kind": "audio",
+        "name": "Supersaw Chords",
+        "pan": -0.04,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#6fd6ff",
+            "id": "lead-intro",
+            "lane": "lead",
+            "name": "Intro hook fragments",
+            "startBar": 0,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#6fd6ff",
+            "id": "lead-verse",
+            "lane": "lead",
+            "name": "Verse hook fragments",
+            "startBar": 8,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#6fd6ff",
+            "id": "lead-build-1",
+            "lane": "lead",
+            "name": "Build 1 hook tease",
+            "startBar": 16,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#6fd6ff",
+            "id": "lead-drop-1",
+            "lane": "lead",
+            "name": "Drop 1 hook",
+            "startBar": 24,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#6fd6ff",
+            "id": "lead-break",
+            "lane": "lead",
+            "name": "Break hook echo",
+            "startBar": 40,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#6fd6ff",
+            "id": "lead-build-2",
+            "lane": "lead",
+            "name": "Build 2 hook tease",
+            "startBar": 48,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#6fd6ff",
+            "id": "lead-drop-2",
+            "lane": "lead",
+            "name": "Drop 2 hook",
+            "startBar": 56,
+            "type": "pattern"
+          },
+          {
+            "bars": 8,
+            "color": "#6fd6ff",
+            "id": "lead-outro",
+            "lane": "lead",
+            "name": "Outro hook echo",
+            "startBar": 72,
+            "type": "pattern"
+          }
+        ],
+        "color": "#6fd6ff",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.48,
+            "id": "air",
+            "name": "Air EQ"
+          },
+          {
+            "active": true,
+            "amount": 0.44,
+            "id": "delay",
+            "name": "Stereo Delay"
+          },
+          {
+            "active": true,
+            "amount": 0.34,
+            "id": "plate",
+            "name": "Plate Reverb"
+          }
+        ],
+        "file": "/api/audio/neon_alone_lead.wav",
+        "gain": 0.98,
+        "id": "lead",
+        "instrument": "Clean Square/Saw Hook",
+        "kind": "audio",
+        "name": "Hook Lead",
+        "pan": 0.02,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 16,
+            "color": "#9ec5ff",
+            "id": "double-drop-2",
+            "lane": "lead-double",
+            "name": "Drop 2 octave double",
+            "startBar": 56,
+            "type": "pattern"
+          }
+        ],
+        "color": "#9ec5ff",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.6,
+            "id": "width",
+            "name": "Stereo Width"
+          },
+          {
+            "active": true,
+            "amount": 0.32,
+            "id": "duck",
+            "name": "Sidechain"
+          }
+        ],
+        "file": "/api/audio/neon_alone_lead_double.wav",
+        "gain": 0.58,
+        "id": "lead-double",
+        "instrument": "Octave Detune Double",
+        "kind": "audio",
+        "name": "Lead Double",
+        "pan": -0.08,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#f9a8d4",
+            "id": "plucks-verse",
+            "lane": "plucks",
+            "name": "Sparse verse texture",
+            "startBar": 8,
+            "type": "pattern"
+          }
+        ],
+        "color": "#f9a8d4",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.28,
+            "id": "delay",
+            "name": "Ping Delay"
+          },
+          {
+            "active": true,
+            "amount": 0.54,
+            "id": "lpf",
+            "name": "Muted Lowpass"
+          }
+        ],
+        "file": "/api/audio/neon_alone_plucks.wav",
+        "gain": 0.34,
+        "id": "plucks",
+        "instrument": "Muted Verse Plucks",
+        "kind": "audio",
+        "name": "Verse Texture",
+        "pan": -0.1,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#f59fcb",
+            "id": "echo-break",
+            "lane": "vocals",
+            "name": "Break hook echo",
+            "startBar": 40,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#f59fcb",
+            "id": "echo-drop-1",
+            "lane": "vocals",
+            "name": "Drop 1 tail echo",
+            "startBar": 24,
+            "type": "pattern"
+          },
+          {
+            "bars": 16,
+            "color": "#f59fcb",
+            "id": "echo-drop-2",
+            "lane": "vocals",
+            "name": "Drop 2 tail echo",
+            "startBar": 56,
+            "type": "pattern"
+          }
+        ],
+        "color": "#f59fcb",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.46,
+            "id": "delay",
+            "name": "Stereo Delay"
+          },
+          {
+            "active": true,
+            "amount": 0.42,
+            "id": "verb",
+            "name": "Bright Reverb"
+          }
+        ],
+        "file": "/api/audio/neon_alone_hook_echo.wav",
+        "gain": 0.3,
+        "id": "vocals",
+        "instrument": "Distant Hook Echo",
+        "kind": "audio",
+        "name": "Hook Echo",
+        "pan": 0.0,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#d78bff",
+            "id": "fx-intro-air",
+            "lane": "fx",
+            "name": "Intro air bed",
+            "startBar": 0,
+            "type": "audio"
+          },
+          {
+            "bars": 8,
+            "color": "#d78bff",
+            "id": "fx-build-1",
+            "lane": "fx",
+            "name": "Build 1 riser",
+            "startBar": 16,
+            "type": "audio"
+          },
+          {
+            "bars": 1,
+            "color": "#d78bff",
+            "id": "fx-drop-1",
+            "lane": "fx",
+            "name": "Drop 1 impact",
+            "startBar": 24,
+            "type": "audio"
+          },
+          {
+            "bars": 8,
+            "color": "#d78bff",
+            "id": "fx-break",
+            "lane": "fx",
+            "name": "Break downlifter",
+            "startBar": 40,
+            "type": "audio"
+          },
+          {
+            "bars": 8,
+            "color": "#d78bff",
+            "id": "fx-build-2",
+            "lane": "fx",
+            "name": "Build 2 riser and fake stop",
+            "startBar": 48,
+            "type": "audio"
+          },
+          {
+            "bars": 16,
+            "color": "#d78bff",
+            "id": "fx-drop-2",
+            "lane": "fx",
+            "name": "Drop 2 impact and sparkle",
+            "startBar": 56,
+            "type": "audio"
+          },
+          {
+            "bars": 8,
+            "color": "#d78bff",
+            "id": "fx-outro",
+            "lane": "fx",
+            "name": "Outro downlifter",
+            "startBar": 72,
+            "type": "audio"
+          }
+        ],
+        "color": "#d78bff",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.48,
+            "id": "hall",
+            "name": "Long Hall"
+          },
+          {
+            "active": true,
+            "amount": 0.5,
+            "id": "width",
+            "name": "Stereo Spread"
+          },
+          {
+            "active": true,
+            "amount": 0.34,
+            "id": "duck",
+            "name": "Kick Sidechain"
+          }
+        ],
+        "file": "/api/audio/neon_alone_fx.wav",
+        "gain": 0.66,
+        "id": "fx",
+        "instrument": "Risers / Impacts / Air",
+        "kind": "audio",
+        "name": "FX",
+        "pan": 0.0,
+        "steps": [
+          0,
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "clips": [
+          {
+            "bars": 8,
+            "color": "#7dd3fc",
+            "id": "auto-intro",
+            "lane": "filter-auto",
+            "name": "Intro chord filter open",
+            "startBar": 0,
+            "type": "automation"
+          },
+          {
+            "bars": 8,
+            "color": "#7dd3fc",
+            "id": "auto-build-1",
+            "lane": "filter-auto",
+            "name": "Build 1 lead filter rise",
+            "startBar": 16,
+            "type": "automation"
+          },
+          {
+            "bars": 8,
+            "color": "#7dd3fc",
+            "id": "auto-build-2",
+            "lane": "filter-auto",
+            "name": "Build 2 width/filter rise",
+            "startBar": 48,
+            "type": "automation"
+          },
+          {
+            "bars": 16,
+            "color": "#7dd3fc",
+            "id": "auto-drop-2",
+            "lane": "filter-auto",
+            "name": "Drop 2 width push",
+            "startBar": 56,
+            "type": "automation"
+          }
+        ],
+        "color": "#7dd3fc",
+        "effects": [
+          {
+            "active": true,
+            "amount": 0.92,
+            "id": "cutoff",
+            "name": "Cutoff Macro"
+          }
+        ],
+        "file": null,
+        "gain": 0.0,
+        "id": "filter-auto",
+        "instrument": "Automation Lane",
+        "kind": "automation",
+        "name": "Filter Auto",
+        "pan": 0.0,
+        "steps": []
+      }
+    ],
+    "version": 3
+  },
+  "updatedAt": "2026-06-12T08:39:55Z"
+}

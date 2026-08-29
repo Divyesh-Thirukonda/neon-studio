@@ -9,6 +9,10 @@
     {
       "id": "just-cant-stop",
       "file": "/projects/just-cant-stop.neon.json"
+    },
+    {
+      "id": "neon-alone",
+      "file": "/projects/neon-alone.neon.json"
     }
   ]
 }
