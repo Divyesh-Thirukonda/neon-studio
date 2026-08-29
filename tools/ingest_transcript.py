@@ -1328,9 +1328,53 @@ def collect_lines_by_keywords(segments: list[dict[str, Any]], keywords: tuple[st
     return lines
 
 
+#: Words that end a title and begin a sentence. Speech has no punctuation, so
+#: "how I made my song just can't stop so I'm going to walk you through it" runs
+#: straight past the title unless something stops it.
+#: Only true sentence connectives and speech filler. Pronouns are deliberately
+#: absent — "Shape of You", "It Girl" and "Call Me" are all real titles, and the
+#: word cap already stops a runaway match.
+_TITLE_STOP_WORDS = (
+    "so", "and", "because", "which", "but", "then", "when", "while",
+    "that", "today", "okay", "alright", "um", "uh", "like", "basically",
+    "obviously", "anyways", "anyway",
+)
+
+
+def _title_case(value: str) -> str:
+    """Title-case without breaking contractions.
+
+    ``str.title()`` capitalises after an apostrophe, which turns "just can't
+    stop" into "Just Can'T Stop"."""
+    return " ".join(
+        word[:1].upper() + word[1:] if word else word
+        for word in value.split()
+    )
+
+
+def _trim_title(raw: str) -> str:
+    """Cut a spoken phrase down to the part that is plausibly a song title.
+
+    Titles are short. Anything past the first few words is the sentence carrying
+    on, and taking it produced project names like "Just Can'T Stop So I'M Going
+    To Walk You Guys Through It Chro".
+    """
+    words = normalize_space(raw).split()
+    kept: list[str] = []
+    for index, word in enumerate(words):
+        bare = word.strip(".,!?'\"").lower()
+        # Allow a stop word as the very first word ("It Girl"), never after.
+        if index > 0 and bare in _TITLE_STOP_WORDS:
+            break
+        kept.append(word)
+        if len(kept) >= 6:
+            break
+    return " ".join(kept).strip(" -")
+
+
 def infer_title_hint(text: str, project_id: str) -> str | None:
     patterns = (
-        r"song(?:\s+is\s+going\s+to\s+be|\s+called)\s+([a-z0-9][a-z0-9' !?-]{2,60})",
+        r"song(?:\s+is\s+going\s+to\s+be|\s+is\s+called|\s+called)\s+([a-z0-9][a-z0-9' !?-]{2,60})",
         r"how i made my song\s+([a-z0-9][a-z0-9' !?-]{2,60})",
         r"remaking (?:his|her|the) song\s+([a-z0-9][a-z0-9' !?-]{2,60})",
     )
@@ -1338,7 +1382,9 @@ def infer_title_hint(text: str, project_id: str) -> str | None:
     for pattern in patterns:
         match = re.search(pattern, lowered, flags=re.IGNORECASE)
         if match:
-            return normalize_space(match.group(1)).title()
+            trimmed = _trim_title(match.group(1))
+            if len(trimmed) >= 3:
+                return _title_case(trimmed)
     if project_id:
         return " ".join(part.capitalize() for part in project_id.split("-"))
     return None

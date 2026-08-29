@@ -11,6 +11,11 @@ from typing import Any
 
 import numpy as np
 
+try:
+    import production_rubric
+except ImportError:  # pragma: no cover - the checker still works standalone
+    production_rubric = None  # type: ignore[assignment]
+
 
 EPSILON = 1e-12
 
@@ -370,7 +375,19 @@ def project_checks(project: dict[str, Any], missing: list[dict[str, Any]], track
 
 
 def add_issue(issues: list[dict[str, str]], severity: str, area: str, detail: str) -> None:
-    issues.append({"severity": severity, "area": area, "detail": detail})
+    """Record a finding, tagged with the production requirements that would have
+    prevented it.
+
+    The tag is what lets the loop close: `fill_in_blanks.py --feedback-json`
+    reads these ids and re-raises exactly those requirements as measured gaps,
+    so the next pass fixes the specific thing that went wrong instead of
+    re-guessing from scratch."""
+    issue: dict[str, Any] = {"severity": severity, "area": area, "detail": detail}
+    if production_rubric is not None:
+        ids = [r.id for r in production_rubric.requirements_for_area(area)]
+        if ids:
+            issue["requirementIds"] = ids
+    issues.append(issue)
 
 
 def evaluate(metrics: dict[str, Any], checks: dict[str, Any], track_reports: list[dict[str, Any]]) -> dict[str, Any]:

@@ -7,6 +7,24 @@ description: Use this skill when the user asks for a production-quality verdict 
 
 Use this skill to give a direct production-quality verdict on a real Neon Studio music project. The answer should be concrete: say whether it sounds good, what evidence supports that verdict, and what to fix next.
 
+## Feeding findings back
+
+Every issue this checker reports carries `requirementIds` — the production
+requirements from `tools/production_rubric.py` that would have prevented it. That
+means the fix does not have to be re-derived by hand. Hand the report to the
+fill-in-the-blanks step and it converts each finding into a targeted step with
+the checker's own measurement as evidence:
+
+```bash
+python3 tools/does_this_sound_good.py --project-id <id> --format json > /tmp/check.json
+python3 tools/fill_in_blanks.py --input-json songlab/projects/<id>/transcript_spec.json \
+    --feedback-json /tmp/check.json --output-json songlab/projects/<id>/transcript_spec.json
+```
+
+Those steps land in the project recipe under `Sound Check Follow-Up`, marked
+`measured` so they outrank anything that was merely inferred. Re-materialize,
+re-render, and check again.
+
 ## Routing Guard
 
 Use this skill only for song-quality review. If the user is asking to edit software, improve this skill, change the app integration, update docs, or alter `tools/does_this_sound_good.py`, treat that as a developer request and do not run the song checker except as targeted validation.
