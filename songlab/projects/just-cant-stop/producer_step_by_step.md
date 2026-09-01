@@ -1,864 +1,897 @@
-# Producer Step-by-Step: Dark Trap/Festival Drop Walkthrough
+# Producer Step-by-Step: Just Can't Stop
 
-This file converts the full video transcript into a DAW-neutral production recipe. It is written for a normal producer using any modern production tool, not for one specific app. Use the concepts, roles, and processing chains with your own samples and presets.
+A complete, DAW-neutral production walkthrough, converted line by line from the
+producer's own 53-minute video breakdown of the track.
 
-## Approximation vs Exact Source
+## How to use this
 
-This document separates three levels of evidence:
+This is written for a producer using **any** DAW and **any** plugin set. Every
+plugin the producer names is kept, because he chose to share them and that is
+real information — but each one is followed by what it actually does, so you can
+substitute whatever you own. Nothing here depends on a particular piece of
+software.
 
-1. Transcript facts: things the producer says or clearly demonstrates in the walkthrough.
-2. Local approximation: the Neon Studio reconstruction in `factory/projects/just-cant-stop.neon.json`, rendered stems, and `render_just_cant_stop.py`.
-3. Exact source claims: original sample filenames, exact MIDI notes, plugin presets, automation curves, fader balances, and Ableton bar positions.
+Three things to know before you start:
 
-Only the first two are available locally. Do not treat local bar numbers, patch settings, sample roles, or mix balances as proof of the original DAW session. Any exact-source claim still needs the original project file, screenshots, isolated stems, preset files, or sample filenames.
+1. **He never states a tempo or a key.** Anywhere in the video. Both are yours to
+   choose. Where this document suggests a value, it says so explicitly.
+2. **Numbers he gives are exact.** A 100 Hz Pultec boost, a hat cut at 474 Hz, a
+   low cut at 250 Hz — those are his. Anything else marked as a suggestion is a
+   defensible starting point, not a transcription.
+3. **This is technique, not transcription.** The document describes how the track
+   was constructed — chains, layering, arrangement logic. It deliberately does
+   not reproduce melodies or lyrics, because those are the one part that is the
+   artist's rather than the method's, and they are also the part with no
+   instructional value. Everything worth learning is in the process.
 
-## Timestamped Video Map
+The producer's own framing, at 1:20: *"I'm not going to hide anything from you
+guys either so I'll tell you all my plugins I'll tell you everything."*
 
-Use this map if you need to line the written steps back up with the video.
+## The short version
 
-1. 0:50-1:36: Producer explains the goal of the video, promises a chronological walkthrough, and says plugins/sample choices will be disclosed.
-2. 1:45-2:36: Original idea starts from the main bass-synth section. For an intro track, add more drama with sweeps, reverses, and a long one-note bass-synth sample.
-3. 2:44-3:39: The long sample becomes the core melody. Layer it with a simple analog bass, likely from a hardware-style synth such as Super 6.
-4. 3:39-4:44: Intro adds simple clap layers and an Omnisphere room/delay layer from Sonic Extensions-style sounds.
-5. 4:44-5:34: Melody is intentionally darker than older happier/catchier work.
-6. 5:41-6:35: Add random stereo breath sounds, a found vocal sample, and dynamic risers into the next section.
-7. 6:57-8:03: Pre-build loops and chops the vocal, then brightens it with Fresh Air.
-8. 8:11-10:16: Add an aggressive pre-build synth/preset, process with multiband compression and Crystalline reverb.
-9. 10:16-11:05: Use reverb contrast. Some sounds are dry, some are roomy. Keep clap continuity across sections.
-10. 11:13-12:15: Build uses delayed material bouncing left and right while the main hype layer continues.
-11. 12:15-14:40: Add Rave Generator old-school layers and tease the upcoming drop lead before the drop.
-12. 14:40-16:17: Use a strong build sample with chants, trap snares, and white noise. Add odd background filler.
-13. 16:25-19:20: Drop vocal chops, call-and-response phrases, vocal tags, and delay movement act as phrase markers.
-14. 20:08-21:39: Kick uses a clicky sample and a Pultec-style low boost around 100 Hz.
-15. 21:39-23:24: Snare/clap stack uses multiple layers, including jingle and offbeat trap snare elements, with minimal EQ.
-16. 23:33-24:18: Add a tiny high hat tick, heavily high-passed, to occupy its own high-frequency slot.
-17. 24:25-26:28: Crash stack combines open hat, shaped snare/noise, and synth white noise for mono and stereo coverage.
-18. 26:28-27:51: Mid/side EQ is mentioned as useful, then another small offbeat hat is added for bounce.
-19. 27:51-30:53: Serum-style bass/wobble design starts simple, then uses envelope movement, OTT/multiband, white noise, filter routing, and drive.
-20. 31:10-36:23: Drop lead stack uses high sizzle, a rough Omnisphere source, waveshaping, clipping, low cuts, Crystalline, Snap Heap, and post-effect EQ.
-21. 36:33-38:07: Reverb/glitch tails and chaotic background filler are chopped and kept as ear candy.
-22. 38:14-40:03: Sub patch uses a simple low oscillator plus white noise routed into a driven filter.
-23. 40:10-41:18: First drop is up an octave, second drop goes lower. Sustained sub can work better than matching every wobble pulse.
-24. 41:27-42:37: Second part reuses earlier material and adds Humanoid/vocoder-style weirdness as background space.
-25. 42:37-43:53: Second drop introduces a huge preset/patched synth, then processes it for size and aggression.
-26. 43:53-45:45: Add old-school trap sirens and laser sounds with pitch movement and heavy distortion.
-27. 45:51-47:42: Add a Shadow/UK bass-style sample, PolySaturator, Serum FX preset processing, and mono control.
-28. 47:42-50:24: Add old-school trap stabs with VintageVerb, OTT, soothe, and low cuts. Keep useful distortion artifacts if they work.
-29. 50:24-50:54: End with a callback to the beginning.
-30. 50:54-52:25: Use Transit/Transit 2 or a similar macro transition tool for gritty delays, filters, chorus, and movement.
-31. 52:25-53:31: Closing note: the walkthrough is meant to share practical process and plugin choices openly.
+Build it chronologically. Choose sounds rather than designing them. Use the
+fewest layers you can get away with, and when you do layer, give every layer a
+distinct job. Balance by fader and only EQ where there is a real problem. Keep
+the artifacts that sound good. Let contrast — dry against wet, mono against wide,
+simple drums against chaotic fills — do the heavy lifting.
 
-## 1. Overall Target
+---
 
-1. Build a dark, trap-influenced electronic track with an intro, hype pre-build, first drop, second build, second drop, and short outro callback.
-2. Keep the arrangement simple in terms of core musical material, but fill transitions and drops with ear candy, vocal chops, risers, tags, glitch tails, and one-off texture sounds.
-3. Prioritize sample selection. Many important sounds are not designed from scratch. They come from strong source samples, presets, or packs, then get processed.
-4. Keep the main musical idea centered around one memorable bass-synth line.
-5. Let contrast do a lot of the work: dry basses against roomy leads, mono/sub elements against wide hats and crashes, simple drums against chaotic fills.
-6. Do not over-polish every artifact. Some distortion, phasing, grit, and rough edges are kept because they add character.
+## 1. Approach and Session Philosophy
 
-## 2. Session Setup
+*Video: 0:50–1:45 (working principles cited from across the full video)*
 
-1. Set the project around a trap/festival tempo. The local project uses 150 BPM.
-2. Use a minor/dark tonal center. The local project notes point toward F minor / Ab major.
-3. Organize the session top to bottom:
-   - Vocal chops and tags
-   - Transition effects and risers
-   - Main synths and leads
-   - Bass and sub
-   - Drums
-   - Background filler and ear candy
-4. Work chronologically through the arrangement:
-   - Pre-intro
-   - Intro
-   - Pre-build / bridge
-   - Build
-   - Drop 1
-   - Second part / second build
-   - Drop 2
-   - Outro callback
+This is the setup section: how he sequences the work, how he decides what goes in the session, and the rules he mixes by. Everything after this assumes you are working the way he works — chronologically, with few layers, choosing sounds rather than designing them, and leaving anything that sounds good alone even when it is technically wrong.
 
-## Local Project Approximation Arrangement Map
+### Build the song chronologically
 
-This map comes from `factory/projects/just-cant-stop.neon.json`, not from the original producer's DAW session. The project JSON stores zero-based `startBar` values; the table below uses normal one-based bar numbers for producer readability.
+1. Work front to back in the order the listener hears it: intro, pre-build, build, drop, second half, second drop, outro. He states this at 1:05 and the whole session is laid out that way.
+2. Start from whatever section you actually have. He started this one from a mid-song idea and then wrote backwards into the intro once he knew the track had to open the EP (1:45).
+3. Decide the song's job before you arrange it. He knew this was the first song on the EP, so the intro had to be "a little bit more dramatic" than where the idea began — that decision drove the sweeps, reverses and risers that follow.
+4. Do not finish sections out of order. Each later section on this track re-uses material established earlier (same claps, same sub, same vocal), which only works if the earlier section exists first.
 
-| Bars | Local section | Active local lanes | Producer purpose |
-| --- | --- | --- | --- |
-| 1-8 | Pre-intro / reverse setup | Sample Bass Synth, Analog Bass, Transit Macro FX, Dynamic Risers, Stereo Breaths from bar 3 | Establish the main sample-bass identity, reverse/impact drama, and early atmosphere before the full groove is revealed. |
-| 9-12 | Intro expands | Sample Bass Synth, Analog Bass, Dark Room Layer, Same Clap Stack, Stereo Breaths, Transit Macro FX tail | Bring in the room/delay layer and clap continuity while keeping the arrangement sparse. |
-| 13-16 | Vocal pre-build pickup | Previous intro lanes plus Fresh Vocal Chops | Introduce the found vocal idea as a loop/chop before the heavier bridge texture arrives. |
-| 17-22 | Bridge / old-school color | Vocal Chops, Rave Generator, intro bass/support lanes, room, claps, breaths | Add the rave-generator stab color and increase rhythmic density without exposing the full drop. |
-| 23-24 | Build handoff | Dynamic Risers return over the bridge lanes | Use risers and filter/volume motion to point toward the formal build. |
-| 25-28 | Build loop | Build Loop, Transit Macro FX, Random Filler, Vocal Chops, Rave Generator, risers | Let the Green Room-style build sample, macro movement, and odd filler create the main pre-drop lift. |
-| 29-32 | Final Drop 1 tease | Lead Tease joins the build loop, risers, macro FX, vocal chops, rave stabs, random filler | Preview the drop rhythm without giving away the full lead stack. |
-| 33-35 | Drop 1 phrase A | Drop Drums, Drop Vocals, Drop Lead, Driven Sub, Crash Layers, Same Clap Stack | Hit the first drop with the octave-up lead, vocal rhythm, sub support, and full drum/crash stack. |
-| 36-44 | Drop 1 fills | Drop 1 lanes plus Glitch Tail from bar 36 | Keep the drop alive with chopped reverb/glitch-tail ear candy while the main phrase continues. |
-| 45-48 | Drop 1 answer / transition | Drop 1 lanes, Glitch Tail, Sirens Lasers from bar 45, Stereo Breaths re-enter at bar 47 | Use siren/laser answers and breath texture to push out of the first drop. |
-| 49-54 | Second part reset | Sample Bass Synth callback, Analog Bass callback, Dark Room Layer, Random Filler, Stereo Breaths | Return to the opening identity with added humanoid/vocoder-style background space. |
-| 55-56 | Second build pickup | Dynamic Risers return while second-part filler continues | Start the second lift before the build loop fully re-enters. |
-| 57-60 | Second build | Fresh Vocal Chops, Build Loop, Rave Generator, Transit Macro FX, Dynamic Risers, Random Filler | Rebuild energy with familiar vocal/build materials while keeping the background busier than the first pass. |
-| 61-64 | Second drop tease | Lead Tease returns over the second build | Signal the upcoming second drop and finish the build macro movement. |
-| 65-68 | Drop 2 hit | Drop Drums, Drop Vocals, Same Clap Stack, Driven Sub, Crash Layers, Second Drop Synths, Sirens Lasers | Swap the first-drop lead focus for the huge second-drop synth layer and heavier siren/laser treatment. |
-| 69-70 | Drop 2 / outro bleed | Drop 2 lanes plus Random Filler outro chaos | Let the final drop decay into chaotic filler instead of cutting cleanly. |
-| 71-72 | Ending transition | Drop 2 lanes, Random Filler, Transit Macro FX ending transition | Use the transition macro as the short callback/outro gesture. |
+### Session setup: tempo and key are your call
 
-Local clip anchors by role:
+1. Pick the tempo yourself. He never states a BPM anywhere in the video. **Suggestion, not his number:** 145–160 BPM with a half-time drum feel suits this style; 150 is a safe centre — the kick/snare backbeat reads at half speed while hats and fills stay at the grid tempo.
+2. Pick the key yourself. He never states one either. He does say the melodic material is "a little darker" and that he was deliberately moving off his usual near-major, happy-sounding melodies (4:44, 5:02), so **suggestion:** write in a minor key and let the darker interval choices sit.
+3. Everything else in this walkthrough is specified in relative terms — roles, chains and ordering — so both choices are free without breaking anything downstream.
 
-- `sample-bass-synth`: bars 1-24 and 49-56.
-- `analog-bass`: bars 1-24 and 49-56.
-- `room-layer`: bars 9-24 and 49-56.
-- `clap-stack`: bars 9-24, 33-48, and 65-72.
-- `breaths`: bars 3-24 and 47-64.
-- `vocal-chops`: bars 13-32 and 57-72.
-- `risers`: bars 1-8, 23-32, and 55-64.
-- `prebuild-drums`: bars 25-32 and 57-64.
-- `rave-generator`: bars 17-32 and 57-64.
-- `lead-tease`: bars 29-32 and 61-64.
-- `random-filler`: bars 25-32, 49-64, and 69-72.
-- `drop-drums`, `drop-vocals`, `sub`, and `crash-layers`: bars 33-48 and 65-72, with `drop-lead` only on bars 33-48 and `second-drop-synths` only on bars 65-72.
-- `glitch-tail`: bars 36-47.
-- `sirens-lasers`: bars 45-48 and 65-72.
-- `transition-fx`: bars 1-8, 25-32, 57-64, and 71-72.
+### Sample and preset selection over sound design
 
-## 3. Core Sound Palette
+1. Treat sample and preset selection as the primary creative act, not a shortcut. He flags "drums and sample selection and how important it is" as the core of the video at 1:20.
+2. Go preset digging first, sound design second, even when you can design. At 42:37 he says he knows sound design well but for the second drop he "was looking through presets"; at 48:31, "I did not make this sound either, just kind of found it, just like sample searching, just look through presets, nothing wrong with that."
+3. When a sample is the centre of a part, prefer a long sample. He built the song's central bassline off a single sustained note because it was long enough to play as a synth — he notes there are tricks to stretch short samples, but he did not need them here (2:44).
+4. Take the preset, then add your own processing on top rather than rebuilding from scratch (43:01: preset first, Wave Shaper after).
+5. Reach for hardware when you want the instrument's own character. He layered the intro bass with an analog synth — possibly his Super 6 — because "it's just true to the synth, the capabilities of the synth, it's not like these VSTs where you can make a super saw out of a water droplet" (3:07–3:23).
+6. Explore by action, not by plan: "what if I did this, what does this do, okay what if I duplicated it three times... all of a sudden it does something insane" (35:19).
 
-1. Long granular bass-synth sample
-   - Use a long one-note synth or bass sample as the center of the track.
-   - Long samples are easier to turn into a playable main synth because they do not need obvious looping tricks.
-   - Write a simple bass-synth melody from this one source.
+**Why it works:** he is not claiming sound design is unnecessary — he is claiming that finding the right sound is faster and cleaner than building one, and that speed keeps songs finishable. "I wanted to make this song quick when I first started it and so I just got that in there and left it in there because that's what I do" (15:11).
 
-2. Analog bass support
-   - Layer the sample bass-synth with a simple analog-style bass.
-   - Keep it restrained. The goal is body and authenticity, not complexity.
-   - A real hardware-style synth or a convincing analog plugin works.
+### Fewest layers possible
 
-3. Room layer
-   - Add an atmospheric synth layer with built-in room, delay, or space.
-   - Omnisphere-style preset libraries are appropriate here.
-   - The layer should make the intro feel wider and darker without replacing the main line.
+1. Default to one sound per role. "The best way is to have the least amount of layers as possible... because it'll be a cleaner sound, you have less to work with, less to worry about cutting frequencies and balancing and maybe compressing them together" (12:15).
+2. Layer only when you genuinely cannot find the single sound that does the job. He calls himself "a big layer guy" for leads and drums but still says "it's always better if you can find a sound you're happy with where you don't need layers, just a little bit cleaner" (21:39).
+3. Decide per element whether the layering work is worth it that day. He is explicit that some days he will go sample diving for a three-layer snare and some days he will just take a snare he likes (21:54).
+4. When you do layer, give each layer a distinct job — body, tail character, rhythmic offset, high sizzle — so the stack does not need corrective EQ to separate.
+5. Reuse one instance of an element across the whole arrangement instead of making new ones. Same claps in the intro, the pre-build and throughout: "just keeping it kosher" (10:58). The second drop re-uses the first drop's sub for "some consistency," just less harsh (44:17).
 
-4. Random human textures
-   - Add breath sounds or similar stereo organic sounds.
-   - Keep them low enough that they feel like movement, not a lead.
-   - Use them to widen the intro and make the production feel less static.
+### Brute-force mixing
 
-5. Vocal snippets
-   - Use small vocal samples as rhythmic hooks, not necessarily full lyrics.
-   - Chop, repeat, brighten, delay, and pan them.
-   - Let them act as call-and-response moments before changes.
+1. Stack your layers, balance by fader, and move on. On the three-layer snare: "not really any EQing, you know I work with Southside a lot, 808 Mafia, and there's no EQing, there's nothing" (23:00).
+2. Do not pre-emptively carve every layer. "A lot of people would sit here and say oh you got to EQ this into this and I just like brute forcing this and just slamming everything together" (23:15).
+3. Reach for EQ only when an element has an actual, identifiable problem — a frequency clash, or low end stacking up under a lead — not as routine hygiene. The EQ moves he does make in this track are all problem-driven, and each one is a single cut or a single boost.
+4. When you want a broad tonal move rather than surgery, use a broad-stroke tool instead of a graphic EQ. He specifically likes a Pultec-style passive EQ because of "the frequencies it picks for the Q, the range of the frequencies per frequency" and says he assumes he could get the same result with a graphic EQ but does not want to sit and dial it (20:18–21:06). Same logic at 49:43, where he uses a simple three-band rather than a full parametric because he "got lazy and didn't want to sit there with the EQ8."
+5. Accept that the result is a bit rough. "I'm not claiming that I'm some sonic genius because it sounds good, I just kind of like it a little bit ratchet" (23:15).
 
-### Sample / Source Selection Checklist
+### Keep the artifacts that sound good
 
-Use this before heavy processing. A weak source usually costs more time than it saves.
+1. Do not fix phasing between layers if the stack sounds right. On the wonky Omnisphere lead layer: "it's even phasing you can hear... if it sounds good when it's layered I'm not going to sit and mess with it because fundamentally it shouldn't be phasing or whatever, like I don't care" (32:42).
+2. Do not fix unintended distortion if it adds character. On a distorting second-drop chain: "you see it's even distorting... you would obviously want to go and fix that but I just didn't want to... it adds some character even, but inherently it is not good" (49:50).
+3. Know what the correct fix would have been, then decide against it deliberately. He identifies the fix as a Serum routing-chain change or an EQ placed before the distortion, and still declines: "if it just sounds good, don't worry about principles too much to be honest" (50:06).
+4. Let accidents become parts. A Trash instance glitched a reverb tail, he liked it, and chopped the glitch into a deliberate filler element (36:48).
+5. Do not let a happy accident get renovated. On the Green Room build fill: "I got too married to it to want to change it" (14:48).
 
-| Role | Choose a source that has | Reject or replace if |
+### What he deliberately skipped
+
+1. No mid/side EQ anywhere in this track. He says it is something he has only recently got into, and that the hi-hats would have been a good candidate — "this would be a good time to maybe do some mid/side EQing for the mids and everything of the hi-hats but I didn't do that here" (26:28). If you want it, that is your addition, not his.
+2. No corrective EQ between layered drums (23:00).
+3. No phase alignment on the lead stack (32:42).
+4. No cleanup of the second-drop distortion (49:50), and no low cut on a bass-heavy Big Crush layer he flags as an oversight: "a lot of bass in there I should have cut that out I don't know why I didn't" (44:25).
+
+### Session layout, freezing and flattening
+
+1. Put vocals at the top of the session. "I like to put my vocals at the top of my sessions" (16:25), and he reviews the drop top-down from there through the synths to the drums.
+2. Group by role — vocals, leads, synth layers, drums, sub, filler — and keep groups switchable so you can audition an element solo against the rest (he toggles whole groups on and off repeatedly).
+3. Freeze and flatten as you go to keep the session light. He does this constantly across this project.
+4. **Before you flatten, save the patch.** This is the cost he pays out loud all video: he cannot show the Sonic Extensions source instrument (9:13), the delay-heavy build (11:20), the drop vocal chain (16:52), the Serum white-noise patch (27:51) and the second synth (30:13) because they are flattened — "again I kind of dropped the ball here because I froze and flattened this too but in my other videos I'll make sure that hopefully the versions I have I'll have the actual patches." The one lead he did not flatten is the one he can fully take apart on camera (32:04: "I'm glad I did not freeze and flatten this").
+5. Practically: save the preset to disk, or keep a muted, disabled duplicate of the unfrozen track alongside the frozen one, before you commit any chain to audio.
+
+### Dry versus wet as a deliberate device
+
+1. Decide per element whether it lives dry or lives in a space, and make the contrast obvious. "It's really important when you're working on a track to have some dynamics as far as what's really reverb, what's really dry" (10:23).
+2. His reference for this is his own track Alone: the bass is very dry, the lead sits in a very small room reverb — he cites Serum's built-in reverb as a small-room he was "always obsessed with," and names Jack Ü's "Where Are You Now" as the same idea (10:23–10:48).
+3. Apply it structurally, not just per sound: use a wetter section against a drier one so the arrangement breathes.
+4. Choose reverb character to match the track's attitude, not the "best" reverb. He keeps a springy, slightly harsh reverb on the pre-build because "that's kind of the vibe I wanted for this track" (10:07).
+
+### Random sounds as filler and character
+
+1. Add non-essential sounds whose only job is to make the listener ask what that was. "My favorite thing to do is find the most random sounds or just something to add like what is that, or change the dynamic of a part of a song" (5:41).
+2. Do not require them to serve the melody. "No matter how wacky or wonky or silly they may sound or maybe you're like oh it's not even important to the melody" (15:20).
+3. Sit them low in the background so they read as texture between the main hits: one is "just in the background real low here, you can hear it in between things... it's just space filler, it's not integral to the song but like I said that's just what I do, I think it's fun" (15:54).
+4. Make builds the place you go hardest on this: "I always find it like a challenge in the buildups to do as much cool stuff as possible even if it's random stuff" (15:45).
+5. Use them to buy uniqueness a preset cannot give you: "anything to fill, anything interesting that you can't find as a preset or something like that, to fill in just to kind of be a little bit unique" (37:37).
+6. Keep one running under a whole section if it works — his drop filler plays through the entire drop, "just constantly in the background, absolute chaos" (38:00).
+7. Accept that some of them are not good in isolation. On a vocoder-treated oddity in the second half: "it actually sounds bad but... whatever, just left it in because you can hear it in the background of this, I was feeling in that space, doesn't really matter what it is truly, start dragging random stuff in there and just be like okay this sounds cool I'mma do it" (41:55–42:11).
+
+**Plugins named:** none in the 0:50–1:45 span itself — he only promises there that he will name everything ("I'll tell you all my plugins, I'll tell you everything"). The principles above reference tools covered in later sections: a **Pultec-style passive EQ** (broad-stroke boost/attenuate EQ; any Pultec emulation, including the free ones he mentions seeing on TikTok, or a wide low shelf on a parametric), **Serum**'s built-in small-room reverb (any short, tight algorithmic room), and a **Super 6** hardware polysynth (any analog or analog-modelling poly).
+
+**Why it works:** his whole method is speed plus taste rather than correctness. Find the sound instead of building it, use as few layers as you can get away with, slam them together without corrective EQ, keep whatever accidents sound good, and spend the time you saved on random sounds that give the track character. As he puts it at 50:06: "if it just sounds good, don't worry about principles too much to be honest, a lot of producers will tell you that."
+
+---
+
+## 2. Intro
+
+*Video: 1:45–6:57*
+
+The intro was written *after* the main section — the song originally started at the bass-synth idea, and the intro got built in front of it because this was the opening track of the EP and it needed to be more dramatic than a cold start. Its job: introduce the one-note sample synth and the bassline the entire song is centred on, cover the full stereo field before the first real section, and hand off into the pre-build on risers.
+
+### Start from what you already have, then build backwards
+
+1. Get your main section working first. He started this track at the main bass-synth part, not at bar one.
+2. Once you know the track has to open something (an EP, a set), write the intro in front of that existing material instead of writing an intro cold.
+3. Set the brief for the intro as "more dramatic than the section it feeds" — it exists to set up material that already works.
+4. Build it out of sounds already in the session: sweeps, plus a reversed copy of the first sound the listener hears.
+5. Duplicate the main bass-synth sample, reverse it, and use it as the entry gesture. He does not say where it lands — starting point: place it so its swell resolves on the intro downbeat.
+
+### The main sample synth: one solid note
+
+1. Find a **single sustained note** as a sample and use it as your lead/bass instrument. His came from the Man Like You pack.
+2. Prefer a one-note sample over a chord sample here — a solid single note follows whatever line you write instead of fighting your harmony.
+3. Load it into a sampler and map it across the keyboard so you can play it as a synth.
+4. Check the length before you commit. This one worked because the sample is genuinely long, so sustained notes play out without looping artifacts.
+5. If your sample is short, he says there are "tricks to make a shorter sample longer" but does not name them. Judgement call on substitutes: crossfaded sustain loop, a granular/time-stretch playback mode, or freezing the tail into a pad.
+
+### Write the bassline the whole song centres on
+
+1. Write a short synth-line/bassline off that sample. This is the melodic centre — every later section defers to it.
+2. Keep it simple and loopable so it survives the pre-build, the drop, and the callback at the end.
+3. Put chords underneath it — the darkness of this intro comes from the chords the line is paired with, not from the line itself.
+4. Don't hold out for a legendary melody. In his words this one is "by no means iconic," it was the roots of the project and it was enough to build on.
+
+**Why it works:** it is the beginning of the whole project — one idea, stated plainly, that the rest of the track can keep referring back to.
+
+### Layer an analog synth under the sample
+
+1. Add a second, very simple bass part doubling the line, played on a hardware analog synth.
+2. Keep the patch basic. This layer is weight and body, not character — the sample is the character.
+3. He is explicit that he is not certain which synth it was, most likely the Super 6 sitting next to him. Treat the exact instrument as unconfirmed.
+4. No substitute hardware? Use an analog-modelled soft synth and deliberately restrict yourself to a plain patch — one or two oscillators, filter, envelope, nothing else.
+
+**Why it works:** analog is "true to the synth, the capabilities of the synth" — unlike VSTs "where you can make a super saw out of a water droplet." The limited palette is the reason to reach for it.
+
+### Two layered claps
+
+1. Pick two claps from your library and stack them. He describes them as "just two random claps I found" and gives no selection criteria.
+2. Do not process them — no EQ or compression is mentioned on this stack.
+3. Commit to them now: these same two claps carry through every section of the song, so pick a pair you can live with.
+
+**Why it works:** "I always kind of produce a little bit on the more simple side just because I like the sound of it."
+
+### Omnisphere layer for room and delay
+
+1. Add one more sustained layer whose job is space rather than notes.
+2. Choose a preset that already arrives with a strong room and delay baked in, instead of building the ambience yourself with sends.
+3. His source: Omnisphere running the Sonic Extensions libraries — Seismic Shock, Unclean Machine, Undercurrent.
+4. Audition the preset's alternate versions (each of these sounds ships in five variations) and pick the one that sits under the main line rather than competing with it.
+5. Post-process to taste. He notes there is a lot you *can* do here but does not say what he did to this specific layer — assume it is close to the preset.
+
+**Why it works:** it "has like a really good room and good delay" out of the box. The pre-made sound is doing the spatial work, so you are not stacking sends on a clean pad to get there.
+
+### Push the melodic writing darker
+
+1. Write the intro chords darker than your default instinct.
+2. Use this as the test: if your melodies are habitually catchy and read as major/happy, that is the habit to break here.
+3. Leave the melody itself simple — the shift in mood is coming from the harmony you pair it with.
+
+**Why it works:** his melodies "have always been intentionally very catchy... they almost sound like major key, they just sound happy," and this track was the deliberate attempt to switch that up.
+
+### Breath sounds for texture and width
+
+1. Go looking for a non-musical sound that makes the listener ask "what is that." He found breaths.
+2. Drop them into the intro as texture, not as a rhythmic part.
+3. Use stereo/wide recordings, or breaths with natural left-right placement, so the intro already covers the full stereo spread of the song.
+4. Place them sparsely, in the gaps, where they change the dynamic of the part. He does not specify exact placement — judgement call.
+
+**Why it works:** "they're very stereo as well, so the whole spread of the song is covered within this intro." Ear candy and stereo image in one move.
+
+### The found vocal
+
+1. Drop in a vocal sample you like the *sound* of, with no lyrical plan and no idea what the song is about yet.
+2. Do not stall waiting for a concept — he had none, did not know the sample's source, and used it anyway.
+3. Keep this sample: it becomes the material that gets looped and chopped in the section that follows.
+
+### Dynamic risers into the next section
+
+1. End the intro with risers that carry into the next section — treat them as a required element, not decoration.
+2. Make them *dynamic*: they should grow in level and brightness across the last bars rather than sitting static.
+3. He names no specific riser sample or plugin. Starting point: a noise sweep plus a pitched riser, automated up together, ending on the downbeat of the next section.
+
+**Plugins named:**
+
+- **Man Like You (sample pack)** — granular-synthesis-heavy pack, lots of chord ideas inside the samples; source of the one solid-note bass synth. Substitute: any granular/texture pack, or record and sample one long sustained note yourself.
+- **Super 6 (hardware analog polysynth, identification uncertain)** — the simple analog bass doubling layer. Substitute: any analog hardware you own, or an analog-modelled VST kept to a deliberately plain patch.
+- **Omnisphere (Spectrasonics)** — large hybrid sample-based instrument; supplies the room/delay layer. Substitute: any big atmospheric preset instrument, or your own pad through a room/plate reverb plus a synced delay.
+- **Sonic Extensions: Seismic Shock, Unclean Machine, Undercurrent (Omnisphere expansion libraries)** — preset banks whose sounds ship with ambience and delay already in them, five variants per sound. Substitute: any preset library where the ambience is baked in, so you pick a space instead of building one.
+
+---
+
+## 3. Pre-Build / Bridge
+
+*Video: 6:57–11:20*
+
+The section that lands after the intro risers — he calls it "the very lit hype pre-build, build, whatever you guys want to call it, bridge sometimes." It reuses the intro's vocal so the song stays connected to where it started, then introduces the first genuinely aggressive synth so the energy steps up before the buildup proper.
+
+### Vocal: loop the intro sample, then chop it
+
+1. Take the same vocal sample used at the end of the intro — do not find a new one. He reuses it verbatim here.
+2. Loop it across the section so it becomes the rhythmic anchor rather than a one-off moment.
+3. Chop the loop into a rhythmic pattern rather than leaving it as a sustained phrase. He doesn't state a grid or a chop count, so that's yours to taste — chop on the same subdivision your hats and claps are already implying.
+4. Note the source is unknown even to him ("I don't even know where the sample's from"), so any comparable found vocal one-shot works. The point is that the intro and the bridge share it.
+
+### Brighten the chopped vocal (Fresh Air)
+
+1. Put Fresh Air last, or near last, on the chopped vocal — after the chopping, once you can hear that the vocal "just wasn't really bright enough" in context.
+2. Use the two bands it gives you: the mid band and the high band. Push the high band until the chops cut over the synths; use the mid band only if the vocal is also sitting dull in the body.
+3. He gives no dial positions. Start with the high control around 25–35% and the mid near zero, then push the high until the chops read clearly against the pre-build synth — treat those numbers as a suggestion, not his settings.
+4. If you don't own it: a high shelf from roughly 8 kHz up plus a light saturator after it gets you to the same place, because the effect is closer to saturating the top end than to a clean boost. His own read: "I think it has to do with something with saturating the frequencies."
+
+**Why it works:** "If you need to make anything brighter, use Fresh Air, it'll change your life." He treats brightness as a one-move problem, not a mixing project — the vocal wasn't bright enough, so one exciter fixed it and he moved on.
+
+### The pre-build synth
+
+1. Load Omnisphere and go to the Sonic Extensions library — specifically the **Seismic Shock** extension, the same pack family the intro's Omnisphere layer came from.
+2. Find the preset **Beat and Bloody Pulp**. This is the aggressive, rhythmic sound that carries the whole section; he found it by browsing, not by designing.
+3. Play it with MIDI over the section — he explicitly turns his MIDI keyboard on to demo it, so this is played in, not drawn from a sample.
+4. Substitute if you don't have Omnisphere: any rhythmic, pulsing, gated-and-distorted preset from a big preset-driven ROMpler or wavetable synth. You're after a sound that already has movement and grit baked in before you process it.
+5. Practical note: he froze the track and deleted the original instrument, so the patch is gone from the session. Freeze to commit CPU and to commit the decision — but keep the un-frozen instrument if you ever want to show or revisit the patch.
+
+### Post-compression chain on the synth (Dank Sauce)
+
+1. After the synth, put a multiband compressor on it. He uses **Dank Sauce**, which he describes as "basically a multiband compressor a few times, kind of like OTT."
+2. Set the OTT-style comp section at the bottom of the plugin — that's the upward/downward multiband stage doing the main work of flattening the sound and pulling the detail up.
+3. Use the time control to taste for how fast the compression breathes with the rhythm of the preset.
+4. He names no ratios, depths or times. Start the OTT-style depth around 30–40% and back off if the pulse loses its transient — a suggestion, not his numbers.
+5. Substitute: OTT itself, Ableton's Multiband Dynamics, or any multiband with upward compression. He prefers Dank Sauce over OTT — "I much much much prefer it than OTT" — but the function is the same and OTT is the reference point he gives you.
+
+**Why it works:** "With some post compression this is a really good chain." The preset supplies the character; the multiband stage is what makes it big and even enough to sit as the section's main energy.
+
+### Reverb on the synth (Crystalline)
+
+1. Load **Crystalline** by Baby Audio after the compression.
+2. Leave it essentially at its default — he says it is a default patch that he only nudged.
+3. Adjust two things: the start (onset/pre-delay) and the dry/wet. That's the whole move — "simple stuff just to give it some room."
+4. He gives no values for either. Set dry/wet by ear until the synth has a room around it but the chops still cut; treat any specific number as your call, not his.
+5. Do not tame the springy, slightly harsh character of the tail. That is deliberate: "this reverb is a little bit springy so it's kind of a little bit harsher, but that's kind of the vibe I wanted for this track."
+6. Substitute: any bright, metallic-tailed algorithmic reverb — plate or spring algorithms get you closest. Avoid a warm, dark hall here; the harshness is the point.
+
+### Reverb dynamics across the arrangement
+
+This is the general principle he stops to state in this section, and it applies to the whole track, not just the bridge.
+
+1. Decide per element whether it is a dry element or a wet element. Do not put a similar reverb amount on everything.
+2. Keep low-end elements dry. On his song *Alone* the bass is "very very dry."
+3. Put the room on the lead against that dry bass — on *Alone* the lead uses Serum's built-in reverb as a very small room. Small-room reverb is the specific tool he names for this, and he flags "Where Are You Now" as the record that comes to mind using it.
+4. Apply the same split here: the pre-build synth gets Crystalline's room, the low end underneath it stays dry.
+5. Use the contrast as an arrangement device — the difference between the dry and wet elements is what creates the sense of depth and dynamics, not the amount of reverb on any one track.
+
+**Why it works:** "It's really important when you're working on a track to have some dynamics as far as what's really reverb, what's really dry." Dynamics in the reverbs is something he says he chased in his productions from the beginning.
+
+### Claps: continuity across the whole song
+
+1. Use the exact same clap layer from the intro in this section — the two layered claps he picked at the start, not new samples.
+2. Carry that same clap through every section of the song: intro, bridge, buildup, drop. "Same claps in the intro, same claps there, same claps throughout the whole song."
+3. Bounce or freeze the layered clap to a single sample so you're literally reusing one element and not rebuilding the layer per section.
+4. Do not swap in different claps for variety between sections. Variation comes from the synths and vocals; the clap is the thread.
+
+**Plugins named:**
+
+- **Fresh Air (Slate Digital)** — two-band high-frequency exciter; any exciter, or a high shelf plus light saturation, gets you close.
+- **Omnisphere (Spectrasonics) + Sonic Extensions "Seismic Shock", preset "Beat and Bloody Pulp"** — big preset-library synth; substitute any aggressive, rhythmically pulsing preset from a wavetable or ROMpler synth.
+- **Dank Sauce** — multiband compressor with an OTT-style comp stage and a time control; substitute OTT, Multiband Dynamics, or any multiband with upward compression.
+- **Crystalline (Baby Audio)** — bright, metallic algorithmic reverb; substitute a plate or spring algorithm with a slightly harsh tail.
+- **Serum reverb (Xfer)** — referenced, not used here; the in-synth small-room reverb he used on *Alone*. Any short, small-room algorithm substitutes.
+
+**Why it works:** The section is built from one reused vocal, one found preset, and three plugins in series — chop, brighten, compress, room. He's browsing presets rather than sound designing, committing them by freezing, and spending his effort on the two things he thinks actually matter here: brightness on the vocal so it cuts, and a deliberate dry/wet split so the section has depth.
+
+---
+
+## 4. Build
+
+*Video: 11:20–16:25*
+
+The build is the hype section escalated: same underlying energy, but visibly and audibly denser. He points out that you can physically see the difference in the arrangement view between the pre-build and the build — that jump in track count and waveform density is the section doing its job. Its two responsibilities are to keep motion constant (heavy left-right delays) and to preview what's coming (rave stabs plus a tease of the drop's lead) so the drop lands as an arrival rather than a surprise.
+
+### Ping-pong delays: the main movement engine
+
+1. Take the vocal and synth elements carrying the build and send them into a ping-pong / stereo delay so repeats alternate hard left and hard right.
+2. Set the delay heavy — he describes it as "a lot of delays and going left and right," with the repeats audibly bouncing around the stereo field. Do not treat this as a subtle ambience send.
+3. Judgement call: he gives no delay time, feedback or mix values. A defensible starting point is 1/8 or 1/4 ping-pong, feedback around 40%, wet high enough that the repeats are a rhythmic element rather than a tail — then push until the bouncing is obviously audible.
+4. Check the build in mono and on headphones. The whole point of the section is the width, so make sure the repeats are the widest thing in the arrangement at this moment.
+5. Print or freeze the section once you're happy with it. He froze and flattened this part of his session — note that he repeatedly regrets it later in the video because he can no longer open the patches, so bounce a copy of the unfrozen version before you commit.
+
+**Why it works:** the delays are the section's motion. Nothing new has to be written for the build to feel like it's accelerating — the same material simply starts occupying more of the stereo field, more often.
+
+### Keep the hype layer running underneath
+
+1. Do not restart the arrangement for the build. Keep the elements from the pre-build/hype section playing straight through — he explicitly says he "kept these going."
+2. That means the chopped vocal, the stab/pulse layer and the claps carry over unchanged; the claps in particular stay the same claps used in the intro and throughout the song.
+3. Add the build's new elements on top of that running bed rather than swapping the bed out.
+
+**Why it works:** continuity of the hype layer is what makes the build read as an escalation of the same idea instead of a new section. The listener's ear stays anchored while density increases around it.
+
+### The layer philosophy, restated
+
+1. Before adding anything, try to solve the part with one sound. He restates it here: the best approach is "the least amount of layers as possible," because it's a cleaner sound with less to work with — less to worry about cutting frequencies, balancing, and compressing layers together.
+2. He states plainly that he is not a fan of that frequency-carving/glue-compressing work, and would rather find one sound, tweak it slightly, and move on — that's exactly what he did for the previous section's main synth.
+3. Only reach for a second layer when a single tweaked sound genuinely cannot deliver the character you want. In this build, the rave stab is that justified exception.
+
+### Rave stabs — the old-school layer
+
+1. Load Rave Generator and audition its classic stab presets. He notes he read somewhere that these come directly from a specific synth or a very popular 90s / early-2000s sample pack, which is why they sound period-correct rather than like a modern emulation.
+2. Pick the stab that sounds most obviously old-school — he's after the immediately recognisable "very classic" rave sound, not a neutral one.
+3. Write the stab part around stacked intervals rather than plain triads. His own read: "there's probably like a fourth fifth or seventh or something in there that's giving this classic sound." He flags that he's not strong on theory, so treat the exact interval as your call — build the voicing from fourths, fifths and sevenths and trust the character over the label.
+4. Play the stab alongside the existing build synth rather than in place of it. Listen to the combination, not the stab soloed.
+5. Balance the stab so it modifies the host sound rather than replacing it. In his words, it takes the part "from just a normal sound like this to the layer" — the stack reads as one wonky, ratchet, old-school sound instead of two separate parts.
+
+**Plugins named:** Rave Generator — a stab/preset library of vintage rave hits and chords; any sampler loaded with 90s rave stab one-shots, or a hard supersaw/hoover patch with short envelope and a touch of bit-reduction, gets you into the same territory.
+
+**Why it works:** stacking the rave layer changes the character of the sound that's already there. He isn't adding a new voice for arrangement density — he's using one layer to recolour an existing one, which keeps him inside the "fewest layers" rule while still getting the old-school flavour.
+
+### Tease the drop's lead line
+
+1. Take the lead line that will play in the drop and sneak a short, quiet version of it into the build.
+2. Use the actual drop material — he uses the same OG-trap-flavoured lead with its vocal chops, not a substitute placeholder.
+3. Place it low in the balance and briefly. It's a hint, not a statement: the full version is still reserved for the drop.
+4. Keep it out of the way of the build's delays and rave stabs so the section doesn't get crowded at the point of maximum density.
+
+**Why it works:** he calls it "kind of an old school thing" and states the reason directly — you tease the lead that's coming in the drop so it doesn't come out of nowhere. It tells the listener what's coming up next, so the drop feels earned.
+
+### The build fill (Green Room)
+
+1. Go through your build/fill sample packs and find a pre-built fill that already contains the escalation you need. His came from Green Room, which he rates as the best of the sample packs he uses.
+2. Look for a fill that stacks several things at once — his contains chants, trap snares, and a big snare with white noise on it.
+3. Drop it in as a single, complete element. He did not chop it apart, rebuild it, or replace its components with his own samples.
+4. Leave it alone once it works. He says he told himself he'd eventually swap it for his own samples, but "it just sounded so good I got too married to it to want to change it," and he wanted to finish the song quickly — so it stayed.
+5. Balance the fill against the build's delays and stabs so the white-noise snare is the loudest single moment right before the drop.
+
+**Plugins named:** Green Room sample packs — commercial build/fill and drum sample library; any build-fill pack containing chant vocals, trap snare rolls and a white-noise snare hit substitutes directly.
+
+**Why it works:** his stated principle here is speed over purity. A pre-made fill that already sounds right is a finished decision, not a compromise — "that's what I do."
+
+### Random background texture as space filler
+
+1. Go hunting for a sound with no obvious musical purpose — the more unidentifiable, the better. He admits he doesn't know what his is, or even where he found it.
+2. Run it through the whole build section, continuously, rather than triggering it as a one-shot.
+3. Set it very low in the mix — low enough that it only becomes audible in the gaps between the other elements. He points out you can hear it "in between things."
+4. Do not let it fight the melody. He's explicit that it is not integral to the song; it exists purely as space filler.
+5. Treat this as a deliberate exercise. He sets himself the challenge, in every buildup, of doing as much cool stuff as possible even if the material is random.
+
+**Why it works:** his own framing — add random sounds "no matter how wacky or wonky or silly they may sound," even when they're not important to the melody. The gaps between elements in a busy build are still gaps; something odd sitting under them keeps the section from sounding like a grid of separate parts.
+
+---
+
+## 5. Drop Vocals, Chops and Tags
+
+*Video: 16:25–20:08*
+
+The drop's vocal layer is small on purpose: a chopped rhythmic phrase drenched in ping-pong delay, a call-and-response phrase that a Serum synth answers, and two tags. Between them they do all the structural signposting in the drop — every one of these vocal moments sits exactly where the beat is about to change.
+
+### Session layout
+
+1. Put every vocal track at the very top of the session, above synths and drums, and keep it there on every project.
+2. Work top-down when you review the drop — vocals first, then synths, then drums — so the arrangement decisions get checked before the sound design does.
+3. Do not freeze-and-flatten the vocal chop and tag channels until you are genuinely finished. He froze both and could no longer show or recall the exact chains; keep an unfrozen duplicate of anything with a chain you care about (suggestion — he only states the regret).
+
+### The drop vocal chop
+
+1. Take the vocal phrase you already have and chop it into a short rhythmic figure rather than leaving it as a spoken line — write it as a rhythm part, not a lyric.
+2. Loop that figure across the drop so it reads as a percussion element sitting on top of the beat.
+3. Push it through a heavy stereo ping-pong delay so the chops throw hard left and right against each other.
+4. Do not tame the result. He wanted it "hectic" — the bouncing repeats overlapping into each other is the effect, not a problem to fix.
+5. Starting point, since he gives no numbers (suggestion): 1/8 dotted or 1/16 ping-pong, feedback around 40–50%, wet level high enough that the repeats are as loud as the source. He is doing the same left-right delay trick here that he used on the build vocals.
+
+**Plugins named:** none specified for this chain — any ping-pong/stereo delay does the job.
+
+**Why it works:** "a lot of delay going on in there, you can obviously hear bouncing back and forth, just kind of sounds hectic and that's what I wanted."
+
+### Sourcing a vocal phrase by searching YouTube auto-subtitles
+
+This is his method for getting a specific phrase when you have no vocalist and no sample pack with it.
+
+1. Decide the exact words you want to hear first. You are searching text, so the phrase has to be nailed down before you go looking.
+2. Open one of the sites that index YouTube automatic subtitles (he names no specific one — "there's a bunch of websites") and type the phrase in.
+3. Open the video it returns and use the subtitle search to find the line inside that video.
+4. Click the subtitle line so playback seeks exactly to it.
+5. Audio-record the browser output — Chrome, Safari, whatever you use. He does not specify a capture tool or routing; use whatever loopback/system-audio capture you already have (judgement call).
+6. Grab a couple of seconds either side of the phrase, then trim to the phrase in the DAW.
+7. Drop it straight in. He mentions no restoration, EQ or de-noising on the recorded phrase.
+
+**Why it works:** it turns "I keep hearing a phrase over this gap" into something you can actually place. He had a break in the arrangement, heard a specific spoken line over it, and went and got that line.
+
+### The call-and-response answer, doubled in Serum
+
+1. Find a spot where the arrangement already leaves a break — a gap where the melody stops.
+2. Play the section on loop and listen for what the gap is asking for. He heard the sourced phrase functioning as a response to the melody underneath it.
+3. Drop the vocal phrase into the break so melody and vocal trade: melody calls, vocal answers.
+4. Now double that answer with a synth. Write the same figure — same rhythm, same contour as the vocal phrase — as MIDI on a Serum patch you built for the track.
+5. Line the synth up exactly with the vocal so the two hit as one event, and the synth reads as the thing answering.
+
+**Plugins named:** Serum (Xfer) — wavetable synth; any wavetable or subtractive synth with a lead patch that matches the drop's tone works.
+
+### Tags as a recurring signature
+
+1. Pick one short phrase and use it as your tag on everything you touch — the value is in the repetition, not the phrase.
+2. Get the rappers and artists you actually work with to record it, especially if they are on the song. His "Mello made a" tag was recorded by Roddy Ricch on their song Project Dreams; Juice WRLD recorded one for him too.
+3. Keep a second tag for collabs — on his collabs there are two tags. The second one here is a Vengeance sample, i.e. a stock vocal one-shot out of a commercial sample library rather than a recorded voice.
+4. Reuse a phrase that already earns a reaction. One of the vocal phrases in this drop dates back to his song Find Me and was the staple intro to his sets for three years straight.
+5. Place tags where the arrangement is already opening up, not over a dense passage.
+
+**Sources named:** Vengeance — commercial sample library; any vocal one-shot pack gives you an equivalent stock tag.
+
+### Brightening the tag
+
+1. Put a chorus on the tag for width and movement.
+2. Follow with OTT or similar multiband upward compression to lift the detail and highs.
+3. If it is still not bright enough, add Fresh Air — same treatment he used on the first chopped vocal earlier in the track.
+4. He is uncertain on this chain: he froze the track and recalls it as chorus plus "maybe some OTT or something... maybe even Fresh Air". Treat the order above as the intent, not a verified chain.
+
+**Plugins named:**
+- Fresh Air (Slate Digital) — high-frequency exciter; any exciter, or a high shelf plus light saturation, gets you close.
+- OTT (Xfer, free) — multiband upward/downward compressor; any multiband dynamics unit with upward compression, or a stock multiband set aggressively, substitutes. Note he prefers Dank Sauce's multiband to OTT generally.
+- Chorus — no specific plugin named; any stock chorus.
+
+### The structural job these vocals do
+
+1. Treat every vocal moment in the drop as a seam, not decoration. These are the only vocal elements in the drop.
+2. Put each one exactly where a synth is about to be swapped out — the little break in the beat tells the listener a change is coming.
+3. Use the first break to hand off to the drop's first synth, and the next one to introduce the second synth.
+4. Let the beat actually drop out under the vocal for that moment. The gap is what makes the change land.
+
+**Why it works:** "they're just like little breaks in the songs, little breaks in the beat where it signifies that it's going to change — so right here it changes to one synth, and then this signifies a new one."
+
+---
+
+## 6. Drums
+
+*Video: 20:08–27:51*
+
+This is the drum kit under the drop: one clicky kick with a Pultec-style low boost, a three-layer snare/clap stack slammed together with no corrective EQ, a tiny fixed-rhythm hi-hat tick carved into its own frequency slot, a three-layer crash, and an offbeat hat for bounce. The job of this section is momentum and width — it has to hold up under a lead he calls "absolute chaos" without any of the layers fighting for the same space.
+
+### Kick
+
+1. Pick a big, clicky kick — one that already has the attack you want on top. The low end gets added after, so choose for click first.
+2. Put a Pultec-style passive EQ on the kick channel as the only processing.
+3. Set the low band to **100 Hz** and boost "a little bit." He does not give a dB amount — start around 2–3 dB and trust the A/B (suggestion, not his number).
+4. Leave the attenuate control alone. He describes attenuation simply as the opposite of boosting ("at least that's what I think happens when I do it"), and here he only boosts. The Pultec's low band has separate boost and attenuate knobs; he turns one of them.
+5. A/B it. Bypassed the kick sounds thin; engaged you get more rumble. The difference is minimal but real — if you can't hear it, you've boosted too little or picked the wrong kick.
+6. Stop there. No graphic EQ, no compressor, no saturator on the kick.
+
+**Plugins named:** Pultec-style passive EQ (brand not stated) — a fixed-frequency low-shelf boost with a wide musical Q; free Pultec clones are everywhere and he explicitly endorses them ("I've seen on TikTok there's free versions that aren't Pultec but basically the exact same thing"). Any clean low shelf around 100 Hz gets you the same result — he says so himself.
+
+**Why it works:** "I really like using these sometimes if I don't want to sit around and mess with the graphic EQs, something about this, the frequencies it picks for the Q, the range of the frequencies per frequency." The value is the preset frequency choices and the wide Q — it's a speed and taste decision, not a technical one. He assumes a graphic EQ would get the same result.
+
+### Snare / clap stack — three layers
+
+1. Accept the layering trade-off up front: he is "a big layer guy" for leads and drums, but says "it's always better if you can find a sound you're happy with where you don't need layers, just a little bit cleaner." Layer only when the single sound isn't there.
+2. Go sample diving for the main layer — a snare/clap with body that carries the backbeat on its own.
+3. Send that main layer to **Valhalla Room** for the space around it. He does not give decay, pre-delay or mix values — dial a room that puts the hit in a space without smearing the transient (judgement call).
+4. Add a second layer chosen specifically for a **metallic jingle in its tail** — the shimmer that rings on after the body. Pick it for the tail, not the transient; the first layer is already doing the transient.
+5. Add a third layer: a real trap snare placed **on the offbeat**, deliberately not aligned with the other two. "It goes offbeat right here as you can see there's nothing lined up, but I added it as a layer to the snare as well so it's kind of really trappy."
+6. Balance the three by fader only. Do not EQ them into each other, do not bus-compress them together.
+7. Judge the stack only as a whole. If the combined hit sounds right, it is done.
+
+**Plugins named:** Valhalla Room (Valhalla DSP) — algorithmic room/hall reverb; any decent algorithmic room reverb or your DAW's stock room preset substitutes fine. Sample source for the layers is unspecified beyond "sample diving."
+
+**Why it works:** "Three layers there, not really any EQing." Each layer is picked for a different job — body, metallic tail, offbeat trap flavour — so they don't need to be carved apart. The offbeat layer is a rhythmic decision disguised as a layering decision: it makes the backbeat feel trappy without adding a separate track to the arrangement.
+
+### The no-EQ stance
+
+1. Do not EQ drum layers into each other. Choose better samples instead.
+2. Balance with volume and sample choice, and move on.
+3. If two layers clash badly, replace one rather than filtering it.
+
+**Why it works:** "You know I work with Southside a lot, 808 Mafia, and there's no EQing, there's nothing. So a lot of people would sit here and say oh you got to EQ this into this and I just like brute forcing this and just slamming everything together, I'm not claiming that I'm some sonic genius because it sounds good, I just kind of like it a little bit ratchet." The stance comes from the trap producers he works with, and the ratchet-ness is the point, not a compromise.
+
+### Tiny hi-hat tick — the 474 Hz slot
+
+1. Find a very small, thin, "tinky" hat — tiny in level and tiny in body.
+2. Write one rhythm for it and never change it for the entire section. "Literally never changing rhythm from this, it just sounds good."
+3. Open an EQ on it and find the frequency that is its predominant one and that nothing else in the kit claims as *its* predominant frequency. In his session that lands at **474**.
+4. Cut hard around that — "I just cut it all the way" — so what survives is essentially that one slot. He does not state filter type or slope; a steep high-pass plus a broad cut above, leaving a band around 474, is a defensible starting point (judgement call).
+5. Check it in the full mix, not soloed. Solo it sounds like nothing; in context it should be audible as motion, not as a hat part.
+6. Mute-test it: with the tick in, the section keeps moving; without it, "it's just a crash."
+
+**Why it works:** "It definitely hits that frequency that none of these share as its predominant frequency… it just sits nice and has its own little home amongst all the absolute chaos that is going on." This is the one place he does surgical EQ, and the reason is slot-finding, not tone-shaping. The fixed rhythm is what makes it a bed rather than a part.
+
+### Crash stack — three layers
+
+1. Start from the same principle: "my favorite thing for a crash is having a few layers but always like I say if you can just find the one sound the easier your life will be."
+2. **Layer 1 — pitched-down open hat.** Take a hip-hop open hi-hat (he always does) and pitch it down. He doesn't state semitones — a few semitones down is the starting point (suggestion). He notes there is even room within the sample itself, so you have headroom to work with.
+3. **Layer 2 — a snare shaped into a crash.** Load a Green Room snare into a sampler.
+4. Look at a real crash's waveform first: everything to the left of the body is a slow ramp in. Hi-hats have almost none of that — they start at the transient. "If it started from here you'll hear the difference right here versus that."
+5. Lengthen the sampler's amplitude-envelope attack on the snare so it swells in instead of hitting transient-first, mimicking that crash ramp. He gives no ms value — 20–60 ms is a reasonable place to start (suggestion).
+6. Because the layer now peaks later than it starts, position it so the peak lands where the crash should hit, not the sample start (judgement call — he doesn't say this explicitly).
+7. **Layer 3 — white noise.** Build a white noise tone in Operator and use it as the third crash layer. "I don't do this all the time but I messed around with the Operator here and made some white noise."
+8. Blend all three so they read as one crash with a slow attack and a different tone than a stock crash sample.
+
+**Plugins named:** Green Room (sample pack) — source for the snare layer; any snare with a usable sustain works. Operator (Ableton Live's FM synth) — used purely as a white noise source; any synth's noise oscillator or a white noise sample substitutes directly.
+
+**Why it works:** "At least right now in like modern trap the crashes have a very slow attack, so I took a snare here and kind of mimicked that just to add a little bit of a different tone." He is not trying to make the snare sound like a crash — he is borrowing the crash's *attack envelope* to get a foreign tone that still behaves like a crash.
+
+### Stereo field across the kit
+
+1. Check the width of each layer individually. In his stack the Operator white noise "is kind of mono, actually it might be literally mono."
+2. Keep at least one crash layer mono and dead centre.
+3. Keep the other layers "very spread out" so they cover the sides.
+4. Combined, you want "the whole stereo covered everywhere, middle sides and full sides" — the mono layer anchors the centre while the wide layers own the edges.
+5. He did **not** mid/side EQ any of this, and says he should have: "this would be a good time to maybe do some mid/side EQing for the mids and everything of the hi-hats but I didn't do that here." If you want to go further than he did, that's the move — treat the mids of the hats separately from the sides.
+
+**Why it works:** The layers cover the field by *selection*, not by stereo widening plugins. Because one layer is mono and the others are wide, the stack has a centre to hang on and sides to spread into without any imaging processing at all.
+
+### Second offbeat hi-hat
+
+1. Add a second small hi-hat and place it strictly on the offbeat.
+2. Turn on the metronome and check it against the grid — this one is on the grid, unlike the offbeat trap snare in the stack.
+3. Keep it low in level. It is a "seemingly stupid little hi-hat" whose entire job is bounce.
+4. A/B with it muted: the section should feel like it sits back into the pocket with it in.
+
+**Why it works:** "With all that it just kind of adds like a little, right it kind of sits like right there, so just another little thing that's interesting." Same logic as the 474 Hz tick — a tiny element that changes the feel of the whole kit for almost no mix cost.
+
+---
+
+## 7. Bass, Sub and Wobbles
+
+*Video: 27:51–31:10 and 38:14–41:18*
+
+This is the low end and the moving mid-bass that carry both drops. Two things do all the work: a deliberately plain oscillator, and a noise source slammed through a driven filter. He rebuilds both on camera because he froze and flattened the original tracks, so treat the patches as demonstrated-from-memory — the routing and the drive trick are exact, the individual knob positions are not stated.
+
+### The wobble patch in Serum
+
+1. Open Serum and start from a blank patch — he goes straight to the basic shapes rather than a preset or a complex wavetable.
+2. Pick one basic shape on oscillator A. Nothing exotic; the character is not coming from the wavetable here.
+3. Draw a small envelope and assign it to a parameter for movement. He says "maybe a little envelope right here like this, put it on here" and does not name the destination or give times — pick the destination that gives you the pulse you want and treat any values as your own call.
+4. Stop there on the synth itself. He explicitly leaves the patch "very very simple" and moves the interest downstream: "a lot of it is in the post-processing."
+5. Put OTT or a multiband dynamics processor after the synth as the first post-processing move. He names OTT and "multiband dynamics" interchangeably here — anything that upward-and-downward compresses per band works.
+6. A/B the chain with the multiband bypassed. He does this on camera specifically to show how much of the perceived complexity is the post-processing and not the patch.
+
+**Why it works:** the patch is "very very simple" on purpose — he is not sound-designing the movement into the oscillator, he is generating a plain source and letting drive and multiband dynamics manufacture the character.
+
+### The white-noise-into-driven-filter trick
+
+This is the core move of the whole section and he demonstrates it twice — once on the wobble, once on the sub.
+
+1. Enable the noise source in Serum and turn its level up.
+2. Go to the filter routing and send **only** the noise into the filter. In his words: A is not needed, B is off, sub is off, "the noise here" — the noise is the one source with its filter routing engaged.
+3. Leave the main oscillator running outside the filter. The tone stays clean and full; only the noise gets processed.
+4. Turn the filter's drive all the way up so it clips the noise.
+5. A/B it. Bypassing the filter, he calls the raw noise "horrible" — "the filter's doing nothing, it might be rolling off some highs." With drive in, "it just clips that out."
+6. Apply the same routing to a plain sine or triangle and listen. He points out this works "just on a sine wave" — it is not dependent on a fancy wavetable.
+
+If you are not in Serum: run a white-noise generator into a filter with a drive/saturation stage, keep it on its own path parallel to the oscillator, and push the drive until the noise clips into a tonal, grinding texture. A noise oscillator plus any drive-equipped filter or a saturator into a filter gets you there.
+
+**Why it works:** he ties it directly to a genre lineage — "you'll see this a lot in modern death step, any dubstep, the heavy heavy dubstep, all the metal death stuff, Sudden Death, a lot of people, it's kind of like the swag that they use." The clipped noise is the grit; the oscillator underneath stays clean and holds the pitch.
+
+### The second wobble sound
+
+1. Duplicate the approach for the second sound that enters in the drop — the one that signals the section change.
+2. Swap in a different, more complex wavetable instead of the basic shape. He describes "a lot of weird stuff going on in there" and does not name which wavetable.
+3. Keep the routing identical — noise into the driven filter, oscillator outside it. He says explicitly: "the same routing pretty much."
+4. Keep the same post-processing philosophy: multiband dynamics after the synth, no elaborate in-synth design.
+5. Audition wavetables against the fixed routing rather than rebuilding the patch each time. "Just kind of do what I just did there and mess around with wave tables and stuff."
+
+**Why it works:** "it sounds kind of wild but it's fairly simple." The routing is the instrument; the wavetable is just the flavour swap.
+
+### The sub patch
+
+He calls this the "Just Can't Stop bass" and offers it as a reusable patch: "I made like a little sub patch that I've just used throughout this project and will continue to use, probably even in my pop productions when it's appropriate." He tells viewers to screenshot it — "that's literally it, very simple."
+
+1. Start a new Serum patch with nothing else running — no second oscillator, no sub oscillator. He checks on camera and confirms the extra source "isn't even on."
+2. Set the single oscillator to a **triangle or a saw**, not a sine. He is casual about which: "on the triangle or sawtooth whatever."
+3. Compare it against a sine and reject the sine. His reasoning: "I like it better than the sines, so the sine's like so tiny." He also concedes the difference is small — "a tiny bit different right, it's a tiny bit different."
+4. Turn the noise source on — "get the bright white going."
+5. Route the noise, and only the noise, into the filter.
+6. Turn the filter drive all the way up so it clips.
+7. Bypass the filter once to hear how bad the raw noise is on its own, then re-engage it. That contrast is the whole point of the patch.
+8. Leave it there. No further in-synth work is described.
+
+Note the knock-on effect elsewhere in the session: he cuts lows out of the lead because "the sub is covering a lot of ground." Build the sub first, then carve the other elements around it.
+
+### Arrangement: octaves and sustain
+
+1. Put the first drop's bass **up an octave** and the second drop's bass **down** an octave. He flags this as a beginner-level move worth stating out loud: "second time around first drop is up an octave, second drop is down."
+2. Add another layer on the second pass through the section rather than repeating the first drop's stack verbatim. He does not specify the layer.
+3. When the mid-bass is doing wamp/wobble movement — visible in the waveform going up and down — do **not** re-articulate the sub to follow every pulse.
+4. Instead, hold one long, drawn-out sustained sub note underneath the whole passage. He considered the alternative and rejected it: "I could have done the sub like a true sub to follow this right, but it just felt so nice leaving this long drawn out sub through these moments."
+
+**Why it works:** the sustained sub keeps the low end "constantly feeling" while the wobble does the rhythm above it. Two elements, two jobs — the movement lives in the driven-noise layer, the weight never stops.
+
+**Plugins named:**
+
+- **Serum (Xfer)** — wavetable synth; the patch uses only basic shapes, a small envelope, the noise source and the filter's drive, so any wavetable or virtual-analog synth with a noise oscillator and a drivable filter with per-source routing will reproduce it.
+- **OTT (Xfer)** — aggressive multiband upward/downward compressor; any multiband dynamics device (Ableton's Multiband Dynamics, a stock multiband comp with upward compression, or the stacked multiband chain he prefers over OTT elsewhere in the walkthrough) gets you the same lift.
+
+**Why it works (the section's philosophy):** "very simple guys, you can literally just make it over here, you don't need anything." The patch itself is deliberately near-empty — one shape, one small envelope, one noise source — and every bit of aggression comes from clipping noise in the filter and squashing the result with multiband dynamics after the synth.
+
+---
+
+## 8. Drop Lead Stack
+
+*Video: 31:10–38:14*
+
+The main drop lead is not one sound — it is a stack he openly calls "quite hectic, a lot of layers," which is the exact opposite of the least-layers-possible rule he preached earlier in the session. The job of this stack is to be loud, bright and slightly broken: a solid core lead, a sizzle layer that finishes the top end, a heavily processed Omnisphere layer that is unusable on its own, plus two pieces of pure ear candy running underneath.
+
+### Build the core stack
+
+1. Start with the "solid" lead — the clean, identifiable layer that carries the melody. Everything else is added on top of this, not in place of it.
+2. Add a short sample as your high-sizzle layer. He is explicit that this one is a sample, not a synth patch (the pack name comes through the recording as "Sennheiser" and is not clearly identifiable).
+3. Do not process the sizzle layer into a melody — it is there for the frequency band only. Its whole job is "that high sizzle frequency that completes a sound."
+4. Accept that trap and electronic drops need this. His rule: unless you are deliberately making something lo-fi, you want sizzle and highs on top of the lead or it will not feel finished.
+5. Add the third layer from Omnisphere (Spectrasonics). He does not name the specific patch in this span.
+6. Audition that Omnisphere source solo before processing. His reaction to his own raw sound: "it's so bad it's terrible I can't believe it." That is fine — this layer is only judged in the stack.
+
+### Process the Omnisphere layer (chain in order)
+
+1. Put a waveshaper first — he uses MeldaProduction Wave Shaper, set to its Clipper mode. The stated goal is "adding some juice, some high, some crispiness."
+2. After the waveshaper, cut the lows out of this layer with an EQ. Reason he gives: the sub is "covering a lot of ground," so the lead has no business down there.
+3. Do not be timid with that cut. He says he could have gone even higher with it — "who needs that frequency anyways for a lead." (Exact corner frequency is not given; a high-pass somewhere in the 150–300 Hz region is a defensible starting point — that is a suggestion, not his number.)
+4. Add Crystalline (Baby Audio) after the EQ for a metallic reverb character. He calls the settings here "nothing crazy" and does not give values.
+5. Reserve that metallic reverb sound for electronic material. He says he rarely reaches for Crystalline in pop productions but loves it across his electronic-based music.
+6. Add Snap Heap (Kilohearts) after the reverb as a modular effects container — it holds the whole Kilohearts effect set plus modulators inside one rack.
+7. Inside Snap Heap, build a phase distortion. He does not give a recipe: "I kind of made this Phase Distortion right, so I don't know just made it threw it on there."
+8. Use his experiment method while you are in there: put an effect in, then duplicate it three times and listen. His words — "what if I did this, what does this do, okay what if I duplicated it three times, and I didn't think it'd do anything but all of a sudden it does something insane."
+9. Add a second processing stage at the very end, after Crystalline and Snap Heap. He describes it as copying what he already did — "kind of copied that, you see that, very similar."
+10. The reason for that second stage is fixed even though the exact plugin is not stated clearly on the recording: reverb and distortion put low end back into the signal, and "that'll kind of mess you up especially when you're doing a lead." Judgement call: duplicate both moves — the clipper/waveshaper and the low cut — at the end of the chain, and you cover his intent either way.
+11. Do not fix the phasing. He can hear it, says so out loud, and leaves it: fundamentally it should not be phasing, but if it sounds good layered he is not sitting there messing with it.
+
+### Chopped reverb tail (ear candy)
+
+1. Take the lead's reverb tail and run it through Trash (iZotope) with aggressive, deliberately random settings.
+2. Listen to the end of that tail. His accident was that it started glitching out as Trash mangled it.
+3. Chop the glitching section up and keep the chops as filler in the drop.
+4. Keep it low in the mix, in the gaps between elements. He admits the track "might sound cleaner" without it — that is not the point, it is "a nice little thing."
+
+### Background chaos layer
+
+1. Run one unidentifiable noise/texture layer underneath the entire drop, start to finish.
+2. Do not try to make it musical or make it fit the melody. He does not know where it came from or what it is: "the most nonsense I have in the song."
+3. Keep it constant and low. His description of the intent: "just kind of chaotic just constantly in the background, absolute chaos."
+4. Use anything for this that you cannot find as a preset — the whole value is that it makes the drop a little bit unique.
+
+**Plugins named:**
+- **Omnisphere (Spectrasonics)** — large sample-and-synthesis workstation; any big preset-driven synth or rompler gets you a comparable starting layer.
+- **Wave Shaper (MeldaProduction)** — waveshaping distortion with a Clipper mode; any waveshaper or hard clipper into a saturator does the same juice-and-crispiness job. He bought the full Melda bundle but notes you can buy them separately, and gives credit to Sudden Death for the recommendation.
+- **Crystalline (Baby Audio)** — algorithmic reverb with a metallic, glassy character; any bright plate or shimmer-leaning algorithmic reverb with high diffusion substitutes.
+- **Snap Heap (Kilohearts)** — modular container that hosts Kilohearts effects and modulators in one rack; any DAW effect rack (Ableton Audio Effect Rack, Bitwig FX Grid, Logic patch) plus a phase distortion or phaser-into-distortion covers it.
+- **Trash (iZotope)** — multiband distortion and mangler; any heavy multiband distortion, bitcrusher or glitch mangler will produce usable garbage to chop.
+
+**Why it works:** He is honest that the lead stack breaks his own philosophy — his stated preference is "the least amount of layers as possible" because it is a cleaner sound with less to cut, balance and compress. Here he took the other road and made it work by refusing to clean it up: the Omnisphere source is "so bad it's terrible" alone but good stacked, the layers phase and he does not care ("if it sounds good when it's layered I'm not going to sit and mess with it"), and the top end is handled by a dedicated sizzle sample instead of an EQ boost. The only discipline he applies is frequency territory — lows come out of the lead twice, once after the waveshaper and again at the end of the chain, because the sub owns that range and the distortion and reverb keep putting it back.
+
+---
+
+## 9. Second Build and Second Drop
+
+*Video: 41:18–50:54*
+
+The second build is the first build's material re-run with one piece of deliberate nonsense added on top, and the second drop is a different lead sound entirely — a preset-hunted "Big Nuke" stab, an old-school trap siren, a UK-bass sample and a found trap stab, all sitting on the same sub as drop one. The job here is contrast without rebuilding: same skeleton, new lead voice, more chaos.
+
+### Rebuilding the second build from first-half parts
+
+1. Copy the first build's arrangement wholesale into the second build position — same Rave Generator stabs, same bass parts, same vocal treatment. He does not rewrite this section; he states it is "same stuff as first."
+2. Leave the Rave Generator layer doing exactly what it did the first time. He notes in passing he did not know it could do what it does there — this is a found behaviour he kept, not a designed one.
+3. Keep the vocal chain identical to the first build so the two builds read as the same event.
+
+**Why it works:** The build already worked once. Reusing it costs nothing and makes the second drop the only thing the listener has to process as new.
+
+### Background weirdness — the vocoder texture
+
+1. Duplicate or bounce a background element you want to deface, and put a vocoder-style plugin on it: Humanoid (Baby Audio).
+2. Do not try to make it musically legible. Dial it until it sounds wacky and sits behind the section.
+3. Push it low in the mix so it is only audible *in* the background of the section, not as a foreground part.
+4. Leave it even if you think it sounds bad in solo. He says outright that it "actually sounds bad" and that he left it in anyway because it filled the space he was feeling.
+
+**Plugins named:** Humanoid (Baby Audio) — vocoder / robot-voice processor; he describes it as "a fake vocoder but it is kind of like a real vocoder as well." Any hardware-style vocoder, formant shifter, or talkbox emulation gets you the same class of sound.
+
+**Why it works:** "It doesn't really matter what it is truly — start dragging random stuff in there and just be like okay this sounds cool, I'ma do it." The texture's job is occupying space, not making sense.
+
+### Second drop lead — Big Nuke
+
+1. Go preset hunting rather than designing from scratch. He came back to this song long after starting it and went straight to the same expansion pack he used earlier: Sonic Extensions **Seismic Shock** for Omnisphere.
+2. Load the **Big Nuke** preset. Take the first thing you land on rather than auditioning forever.
+3. Raise the sustain a little. That is the only synth-side edit he names — no amount specified, so treat any increase as a judgement call; start with a small nudge and stop when the stab stops choking.
+4. Put a wave shaper after it for crispiness and high-end juice — same Melda Wave Shaper move used on the first drop's lead.
+5. Check it against the arrangement: this should read as huge and banging, a single dominant stab rather than a stack.
+
+**Plugins named:** Omnisphere + Sonic Extensions Seismic Shock (Big Nuke preset) — big processed hybrid-synth patch library; any large trap/hybrid preset pack in your main soft synth substitutes. Wave Shaper (MeldaProduction) — waveshaping distortion/clipper; any waveshaper, clipper, or saturator with a hard-ish transfer curve works.
+
+**Why it works:** He knows his way around sound design and says so, but for this one he chose to browse. "Just like sample searching — just look through presets, nothing wrong with that."
+
+### Sub in the second drop
+
+1. Use the same sub patch from the first drop. Do not re-design it.
+2. Make it slightly less harsh than drop one. He gives no parameter — a defensible starting point is easing the filter drive back a notch, since drive-into-filter is what makes that patch aggressive in the first place.
+
+**Why it works:** "Sub from here, so there's some consistency — a little bit different, not as harsh." The low end is the through-line between both drops; changing it would break the song's centre.
+
+### Big Crush layer
+
+1. Add the Big Crush distortion on the supporting layer under the lead.
+2. Note what it does to your low end. He points out this instance carries a lot of bass and says plainly: "I should have cut that out, I don't know why I didn't."
+3. Judgement call, not his: if you are layering under a sub that is already carrying the bottom, high-pass this layer. He shipped it uncut.
+
+**Plugins named:** Big Crush — heavy distortion/crush; any bitcrusher or aggressive distortion unit substitutes.
+
+### The old-school trap siren / laser
+
+1. Start from a distortion preset — one of the more extreme ones in whatever multi-effect you are using. He says this "came as a preset but I added some stuff to it" and that he left most of the preset alone because it was already good. He does not name the host plugin in this span; the surrounding chains in this session are Kilohearts Snap Heap and the Melda bundle.
+2. Add a pitch-shift module into the chain.
+3. Drag a modulator (LFO) onto the pitch control and set its range to **one octave**.
+4. Set the modulation rate fast — he describes the result as the pitch rising and falling "just like that, very quick."
+5. Leave the rest of the preset untouched.
+
+**Plugins named:** A modular multi-effect with drag-on modulators (his session uses Snap Heap / Kilohearts and MeldaProduction) — any effects rack where you can drop an LFO onto a pitch-shifter parameter does this; a standalone pitch shifter plus an LFO-capable modulation source is the generic version.
+
+**Why it works:** This is a deliberate throwback. He cites the lineage directly: the sirens on old Flosstradamus and Uzi records, Luca, Alvin Risk's "crazy lasers." "It's kind of like a really old school laser sound and I loved it."
+
+### Shadow UK bass sample
+
+1. Drop in a bass one-shot / phrase from the **Shadow** pack (their UK bass material) — he was put onto it by Viper Active.
+2. Put PolySaturator on it. He describes it as finding the frequencies inside a sound so you can boost them; there is an octave control, and he admits he is not sure what the middle control does — he moves things until it sounds good.
+3. Push it until you hear added harmonics, then A/B against bypass. Without it, the sample is flat by comparison.
+4. Now use Serum's FX section as a preset browser: put Serum (effects-only) on the track and scroll presets. You are not auditioning the synth — every preset carries its own effects chain, so you are scrolling through hundreds of ready-made effect chains and stamping them onto your sound.
+5. He landed on the **Base Wave** preset that day — it gave the sample a little ring.
+6. Collapse the result to mono.
+
+**Plugins named:** Shadow (sample pack, UK bass) — any UK bass / reese / growl sample library. PolySaturator (MeldaProduction) — multiband harmonic saturator that targets and boosts frequencies inside a sound; any multiband saturator or harmonic exciter substitutes. Serum FX — the effects-only version of the wavetable synth; substitute any multi-effect rack with a big preset library, and browse it for chains rather than for sounds.
+
+**Why it works:** "For as many presets you have, it'll just put those presets' effects on your sound — you could just scroll like you're scrolling through presets." Free chain design, no sound design required.
+
+### Producer tag
+
+1. Drop the same tag you used in the first drop back in at the equivalent spot in the second. He calls it "the classic tag" and treats it as non-negotiable.
+
+### Trap stab — found by preset hunting
+
+1. Go back into Serum and browse trap preset packs until something old-school jumps out. He did not make this sound either and says so plainly.
+2. Add VintageVerb set to **Color: Now** mode — noticeably brighter than the 1970s mode. Use it to add chaos to the tail, not to place the sound in a room.
+3. Add OTT after the reverb for multiband upward/downward compression.
+4. Add Soothe after that. Watch the **delta** display: it shows only what the plugin is removing, so what you see is the frequencies being ducked, not what you are hearing. Set it so it is taking out the resonant peaks; on this sound it is taking out "a lot."
+5. Cut the lows. He skipped the full parametric EQ and used a three-band DJ-style EQ instead, setting the low crossover to **250 Hz** and killing the low band. Any EQ with a high-pass at 250 Hz gets you there.
+6. Leave the audible distortion. The chain is clipping and he says so: "you see it's even distorting and stuff, like you would obviously want to go and fix that but I just didn't want to."
+
+**Plugins named:** Serum (trap preset packs) — wavetable synth; any synth with a well-stocked trap preset library. VintageVerb (Valhalla, Color mode "Now") — algorithmic reverb with era-flavoured color modes; substitute any bright, modern algorithmic reverb rather than a dark vintage plate. OTT — multiband up/down compressor; any OTT-style multiband dynamics unit. Soothe (oeksound) — dynamic resonance suppressor with a delta monitor; a dynamic EQ with several bands set to duck peaks is the closest substitute. Three-band DJ-style EQ (Ableton EQ Three in his session) — any EQ with a fast low-band kill.
+
+**Why it works:** On leaving the distortion in — "I could probably go in there and fix it, because of the routing chain on Serum or something, and maybe put an EQ before any of this. But if it just sounds good, don't worry about principles too much." He is explicit that it "inherently is not good" and that it adds character anyway. Soothe he treats as universal: "Soothe is great for anything honestly, you can put it on your master too."
+
+### Filler and the ending
+
+1. Keep the same background filler element running underneath the whole second drop — the chaotic, unidentifiable layer from the first drop, still doing nothing but filling space.
+2. End the track by returning to intro material. He closes on "kind of an ode to the beginning."
+
+---
+
+## 10. Outro, Transitions and Finishing
+
+*Video: 50:24–53:14*
+
+The last move of the song is not a new idea — it is the opening idea coming back, with the chaotic filler layer still running underneath it. After that the walkthrough turns to the one tool he uses to cover transitions across the whole track, and to why he shares all of this in the first place.
+
+### Ending on a callback to the opening
+
+1. Let the filler / chaos layer keep running under the final section — it is the same "just whatever that is going on" element that plays through the whole track, and it holds the space while the drop drains out.
+2. Bring back the opening idea to close the track. His words: "we end it with a kind of an ode to the beginning."
+3. In practice that means reprising the sample-based bass synth motif from the very top of the song — the long one-note Man Like You sample and the little synth-line bassline the whole song is centred on. He does not spell out exactly which of those elements return, so treat the precise combination as a judgement call.
+4. Do not write a new melodic idea for the outro. The point is recognition: the listener lands back on the first thing they heard, so the track reads as a loop that closed rather than a track that ran out.
+5. He describes no fade, no filter-down and no separate outro sound design. If you want one, that is your addition, not his.
+
+**Why it works:** the song was built as the first track on the EP and was deliberately made "a little bit more dramatic" at the front end. Ending on that same material pays off the intro rather than leaving it as a one-time gimmick.
+
+### Transit as a one-knob transition macro
+
+1. Put Baby Audio Transit (or Transit 2) on the channel, group or bus carrying the elements you want to sweep through the transition. He does not state which bus he used — pick the one that covers the material that needs to move.
+2. Start from a preset rather than from scratch. He found "one so gritty" with delays in it. He does not name the preset, so audition until you hit the same character: gritty, delay-heavy.
+3. Open the module view and look at what the macro is actually driving. The processors he calls out by name: delays, high pass, low pass, band pass, notch, chorus.
+4. Select which of those modules are in play for this particular transition and which are switched out. This is the part he singles out — the presets are a starting point, but "you can sit and look at this... and you can sit here and select everything."
+5. Map the whole thing to the single Transition control and automate that one control across the transition. One lane, one curve, everything moves together.
+6. He gives no automation length or curve shape. Suggested starting point: ride the control from 0 to full across the last one or two bars before the section change, then snap it back to 0 on the downbeat.
+7. A/B it against bypass before you commit. That is exactly how he checks it — plays the transition dry, then switches Transit in and hears how much of the move the plugin already did for you.
+
+**Plugins named:**
+
+- **Transit / Transit 2 (Baby Audio)** — a transition-effect plugin where one macro control drives a whole stack of processors (delays, high pass, low pass, band pass, notch, chorus) at once, with a visual module view for picking which are active. Substitute: build the same thing as a macro-mapped effect rack in your DAW — one knob mapped simultaneously to filter cutoff, a delay send, and a chorus depth.
+- **Endless Smile (Dada Life)** — named only as the reference point for the concept, not used here. Same family: a single knob that performs a build or transition. Any one-knob build/transition plugin you already own sits in the same slot.
+
+**Why it works:** "does a lot of work for you which is always great, not saying I'm lazy I'm just saying why wouldn't you want help right, why wouldn't you want help within a plugin." The transition he gets from one control would otherwise be several separate automation lanes — filter sweeps, delay throws, a chorus opening up — drawn by hand and kept in sync. He also values that it is visual and that everything moves on screen, which is what keeps him engaged with it.
+
+### If you do not own Transit: build the macro yourself
+
+1. Create an effect rack / chain on the transition bus with, in order: a filter (switchable or duplicated for high pass, low pass and band pass), a notch EQ band, a chorus, and a delay.
+2. Assign one macro knob to the filter cutoff, the delay mix or send level, and the chorus depth at the same time, with the ranges scaled so the full sweep of the knob lands where you want it.
+3. Push the filter section into light saturation or bitcrushing if you want the grit he chose in his preset — the delay-plus-grit character is what he picked, not a clean sweep.
+4. Automate that single macro instead of automating each device. The whole reason he uses the plugin is to collapse many lanes into one.
+
+### The closing philosophy
+
+1. Ship the transition even if it is doing work you could have done manually. Accepting help from a plugin is not a compromise.
+2. Share your chain. He states plainly that he is not paid by any of the companies named across the whole walkthrough — Baby Audio, Slate, Kilohearts, Melda, Green Room, Sonic Extensions and the rest — and names them because he uses them.
+3. Do not hoard technique. On the "don't give away your sauce" argument: "who cares, I don't care, so this is everything."
+
+### Build order checklist
+
+1. Decide what job the song has in its context before you write anything — this one was the EP opener, so he pushed the front end more dramatic than where the idea originally started. — *Overall approach*
+2. Find one long sample that can carry a whole part (his came from the Man Like You pack — a single solid note, long enough to play as a synth with no looping tricks) and write the bassline the entire track will centre on. — *Intro*
+3. Layer that sample-based synth with a simple analog bass line for weight — he thinks it was the Super 6, played straight rather than heavily designed. — *Intro*
+4. Add a pad layer from Omnisphere / Sonic Extensions (Seismic Shock, Unclean Machine, Undercurrent) for room and delay, and stack two claps that will stay identical for the whole song. — *Intro*
+5. Build the pre-intro from sweeps plus a reversed copy of that first bass-synth sound, so the song's opening sound is also its opening effect. — *Pre-intro*
+6. Add wide stereo ear candy — breaths, a found vocal — then risers to lift into the next section. — *Intro*
+7. Loop and chop that vocal for the bridge, and brighten the chops with Fresh Air (Slate) or any exciter. — *Pre-build / bridge*
+8. Bring in the main chord stab (his: Beat and Bloody Pulp from Seismic Shock), post-compress with Dank Sauce multiband, and add a springy Crystalline reverb. — *Pre-build / bridge*
+9. Set reverb dynamics across the whole arrangement on purpose — decide now what is dry and what is wet, the way the bass stays dry against a wet lead. — *Pre-build / bridge*
+10. Build the buildup out of hard ping-pong delays, then add Rave Generator layers for the old-school fourth/fifth/seventh flavour on top of your clean synth. — *Build*
+11. Tease the drop's lead line inside the build so the drop does not arrive out of nowhere. — *Build*
+12. Drop a full fill at the transition — chants, trap snares, a big white-noise snare (his came from a Green Room pack, used as-is). — *Build*
+13. Cut the drop vocal into a rhythm, drown it in bouncing delay, and answer the lead's phrase with a found call-and-response vocal doubled on a Serum patch playing the same shape; add the producer tag on the same break. — *Drop 1 vocals*
+14. Boost the kick around 100 Hz through a Pultec-style EQ for rumble, then stack three snares — body, one with a metallic jingle in the tail, one offbeat trap snare — with Valhalla Room and no corrective EQ. — *Drop 1 drums*
+15. Add a tiny hat living at 474 Hz with everything below it cut, plus an offbeat hat, then layer the crash from a pitched-down open hat, a slow-attack snare that mimics the crash envelope, and Operator white noise for stereo width against the mono elements. — *Drop 1 drums*
+16. Build the sub in Serum on a triangle/saw rather than a sine, route the noise oscillator into the filter and drive it hard, and hold the sub long under the wobbles instead of following their movement. — *Drop 1 bass and sub*
+17. Stack the lead: source patch, a high sizzle sample on top, MWaveShaper for crispiness, a low cut, Crystalline for metallic reverb, Snap Heap for phase distortion, then a second waveshaper to remove the lows the distortion added. Leave the phasing if the stack sounds good. — *Drop 1 lead*
+18. Add the filler and chaos layers — a chopped, glitching reverb tail and whatever unidentifiable noise runs quietly under the whole drop. — *Drop 1 lead / filler*
+19. For the second half, take the first drop up an octave and the second down, add another layer, and throw in one deliberately wacky element (his: Humanoid vocoder) while keeping the subs, Rave Generator and vocals consistent. — *Second build / drop 2*
+20. Rebuild the drop 2 lead around a big preset (Big Nuke from Seismic Shock) plus sirens and lasers from Big Crush with a fast pitch envelope, a Shadow pack sample through PolySaturator and Serum's effect presets, then VintageVerb in Color Now, OTT, Soothe to duck the harsh bands, and a 250 Hz low cut — and leave the distortion in if it sounds good. — *Drop 2*
+21. End on a callback to the opening idea, and cover the section changes with one transition macro instead of a stack of automation lanes. — *this section*
+
+---
+
+## Appendix: every plugin named, and what to use instead
+
+| Named in the video | What it does | Substitute with |
 | --- | --- | --- |
-| Long bass-synth sample | A sustained one-note tone, clear pitch center, enough length to chop or stretch, and a memorable midrange identity. | It loops obviously, has baked-in drums, changes chords, or loses identity when pitched. |
-| Analog bass support | Simple low-mid body, stable pitch, and restrained movement. | It competes with the main sample-bass line or has too much top-end character. |
-| Room / atmosphere layer | Built-in space, dark tone, and a tail that supports the intro without becoming the hook. | It masks the main riff or makes the intro feel washed out before the build. |
-| Breath / human texture | Stereo detail, short phrases, and organic movement. | It sounds like a lead vocal, contains distracting words, or pokes out during drop sections. |
-| Vocal chop / tag | A clean syllable or phrase with rhythm, attitude, and room for delay throws. | The lyric becomes the main song identity, the timing cannot be tightened, or the source is too noisy to brighten. |
-| Build loop | Chants, trap snares, big snare/noise, and enough energy to lift into the drop. | It dictates the whole groove in a way that fights the song or has unusable tonal content. |
-| Rave / trap stab | Immediate old-school attitude, short decay, and a pitch that can sit against the bass line. | It sounds too happy, too clean, or too harmonically dense for the dark arrangement. |
-| Kick | Clicky transient plus low punch around the song's low-end pocket. | It needs extreme EQ to be heard or fights the sub fundamental. |
-| Clap / snare stack | Separate layers for body, snap, jingle/character, and offbeat trap flavor. | Every layer hits the same frequency range or the stack gets wider but not stronger. |
-| Tiny hat / offbeat hat | Small high-frequency tick that stays out of the snare and vocal range. | It becomes a main rhythm or sounds harsh after high-pass. |
-| Crash / noise stack | Mono impact plus wide high-end, with open-hat/snare/noise layers that complement each other. | The stack has no center hit or turns into uncontrolled white-noise wash. |
-| Drop 1 lead source | Rough attitude, strong contour, and enough mid/high bite to survive distortion. | It only works solo, loses hook in context, or needs low end that belongs to the sub. |
-| Driven sub source | Stable low oscillator or simple patch that accepts drive without losing pitch. | It wobbles too much, has stereo low end, or masks the kick transient. |
-| Second-drop huge synth | Lower/heavier identity than Drop 1, strong midrange, and useful harmonics after saturation. | It is only louder, not different; or it hides the vocal tag, sirens, and sub. |
-| Siren / laser | Fast pitch motion, recognizable old-trap gesture, and controllable low end. | It has too much bass, cannot be mono-compatible, or distracts from the second-drop synth. |
-| Random filler / glitch tail | Weird texture that fills gaps at low level and can be chopped rhythmically. | It becomes identifiable in a bad way or competes with the main hook. |
-| Transition FX | Useful movement over a short range: filter, delay, pitch, riser, downlifter, or reverb swell. | It sounds like a stock effect pasted on top instead of part of the phrase. |
-
-## 4. Pre-Intro
-
-1. Start with drama before the main groove enters.
-2. Take the first main bass-synth sound and create a reverse version of it.
-3. Add sweeps, risers, and reversed effects leading into the first recognizable hit.
-4. Keep the sound sparse so the opening feels intentional and cinematic.
-5. Use this section to introduce the sonic world before the drums fully arrive.
-
-## 5. Intro
-
-1. Bring in the main bass-synth line.
-   - Source: a long one-note bass/synth sample.
-   - Program it into a simple repeated melody.
-   - Make it the identity of the whole track.
-
-2. Add the analog bass layer.
-   - Keep it very simple.
-   - Use it to reinforce the fundamental weight of the sample synth.
-
-3. Add a clap stack.
-   - Use two or more simple clap samples.
-   - Do not overwork them.
-   - Reuse this clap stack throughout the song so the rhythm has continuity.
-
-4. Add the room/space layer.
-   - Use a preset or patch with room tone and delay.
-   - Keep it tucked behind the main bass-synth.
-
-5. Add breaths or odd stereo textures.
-   - Place them between phrases or under the main line.
-   - Treat them as width and mood.
-
-6. Add a short vocal sample.
-   - Choose something that feels cool even if the lyric is not central yet.
-   - Let it lead naturally into the next section.
-
-7. Add dynamic risers at the end of the intro.
-   - Automate volume, filter, pitch, or reverb intensity upward.
-   - Use risers as part of the composition, not only as stock transition noise.
-
-## 6. Pre-Build / Bridge
-
-1. Loop or repeat the same vocal idea from the intro.
-2. Chop the vocal into a more rhythmic pattern.
-3. Brighten the vocal.
-   - Suggested plugin: Slate Digital Fresh Air.
-   - Use mid and high bands to add shine and presence.
-   - This can make dull vocal chops feel immediately more exciting.
-
-4. Add a rhythmic synth or preset layer.
-   - The video references Omnisphere Sonic Extensions, especially Seismic Shock, Unclean Machine, and Undercurrent-style sounds.
-   - Pick something aggressive and rhythmic.
-   - Freeze or print it if needed, but keep notes about the source if you plan to explain or revise later.
-
-5. Process the pre-build synth.
-   - Add a multiband compressor similar to OTT. The video mentions Dank Sauce as an alternative.
-   - Add Crystalline or another bright/metallic reverb.
-   - Keep the reverb somewhat springy or harsh if the track wants a more aggressive tone.
-
-6. Maintain dynamic contrast.
-   - Some elements should be very dry.
-   - Some elements should be very reverberant.
-   - This dry/wet contrast makes the production feel larger than the number of tracks suggests.
-
-## 7. Build Into Drop 1
-
-1. Extend the pre-build energy with delayed vocal chops.
-2. Use delays that bounce left and right.
-   - Keep the movement audible.
-   - The bouncing delays help the build feel hectic and wide.
-
-3. Keep the main pre-build rhythmic layer moving underneath.
-4. Add old-school rave/trap flavor.
-   - Suggested source: Rave Generator or a similar 90s/early-2000s rave sample instrument.
-   - Use classic stabs, hits, or chord intervals that feel slightly wonky.
-   - Layer these against the existing bass-synth line for a rougher old-school character.
-
-5. Tease the coming drop lead during the build.
-   - Bring in a small version of the drop lead rhythm before the drop.
-   - Keep it low or filtered.
-   - The goal is to tell the listener what is coming without fully revealing it.
-
-6. Use a strong build sample if it works.
-   - The transcript references Green Room sample packs.
-   - A build can include chants, trap snares, white noise, and a big snare.
-   - If the sample already works, do not replace it only for pride.
-
-7. Add random filler in the background.
-   - Drag in odd sounds, resample them, or freeze them.
-   - Keep them low.
-   - They do not need to carry melody. They fill negative space and add personality.
-
-## 8. Drop 1: Vocal Elements
-
-1. Place vocal chops at the top of the drop section.
-2. Create a short rhythmic vocal phrase.
-   - Chop the vocal tightly.
-   - Add heavy delay and stereo movement.
-   - Let it feel hectic.
-
-3. Add call-and-response vocal moments in empty spaces.
-   - The video describes hearing a phrase like a response in a break.
-   - Use the same rhythm or melody as the synth break so the vocal locks into the drop.
-
-4. Add a producer-style tag or recognizable vocal stamp if appropriate.
-   - Treat it like a hip-hop tag.
-   - Process with chorus, OTT/multiband compression, Fresh Air, or other brightening.
-   - Place tags before changes so they announce a new phrase.
-
-5. Use vocal breaks to signal arrangement changes.
-   - Drop hits phrase 1.
-   - Vocal/tag break.
-   - Switch to the next synth layer or variation.
-
-## 9. Drop 1: Drums
-
-1. Kick
-   - Use a big, clicky kick.
-   - Add low-end weight with a Pultec-style EQ.
-   - Boost around 100 Hz or use a similar low-frequency boost.
-   - Keep the change subtle. The goal is a cleaner rumble and more body.
-
-2. Snare and clap stack
-   - Layer multiple snare/clap sounds.
-   - Include one layer with a little jingle or character.
-   - Include one trap-style snare that can also hit slightly off-grid.
-   - Do not assume every layer needs EQ if the stack already hits well.
-
-3. Offbeat snare flavor
-   - Add a trap snare or rim-type sound on offbeats.
-   - Also layer it with the main snare when useful.
-   - This makes the groove feel more trap-influenced and less clean.
-
-4. Tiny high hat
-   - Add a very small, high-frequency hat or tick.
-   - Keep the rhythm simple and repetitive.
-   - High-pass aggressively. The transcript references a cut around 474 Hz.
-   - Let this hat occupy a frequency range the other drums do not dominate.
-
-5. Crash stack
-   - Build the crash from multiple layers if one sample is not enough.
-   - Include an open hip-hop hat pitched down.
-   - Add a snare/noise layer shaped to mimic a crash with a slower attack.
-   - Add white noise from a synth such as Operator.
-   - Make sure the stack covers mono center, stereo sides, and wide high-end energy.
-
-6. Extra offbeat hat
-   - Add a small offbeat hat that sits almost subliminally in the groove.
-   - It should add bounce without becoming a main rhythm.
-
-## 10. Drop 1: Bass, Sub, and Wobbles
-
-1. Create a simple Serum-style wobble or bass hit.
-   - Start with a basic waveform.
-   - Use an envelope or LFO to shape movement.
-   - Add OTT or multiband compression.
-   - Add white noise through the filter.
-   - Increase filter drive for aggression.
-
-2. Keep the sound design simple before processing.
-   - The raw patch can be plain.
-   - The power comes from filter drive, white noise, distortion, and compression.
-
-3. Create the sub patch.
-   - Use a simple triangle, saw, or sine-like low oscillator.
-   - A triangle/saw variation can feel slightly thicker than a pure sine.
-   - Add bright white noise routed into the filter.
-   - Drive the filter hard.
-   - The filter drive clips and excites the bass so it reads on more systems.
-
-4. Let the sub sustain through wobble gaps when it feels better.
-   - The visible synth waveform may pulse up and down.
-   - The sub does not always need to copy the exact movement.
-   - Long sustained sub notes can make the drop feel fuller and more continuous.
-
-5. First drop octave strategy
-   - Put the first drop lead or main synth up an octave.
-   - Save the lower, heavier version for the second drop.
-
-### Driven Sub Patch Appendix
-
-Use this as a generic Serum-style or stock-synth substitute for the local `Driven Sub` lane. The local renderer approximates it with a triangle core, sine support, a small amount of bright noise into drive, and long sustained notes under the wamps.
-
-1. Oscillator core
-   - Main oscillator: triangle, soft saw-triangle, or sine/triangle blend.
-   - Pitch: fundamental octave, often around the same root as the drop bass. Drop it one octave if it competes with the lead.
-   - Level target: the clean oscillator should carry most of the weight before processing.
-   - Optional support oscillator: sine at the same pitch, mixed 20-40 percent under the triangle if the patch needs cleaner low fundamental.
-
-2. Noise and filter drive
-   - Noise source: bright white noise or high-passed noise.
-   - Noise level: very low, around 2-8 percent. It should add edge to the filter, not sound like a separate hiss layer.
-   - Filter: low-pass, 12 dB or 24 dB style.
-   - Cutoff starting range: about 120-450 Hz for the sub lane. Raise only enough for the driven edge to read.
-   - Resonance: low to moderate, roughly 0-20 percent.
-   - Drive: medium-high, roughly 40-75 percent, or until the sub starts speaking on small speakers without becoming fuzzy.
-
-3. Envelope and movement
-   - Amp attack: 0-10 ms.
-   - Decay: 60-140 ms.
-   - Sustain: 70-90 percent for sustained drop notes.
-   - Release: 80-220 ms, long enough to avoid clicks but short enough not to smear the next root.
-   - Optional LFO/envelope on filter cutoff: small depth, roughly 5-20 percent, synced to the wobble phrase only if the sub needs visible movement.
-   - Do not force the sub to retrigger every wobble. In this local approximation, bars 33-48 and 65-72 use longer sub continuity under the moving synths.
-
-4. Processing chain
-   - First: clean utility or mono control. Keep the fundamental mono.
-   - Second: soft clip, tube drive, or filter drive. Push until harmonics are audible, then back off slightly.
-   - Third: light OTT/multiband only if the sub disappears on smaller playback. Keep amount low, roughly 10-30 percent.
-   - Fourth: sidechain or volume shaper keyed by the kick. Use enough ducking for kick clearance without making the sub pump like a lead.
-   - Final EQ: high-cut or low-pass anything that fights the lead. Let the lead own the aggressive mids.
-
-5. A/B targets
-   - With the lead muted, the sub should feel steady and heavy, not like a separate wobble performance.
-   - With drums in, the kick transient should still be obvious.
-   - With the full drop in, the sub should add weight and small-speaker harmonics without masking the octave-up Drop 1 lead or the huge Drop 2 synth.
-   - If the low end feels crowded, reduce noise/filter drive before lowering the fundamental.
-
-## 11. Drop 1: Lead Stack
-
-1. Add a high sizzle layer.
-   - Use a sample or one-shot with strong high-frequency bite.
-   - This completes the lead, especially in trap/electronic contexts.
-
-2. Add the main wonky lead.
-   - Source can be a rough preset or sample.
-   - It may sound bad alone.
-   - Judge it in the full stack before discarding it.
-
-3. Process the main lead.
-   - Add a waveshaper such as Melda MWaveShaper or equivalent.
-   - Add a clipper.
-   - High-pass or cut lows because the sub owns that range.
-   - Add Crystalline or a metallic reverb.
-   - Add Snap Heap or a modular multi-effect rack.
-   - Try phase distortion, repeated distortion blocks, or unusual modulation.
-   - Add another EQ cut after effects if the processing reintroduces low-frequency junk.
-
-4. Accept some phase or grit if it works in context.
-   - The transcript explicitly keeps imperfect artifacts when the full layer sounds good.
-   - Do not spend hours fixing issues that are not hurting the record.
-
-5. Add glitch-tail filler.
-   - Take a reverb tail or processed lead tail.
-   - Distort or glitch it.
-   - Chop it into rhythmic fills at phrase endings.
-   - Keep it as a small movement that makes transitions less empty.
-
-6. Add chaotic background filler.
-   - Use strange, unidentifiable textures.
-   - Keep them low and continuous through parts of the drop.
-   - They should make the drop feel unique without stealing focus.
-
-### Drop 1 Lead Stack Appendix
-
-Use this as a generic substitute chain for the local `Drop Lead` lane. The local project places this lane on bars 33-48, labels it as the first-drop lead up an octave, and stores waveshaper, clipper, low-cut, Snap Heap phase-distortion, and Crystalline-style reverb slots.
-
-1. Source and stack
-   - Main source: a rough lead preset, sample, or resampled synth that has attitude even if it sounds awkward solo.
-   - Pitch/register: keep Drop 1 higher than the second drop. The local approximation treats it as the octave-up lead.
-   - Sizzle support: add a high-passed noise, one-shot, or bright layer only if the lead lacks top-end bite.
-   - Gain staging: leave headroom before distortion. Aim for a strong signal that is not already clipping.
-
-2. Ordered processing chain
-   - Wave shaper: start with a soft curve, then increase drive until the midrange becomes animated. Suggested range: 20-60 percent wet/drive.
-   - Clipper: shave only the sharpest peaks after the wave shaper. Suggested range: 1-4 dB of clipping or 10-35 percent amount.
-   - Low cut: remove lows because the driven sub owns that space. Start around 120-180 Hz; raise toward 250 Hz if the lead is still clouding the kick/sub.
-   - Metallic reverb: add Crystalline-style bright room/metallic tail in parallel or low mix. Suggested wet range: 6-18 percent, high-passed on the wet return.
-   - Multi-effect rack: use Snap Heap-style phase distortion, chorus, frequency shifting, or repeated distortion blocks. Suggested wet range: 5-25 percent.
-   - Post-effect EQ: cut lows again if reverb or phase distortion reintroduces mud. Dip harsh resonances only after hearing the full drop.
-
-3. Automation and phrase use
-   - Bring the lead tease in during bars 29-32 at lower level or with a darker filter.
-   - Open the full lead at bar 33 with the Drop 1 drums and vocal rhythm.
-   - Let vocal breaks, tag moments, or siren answers create gaps instead of filling every beat with lead.
-   - If the chain has a rack macro, automate small changes at phrase boundaries rather than changing the whole patch.
-
-4. A/B targets
-   - With drums and sub muted, the lead should still have a recognizable hook and aggressive contour.
-   - With the sub enabled, the lead should lose low-end authority but keep mid/high presence.
-   - In mono, the phase distortion should not erase the hook. If it does, reduce the rack wet amount before changing the source.
-   - Bypassing the wave shaper and clipper should make the lead feel smaller. If bypassing them improves clarity, the distortion is too heavy.
-
-## 12. Second Part / Second Build
-
-1. Bring back the intro material as a callback.
-   - Reuse the bass-synth line.
-   - Reuse the analog layer.
-   - Reuse the same vocal and build devices.
-
-2. Add a new random effect to refresh the repeated section.
-   - The transcript mentions Baby Audio Humanoid.
-   - Use a vocoder-like or formant-like process on a texture.
-   - It can sound odd or even slightly wrong by itself as long as it fills space in context.
-
-3. Reuse the Rave Generator-style layer.
-4. Reuse the same claps and vocal chops for continuity.
-5. Prepare the second drop to feel related but bigger or heavier than the first.
-
-## 13. Drop 2: Main Synth Change
-
-1. Introduce a new huge synth sound.
-   - The transcript references Omnisphere Seismic Shock and a preset like "Big Nuke Button."
-   - Use a large, aggressive preset if it fits.
-   - Adjust sustain or envelope slightly if needed.
-
-2. Add waveshaping or distortion after the preset.
-3. Keep continuity with the first drop sub or bass behavior.
-4. Make this section an old-school trap callback.
-   - Add sirens, lasers, or rave alarm-like effects.
-   - Reference the energy of older festival trap without copying any specific song.
-
-### Drop 2 Huge Synth Substitute Chain
-
-Use this when you do not have the exact Seismic Shock / Big Nuke-style preset. The local `Second Drop Synths` lane covers bars 65-72 and stores a preset layer, PolySaturator-style harmonics, a Serum FX-style preset chain, soothe-style resonance cleanup, and a low cut around 250 Hz.
-
-1. Source layer
-   - Choose a large aggressive synth, resampled bass stab, rave stab, or distorted wavetable preset.
-   - Favor a source with immediate midrange identity over a clean patch that needs too much design.
-   - Register: make Drop 2 lower/heavier than Drop 1, but keep enough upper harmonics for translation.
-   - If the source is stereo, check that the hook survives in mono before adding width.
-
-2. Shape and saturate
-   - Start with envelope cleanup. Shorten sustain/release if the preset smears into the next hit.
-   - Add harmonic saturation after the source. PolySaturator-style drive can be replaced by tube, diode, foldback, or soft-clip saturation.
-   - Suggested saturation range: 15-45 percent, or until the layer feels bigger without flattening every transient.
-   - Add a clipper only if peaks jump out after saturation.
-
-3. Movement and FX rack
-   - Use a Serum FX-style rack, multi-effect preset, or stock chain with filter, distortion, comb/chorus, and short ambience.
-   - Keep the rack focused on movement and aggression, not wash. Suggested wet range: 10-35 percent.
-   - Automate one macro across the 8-bar Drop 2 phrase if it helps the sound avoid repeating exactly.
-   - Avoid wide low end. Put widening, chorus, or reverb after a low split or high-pass.
-
-4. Cleanup
-   - Low cut quickly if the layer fights the sub. Start around 180-250 Hz, matching the local project's `Low Cut at 250` note.
-   - Use soothe-style resonance ducking only after saturation/FX reveal painful peaks. Suggested depth: light to medium, enough to tame whistles without dulling the hook.
-   - If the sound has bass that is useful, split it from the sub lane rather than leaving both full-range.
-   - Check that sirens/lasers can still cut above this layer.
-
-5. A/B targets
-   - Compared with Drop 1, Drop 2 should feel lower, heavier, and more aggressive, not merely louder.
-   - Muting the `Second Drop Synths` lane should make bars 65-72 lose their new identity immediately.
-   - Muting the sub should still leave a gritty midrange hook; unmuting the sub should add weight without making the synth muddy.
-   - If the layer masks the vocal tag or siren answer, reduce saturation mids or narrow the FX rack before lowering the entire track.
-
-## 14. Drop 2: Sirens, Lasers, and Aggressive Layers
-
-1. Create or choose a laser/siren sound.
-   - Use pitch movement, octave sweeps, or fast pitch automation.
-   - A pitch device can rise and fall quickly for the laser effect.
-
-2. Process the laser/siren.
-   - Use distortion or a heavy effect preset.
-   - Add crush or saturation if it needs aggression.
-   - Watch the low end. The transcript notes one sound had more bass than it probably needed.
-
-3. Add a UK bass or Shadow-style sample layer.
-   - Use a sample with strong movement and grit.
-   - Process with Polyverse PolySaturator or a harmonic saturation tool.
-   - Add Serum FX or another synth FX rack and scroll effect presets until something works.
-   - Convert to mono if the layer needs to sit in the center.
-
-4. Add old-school trap synth stabs.
-   - Search trap packs or older-sounding serum presets.
-   - The source can be a preset. The key is choosing something with the right attitude.
-
-5. Process the old-school stab.
-   - Add Valhalla VintageVerb or another bright room/plate.
-   - Use a modern bright color setting rather than a dark vintage one if the sound needs to cut.
-   - Add OTT/multiband compression.
-   - Add soothe-style resonance reduction.
-   - Cut lows quickly with a simple EQ if you do not need detailed EQ work.
-   - If distortion artifacts sound cool in context, you can keep them.
-
-6. Reuse the vocal tag and drop vocal breaks.
-   - Let them mark the phrase changes just like in Drop 1.
-
-### Drop 2 Siren / Laser Appendix
-
-Use this for the old-trap siren and laser role. The local `Sirens Lasers` lane appears as a first-drop answer at bars 45-48 and as a larger Drop 2 layer at bars 65-72, with quick pitch rise/fall, mono utility, and bright reverb slots.
-
-1. Source or synth patch
-   - Start with a sine, triangle, narrow saw, or simple FM tone.
-   - Keep the raw tone simple. The character comes from fast pitch motion, saturation, and placement.
-   - Use short notes or one-shot sweeps rather than long melodic phrases.
-
-2. Pitch movement
-   - Draw a fast upward or downward pitch curve over roughly 1 beat.
-   - For a laser feel, use a curved sweep rather than a straight ramp: slow at one end, faster at the other.
-   - Range can be broad, roughly low-mid to upper-mid, as long as the sweep stays above the sub lane.
-   - Alternate rise and fall gestures in Drop 2 so the layer feels like a response, not a constant alarm.
-
-3. Processing
-   - Add distortion, clipper, or overdrive after pitch movement. Push until the sweep cuts through the second-drop synth.
-   - Use mono utility or narrow the low/mid part so the sweep does not destabilize the drop.
-   - Add bright room/plate reverb at low-to-medium mix. Keep the tail short enough that the next hit remains clear.
-   - Low-cut aggressively if the source has accidental bass.
-
-4. Placement
-   - Use bars 45-48 as a short siren answer after Drop 1.
-   - Use bars 65-72 as the fuller second-drop laser layer.
-   - Place sweeps in gaps around vocal tags and synth hits, not on top of every important transient.
-   - Automate level down quickly after each gesture so the layer does not become the lead.
-
-5. A/B targets
-   - Muting the sirens should make the drop less old-school and less animated, but the main hook should still work.
-   - In mono, the sweep should still be audible and should not cancel.
-   - If the second-drop synth loses focus, reduce siren level, low mids, or reverb before removing the layer.
-
-## 15. Outro Callback
-
-1. End by referencing the beginning.
-2. Bring back the original bass-synth or intro motif.
-3. Remove the heavy drop layers.
-4. Let the track close with a recognizable callback rather than a totally new idea.
-
-## 16. Transition Processing
-
-1. Use transition-focused plugins where they save time.
-   - The transcript mentions Baby Audio Transit / Transit 2.
-   - Similar tools include multi-effect macro plugins or custom racks.
-
-2. Build a single macro that moves several effects at once.
-   - High-pass
-   - Low-pass
-   - Band-pass
-   - Notch
-   - Chorus
-   - Delay
-   - Reverb
-   - Grit or distortion
-
-3. Automate the macro through builds and transitions.
-4. Use gritty delay or filter presets as starting points.
-5. Customize the preset rather than leaving it untouched if the transition needs a more specific shape.
-
-### Transition Automation Target Table
-
-These are recommended targets for recreating the local arrangement. They are not exact original automation curves.
-
-| Local bars | Moment | Main lanes | Suggested automation targets |
-| --- | --- | --- | --- |
-| 1-8 | Pre-intro reverse and impact setup | Transit Macro FX, Dynamic Risers, Sample Bass Synth | Fade in riser volume, open a high-pass/low-pass macro, increase reverb or delay send into the first hit, and keep the reversed impact darker than the intro groove. |
-| 23-24 | Build handoff | Dynamic Risers over bridge lanes | Start a riser volume/filter lift and slightly increase vocal or room send so the formal build does not feel abrupt. |
-| 25-28 | Build loop begins | Build Loop, Transit Macro FX, Vocal Chops, Random Filler | Raise Transit macro amount, increase delay feedback on vocal chops, and let filler volume rise only enough to fill gaps. |
-| 29-32 | Final Drop 1 tease | Lead Tease, Build Loop, Risers, Transit Macro FX | Open the lead-tease filter or level, push riser pitch/brightness, narrow the low end, and prepare a hard macro reset on bar 33. |
-| 33 | Drop 1 impact | Drop Drums, Drop Vocals, Drop Lead, Driven Sub, Crash Layers | Snap build macros back down, cut excess delay feedback, restore sub weight, and keep only intentional vocal throws. |
-| 36-47 | Drop 1 fill lane | Glitch Tail, Drop Lead, Drop Vocals | Automate glitch-tail volume and delay throws at phrase endings instead of running them at full level continuously. |
-| 45-48 | Siren answer out of Drop 1 | Sirens Lasers, Glitch Tail, Stereo Breaths | Automate quick pitch rise/fall, reduce low end on sirens, and use a short delay/reverb throw to bridge into the second-part reset. |
-| 55-64 | Second build | Dynamic Risers, Transit Macro FX, Vocal Chops, Rave Generator, Lead Tease | Repeat the build lift but make it busier: more vocal delay feedback, slightly brighter risers, and a clearer lead-tease open before bar 65. |
-| 65 | Drop 2 impact | Second Drop Synths, Sirens Lasers, Drop Drums, Driven Sub | Reset build effects, let the huge synth enter lower/heavier, preserve mono sub, and keep siren movement above the main synth. |
-| 69-72 | Outro callback / ending transition | Random Filler, Transit Macro FX, Drop 2 lanes | Fade or filter down the heavy layers, increase transition delay/reverb, and let the ending macro close the track quickly. |
-
-## 17. Plugin and Tool References From the Video
-
-Use these as examples, not requirements:
-
-1. Omnisphere Sonic Extensions
-   - Seismic Shock
-   - Unclean Machine
-   - Undercurrent
-
-2. Slate Digital Fresh Air
-   - Brightens vocals and chops.
-   - Useful on dull mid/high content.
-
-3. Dank Sauce or OTT-style multiband compression
-   - Adds density and aggression.
-   - Useful on synths and vocals.
-
-4. Baby Audio Crystalline
-   - Metallic/bright reverb.
-   - Strong for electronic leads and pre-build sounds.
-
-5. Baby Audio Humanoid
-   - Vocoder/formant-like processing.
-   - Good for weird background color.
-
-6. Baby Audio Transit / Transit 2
-   - Macro transition effects.
-   - Useful for builds, sweeps, and section changes.
-
-7. Rave Generator
-   - Old-school rave stabs and classic sample-style sounds.
-
-8. Valhalla Room
-   - Room reverb for snare/clap layers.
-
-9. Valhalla VintageVerb
-   - Brighter standard reverb for synth stabs and melodic effects.
-
-10. Serum and Serum FX
-   - Bass patches, white noise/filter drive, and preset FX chains.
-
-11. Operator or any simple synth
-   - White noise crash layer.
-
-12. Melda MWaveShaper / Melda bundle
-   - Waveshaping and unusual utility effects.
-
-13. Kilohearts Snap Heap
-   - Modular multi-effect processing and distortion/modulation chains.
-
-14. Polyverse PolySaturator
-   - Harmonic enhancement and frequency-focused saturation.
-
-15. soothe
-   - Resonance control and harshness reduction.
-
-16. Pultec-style EQ
-   - Low-end kick enhancement, especially around 100 Hz.
-
-### Stock / Generic Replacement Table
-
-Use these replacements by role. The goal is to reproduce the production function, not the brand name.
-
-| Named tool or source | Role in the walkthrough | Stock or generic substitute |
-| --- | --- | --- |
-| Omnisphere Sonic Extensions / Seismic Shock / Big Nuke-style presets | Aggressive preset source, room layer, huge Drop 2 synth | Any wavetable, sampler, granular, or rompler preset with strong midrange identity; layer a saw/square core with noise, distortion, and short ambience. |
-| Slate Digital Fresh Air | Vocal-chop brightness and presence | High-shelf EQ into a gentle exciter, air band, or parallel saturation focused above 4-8 kHz. |
-| Dank Sauce / OTT | Dense multiband compression on synths and vocals | Stock multiband compressor, upward compressor, or OTT-style preset at low-to-medium mix. |
-| Baby Audio Crystalline | Bright metallic reverb on pre-build and lead layers | Stock plate/room reverb with short-to-medium decay, high-passed wet return, bright damping, and optional shimmer/chorus. |
-| Baby Audio Humanoid | Weird humanoid/vocoder background texture | Vocoder, formant shifter, ring mod, spectral/formant filter, or resampled vocal-texture rack kept low in the mix. |
-| Baby Audio Transit / Transit 2 / Endless Smile-style tools | One-knob transition macro | Custom macro rack controlling high-pass, low-pass, delay feedback, reverb send, chorus, and saturation. |
-| Rave Generator | Old-school rave/trap stab color | Stock sampler with rave stab one-shots, chord stabs, hoovers, organ hits, or a simple detuned saw/square stab. |
-| Valhalla Room | Snare/clap room and general space | Stock room reverb with early reflections and short decay. |
-| Valhalla VintageVerb | Bright synth-stab reverb | Stock plate/hall reverb with bright color, high-passed wet return, and pre-delay. |
-| Serum / Serum FX | Wamp synths, white-noise filter drive, preset FX chains | Any wavetable/FM/subtractive synth plus a stock multi-FX chain: filter, distortion, chorus/comb, compression, EQ. |
-| Operator | White-noise crash/noise layer | Any stock synth or sampler noise oscillator into envelope, filter, and reverb. |
-| Melda MWaveShaper / Melda bundle | Waveshaping, clipping, utility effects | Stock waveshaper, saturator, overdrive, clipper, frequency shifter, or utility device. |
-| Kilohearts Snap Heap | Modular distortion/modulation rack | Stock audio-effect rack with phase distortion, chorus, filter, frequency shifter, delay, and parallel wet/dry control. |
-| Polyverse PolySaturator | Frequency-focused harmonic enhancement | Tube/tape/diode saturator, soft clipper, multiband saturator, or parallel distortion bus. |
-| soothe | Harsh-resonance control | Dynamic EQ, multiband compressor, de-esser, or manual narrow EQ cuts automated only where resonances jump out. |
-| Pultec-style EQ | Kick low boost around 100 Hz | Stock EQ bell/shelf boost near the kick fundamental, optionally paired with a small low-mid attenuation. |
-| EQ250 / simple low cut | Fast cleanup around 180-250 Hz | Any stock EQ high-pass or low shelf cut. |
-
-## 18. Practical Production Principles From The Video
-
-1. Use fewer layers when one excellent sound does the job.
-2. Layer when the missing role is clear: click, body, sizzle, stereo width, mono weight, room, or movement.
-3. Do not EQ by default. EQ when a layer has a job conflict or unwanted frequency content.
-4. Dry and wet contrast matters as much as melody.
-5. Use random filler sounds to make sparse sections feel alive.
-6. Tease important drop sounds before they fully arrive.
-7. Reuse claps, tags, and vocal motifs to make the track coherent.
-8. Let the first drop and second drop differ by octave, density, or lead source.
-9. Keep a few recognizable sonic signatures across the whole track.
-10. When a preset or sample already works, use it. The production value comes from arrangement, context, and processing as much as original sound design.
-
-### Rough Mix Checklist
-
-These are starting relationships from the local approximation, not exact fader values from the original source project.
-
-1. Low end
-   - Kick/drop drums and driven sub should be the loudest low-end anchors.
-   - Keep the sub mono and centered.
-   - Low-cut Drop 1 lead, second-drop synth layers, sirens, stabs, reverbs, and filler before they fight the sub.
-   - Start low cuts around 120-180 Hz for leads and 180-250 Hz for big second-drop synth layers, then adjust by ear.
-   - If the kick loses click, reduce bass/synth low mids before boosting the kick harder.
-
-2. Level relationships
-   - Drop Drums and Driven Sub are the main anchors.
-   - Drop Lead and Second Drop Synths should feel slightly below the drums/sub but still define the hook.
-   - Drop Vocals and Vocal Chops should read as phrase markers, not full lead vocals.
-   - Room Layer, Random Filler, Glitch Tail, Breaths, and transition FX should sit behind the main pattern unless they are announcing a change.
-   - In the local project, reference gains cluster roughly like this: Drop Drums 0.86, Driven Sub and Second Drop Synths 0.82, Drop Lead 0.78, Drop Vocals/Transit FX 0.74, filler and room layers about 0.50-0.62.
-
-3. Stereo width
-   - Keep kick, sub, main drop impact, and important vocal/tag hits centered.
-   - Use Stereo Breaths, Crash Layers, Glitch Tail, room layers, and selected delays for side energy.
-   - Check mono after adding Snap Heap-style phase distortion, wide crashes, and siren layers.
-   - If the hook disappears in mono, reduce width or phase effects before changing the notes.
-
-4. Reverb and space contrast
-   - Keep Driven Sub mostly dry.
-   - Let Dark Room Layer, Rave Generator, Drop Lead reverb, and Glitch Tail carry the obvious room/space.
-   - High-pass reverb returns so they do not thicken the low end.
-   - Use delay throws on vocals and transition moments rather than leaving every vocal chop washed out.
-   - The track should alternate dry impact and wet chaos, not stay equally wet throughout.
-
-5. Harshness control
-   - Check the 2-6 kHz area after wave shaping, clipping, Crystalline-style reverb, sirens, and second-drop saturation.
-   - Check 8-12 kHz after Fresh Air-style brightening, hats, crash layers, and white-noise risers.
-   - Use dynamic EQ, de-essing, or soothe-style reduction only where peaks jump out.
-   - Reduce distortion/rack wet amount before applying deep EQ cuts if the whole layer feels brittle.
-   - Keep some grit if it helps the record. The goal is controlled aggression, not clean sterility.
-
-## 19. Condensed Build Checklist
-
-1. Set BPM and key.
-2. Find one long bass-synth sample.
-3. Write the main bass-synth line.
-4. Layer a simple analog bass.
-5. Add sparse claps.
-6. Add room/atmosphere layer.
-7. Add breaths or stereo texture.
-8. Add a short vocal sample.
-9. Add reverse intro effects and risers.
-10. Chop the vocal for the pre-build.
-11. Brighten vocal chops with Fresh Air-style processing.
-12. Add a rhythmic pre-build synth preset.
-13. Compress and reverberate the pre-build synth.
-14. Add left/right delays into the build.
-15. Add rave stabs or old-school trap color.
-16. Tease the drop lead before the drop.
-17. Use a build sample with chants, snares, and white noise if it works.
-18. Add low random filler before the drop.
-19. Build drop vocals and tag moments.
-20. Program a clicky kick with subtle Pultec-style low boost.
-21. Layer snare/clap sounds.
-22. Add a small high hat tick with aggressive high-pass.
-23. Build crash layers from open hat, snare/noise, and white noise.
-24. Make a simple driven sub patch.
-25. Add white noise into the bass filter and drive it.
-26. Build the lead stack with sizzle, main wonky lead, waveshaping, clipper, reverb, and multi-effects.
-27. Chop a glitch tail for phrase endings.
-28. Add chaotic background filler.
-29. Bring back intro material for the second part.
-30. Add a new weird effect layer to refresh the repeat.
-31. Make the second drop heavier with a new huge synth.
-32. Add sirens, lasers, and old-school trap stabs.
-33. Process second-drop layers with saturation, Serum FX, reverb, OTT, soothe, and low cuts.
-34. End with an intro callback.
-35. Use a transition macro plugin or rack to automate movement between sections.
-
-## 20. Ableton-Style Implementation Checklist
-
-Use this if you are building the approximation in Ableton Live or any DAW with a similar Arrangement View workflow.
-
-1. Set the Live set to 150 BPM and create locators for bars 1, 9, 13, 17, 23, 25, 29, 33, 36, 45, 49, 55, 57, 61, 65, 69, and 71.
-2. Create grouped tracks in this order: vocals/tags, transition FX, lead/preset layers, bass/sub, drums, and background filler.
-3. Add the main sample-bass clip across bars 1-24, then copy a shorter callback to bars 49-56.
-4. Add analog bass support under the same regions, but keep its level lower than the sample-bass identity.
-5. Add room layer and claps from bar 9 so the intro opens up after the pre-intro.
-6. Add vocal chops from bars 13-32, then copy/rework them for bars 57-72.
-7. Add build drums, risers, Transit-style macro FX, random filler, and lead tease across bars 25-32.
-8. Build Drop 1 at bars 33-48 with drop drums, drop vocals, Drop Lead, Driven Sub, Same Clap Stack, and Crash Layers.
-9. Place glitch-tail fills at phrase endings inside bars 36-47 rather than across the entire drop.
-10. Add the first siren/laser answer at bars 45-48 to push out of Drop 1.
-11. Reintroduce intro material at bars 49-56, then rebuild with vocal chops, build loop, risers, transition macro, rave stabs, and lead tease at bars 57-64.
-12. Build Drop 2 at bars 65-72 with the lower/heavier second-drop synth, sub continuity, drop drums, vocal tags, crash stack, and sirens/lasers.
-13. Use audio-effect racks for the lead chain, second-drop synth chain, and transition macro so wet/dry and drive can be automated from one or two visible controls.
-14. Draw automation lanes only where the arrangement changes: riser/filter lifts into bars 33 and 65, delay throws around vocal breaks, pitch movement on sirens, and ending macro movement at bars 71-72.
-15. Print or freeze any unstable preset/sample layers once the arrangement works, then keep notes on source role and substitute settings.
-
-## 21. FL Studio / Logic Translation Notes
-
-Use the same arrangement map and sound roles. Only the DAW terms change.
-
-| Ableton-style term in this guide | FL Studio equivalent | Logic Pro equivalent |
-| --- | --- | --- |
-| Arrangement View locators | Playlist markers | Arrangement markers or marker track |
-| Audio clip on a lane | Audio clip in the Playlist | Audio region on a track |
-| Track group | Playlist track grouping plus mixer routing | Track stack or summing stack |
-| Audio effect rack / macro | Patcher, Control Surface, or linked controls | Smart Controls, Track Stack controls, or bus channel strip macros |
-| Freeze/flatten or print | Consolidate, render as audio clip, or record to Edison/audio track | Bounce in place or freeze track |
-| Return/send reverb or delay | Mixer send track | Aux send/bus |
-| Utility mono control | Stereo Shaper, Fruity Stereo Enhancer, or mixer mono switch | Direction Mixer, Gain mono, or channel strip mono |
-| Automation lane | Automation clip | Track automation or region automation |
-| Drum rack / sampler lanes | Channel Rack, FPC, or sampler channels | Drum Machine Designer, Quick Sampler, or Sampler |
-| Warp/stretch sample | Stretch mode, time stretch, or audio clip stretch | Flex Time or region time/pitch controls |
-
-FL Studio notes:
-
-1. Keep Playlist tracks named by role, even if the sound source lives in the Channel Rack.
-2. Use one mixer insert per major role: sample bass, sub, drop drums, drop vocals, Drop Lead, Second Drop Synths, transition FX, and filler.
-3. Use automation clips for build macro amount, riser volume, vocal delay throws, and siren pitch movement.
-4. Consolidate unstable audio/preset sections after the arrangement works so the Playlist remains readable.
-
-Logic notes:
-
-1. Use arrangement markers for the local bar map and track stacks for role groups.
-2. Use Summing Stacks for lead, bass/sub, drums, vocals, and transition FX.
-3. Use Track Automation for macro/filter/delay moves and Region Automation for one-off vocal or siren gestures.
-4. Bounce in Place for heavy preset layers and keep the original instrument track muted but labeled if you need recall.
-
-## 22. Deliverable Notes
-
-The goal is not to recreate the exact commercial record. The goal is to reproduce the production method:
-
-1. A simple central riff.
-2. Strong sample and preset choices.
-3. Aggressive but practical processing.
-4. Sparse arrangement with detailed ear candy.
-5. Dry/wet contrast.
-6. Trap drum attitude.
-7. Heavy sub and driven bass.
-8. Old-school rave/trap callbacks.
-9. Vocal tags and chops as arrangement markers.
-10. A second drop that changes the lead identity while staying connected to the first.
+| Fresh Air (Slate) | High-frequency exciter, mid and high bands | Any exciter; or a high shelf plus gentle saturation |
+| Dank Sauce | Multiband compressor, OTT-like but gentler | Any multiband compressor or upward compressor |
+| OTT | Aggressive upward/downward multiband compression | Any multiband compressor set to upward compression |
+| Crystalline (Baby Audio) | Metallic, modern algorithmic reverb | Any bright plate or shimmer reverb |
+| Valhalla Room | Natural room reverb | Any room/chamber reverb |
+| VintageVerb (Valhalla) | Vintage digital reverb, Color/Now mode | Any bright digital reverb |
+| Serum reverb | Small-room reverb inside the synth | Any short room reverb, very low decay |
+| Snap Heap (Kilohearts) | Modular effects container | Any modular FX rack or chained effects |
+| Wave Shaper (MeldaProduction) | Waveshaping distortion with clipper | Any waveshaper or hard clipper |
+| Big Crush | Aggressive distortion | Any bitcrusher or heavy saturator |
+| PolySaturator | Frequency-aware harmonic saturation | Any harmonic exciter or multiband saturator |
+| Soothe | Dynamic resonance suppression | Any dynamic EQ set to cut resonances |
+| Pultec-style EQ | Passive-style broad low boost | Any passive-emulation EQ; free clones exist |
+| Trash | Multiband distortion and mangling | Any glitch/mangler or granular effect |
+| Humanoid (Baby Audio) | Vocoder-style voice processing | Any vocoder or formant filter |
+| Transit / Transit 2 (Baby Audio) | Macro transition control: filters, delay, chorus at once | Endless Smile, or a macro mapped to several effects |
+| Operator | FM/additive synth, used here for white noise | Any synth with a noise oscillator |
+| Serum | Wavetable synth | Any wavetable synth |
+| Omnisphere | Sample-based workstation synth | Any large preset library instrument |
+| Rave Generator | Old-school rave stab library | Any 90s rave/hoover sample pack |
+| Super 6 | Analog polysynth (hardware) | Any analog or analog-modelling polysynth |
+
+Sample sources he names: the Man Like You pack (granular, chord ideas),
+Sonic Extensions for Omnisphere (Seismic Shock, Unclean Machine, Undercurrent),
+Green Room (build fills, snares), Shadow / UK bass packs, Vengeance (tag).
+
+## Appendix: what he deliberately did not do
+
+Worth knowing, because each one is a decision rather than an oversight:
+
+1. **No mid/side EQ.** He recommends it for the hi-hats and says he simply did
+   not do it on this track.
+2. **No corrective EQ on the snare stack.** Three layers, slammed together.
+3. **No fixing the phasing** in the layered lead — it sounded good stacked.
+4. **No fixing the audible distortion** in the second drop chain. He identifies
+   the cause and the fix, then declines both.
+5. **No re-recording the build fill.** He got attached to the sample and kept it.
+6. **No unfreezing his own patches.** He froze and flattened tracks as he went
+   and lost access to several of his own sounds mid-walkthrough — a working
+   habit worth avoiding if you ever want to explain your own track later.

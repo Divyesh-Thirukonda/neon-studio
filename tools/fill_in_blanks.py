@@ -4,10 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from collections import Counter, defaultdict
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+
+from production_rubric import Gap, find_gaps, requirement_by_id, requirements_for_area
 
 
 SECTION_DEFAULTS: dict[str, dict[str, Any]] = {
@@ -201,6 +204,389 @@ def insert_before_first(sections: list[dict[str, Any]], target_type: str, sectio
             sections.insert(index, section)
             return
     sections.append(section)
+
+
+# ---------------------------------------------------------------------------
+# Structural repair.
+#
+# These run before anything else, because the passes after them assume the
+# section list is in arrangement order, carries every part the transcript
+# described, and knows how long each section is. Ingest cannot guarantee any of
+# those: it walks a video top to bottom, and a producer does not narrate a song
+# in playback order.
+# ---------------------------------------------------------------------------
+
+#: Where each section type sits in a finished arrangement. Ingest emits sections
+#: in the order they were *talked about*, which is a different thing.
+SECTION_RANK: dict[str, int] = {
+    "pre_intro": 0,
+    "intro": 1,
+    "verse": 2,
+    "pre_build": 3,
+    "build": 4,
+    "drop": 5,
+    "break": 6,
+    "second_drop": 8,
+    "outro": 9,
+}
+
+#: Names producers actually use, mapped to the roles the generator understands.
+#: Without this an "808" or a "stab" is parsed, stored, and then silently
+#: contributes nothing because no track maps to it.
+ROLE_ALIASES: dict[str, str] = {
+    "808": "sub",
+    "sub bass": "sub",
+    "subbass": "sub",
+    "arp": "pluck",
+    "arpeggio": "pluck",
+    "pluck": "pluck",
+    "chant": "vocal",
+    "vox": "vocal",
+    "vocal chop": "vocal",
+    "chops": "vocal",
+    "topline": "vocal",
+    "shaker": "hat",
+    "perc": "hat",
+    "percussion": "hat",
+    "tambourine": "hat",
+    "hihat": "hat",
+    "hi-hat": "hat",
+    "open hat": "hat",
+    "stab": "chords",
+    "pad": "chords",
+    "keys": "chords",
+    "piano": "chords",
+    "string": "chords",
+    "strings": "chords",
+    "synth": "lead",
+    "melody": "lead",
+    "riff": "lead",
+    "topline synth": "lead",
+    "siren": "fx",
+    "laser": "fx",
+    "sweep": "fx",
+    "whoosh": "fx",
+    "riser": "riser",
+    "impact": "impact",
+    "boom": "impact",
+    "reverse": "reverse",
+    "texture": "noise",
+    "atmosphere": "noise",
+    "ambience": "noise",
+    "breath": "noise",
+    "breaths": "noise",
+    "kick": "kick",
+    "snare": "snare",
+    "clap": "clap",
+    "crash": "crash",
+    "ride": "ride",
+}
+
+
+def normalize_role_aliases(spec: dict[str, Any], decisions: list[dict[str, Any]]) -> None:
+    """Fold the words producers use into the roles the generator maps to tracks.
+
+    A walkthrough says "808", "stab", "shaker". The generator knows "sub",
+    "chords", "hat". Before this, those parsed cleanly into the spec, looked
+    fully specified, and then produced no track at all.
+    """
+    renamed: set[str] = set()
+
+    def convert(values: Any) -> list[str]:
+        out: list[str] = []
+        for value in values if isinstance(values, list) else []:
+            raw = str(value).strip().lower()
+            mapped = ROLE_ALIASES.get(raw, raw)
+            if mapped != raw:
+                renamed.add(f"{raw} -> {mapped}")
+            if mapped not in out:
+                out.append(mapped)
+        return out
+
+    for section in spec.get("sections", []) or []:
+        if isinstance(section, dict):
+            section["trackRoles"] = convert(section.get("trackRoles"))
+
+    global_tracks = spec.get("globalTracks")
+    if isinstance(global_tracks, list):
+        merged: dict[str, dict[str, Any]] = {}
+        for item in global_tracks:
+            if not isinstance(item, dict) or not item.get("name"):
+                continue
+            raw = str(item["name"]).strip().lower()
+            mapped = ROLE_ALIASES.get(raw, raw)
+            if mapped != raw:
+                renamed.add(f"{raw} -> {mapped}")
+            existing = merged.get(mapped)
+            if existing is None:
+                merged[mapped] = {**item, "name": mapped}
+            else:
+                existing["mentions"] = int(existing.get("mentions") or 0) + int(item.get("mentions") or 0)
+                existing["sections"] = ensure_unique(
+                    list(existing.get("sections") or []) + list(item.get("sections") or [])
+                )
+        spec["globalTracks"] = list(merged.values())
+
+    if renamed:
+        decision(
+            decisions,
+            "roles",
+            f"Normalised producer terms to buildable roles: {', '.join(sorted(renamed)[:6])}.",
+            reason="These names parsed fine but mapped to no track, so the parts would have gone missing at build time.",
+            confidence="high",
+        )
+
+
+def rescue_unclassified_sections(spec: dict[str, Any], decisions: list[dict[str, Any]]) -> None:
+    """Give a type to sections that carry real parts but were never classified.
+
+    Ingest labels anything it cannot place as `production_notes`, and the
+    materializer drops those — along with every lane event, role and technique
+    they carry. A walkthrough that describes a sound before saying where it goes
+    ("the bass is a mid-bass with grit") produces exactly that: a section that
+    looks fully specified in the spec and silently disappears from the song.
+    """
+    sections = spec.get("sections")
+    if not isinstance(sections, list):
+        return
+
+    def has_content(section: dict[str, Any]) -> bool:
+        return bool(
+            (section.get("trackRoles") or [])
+            or (section.get("laneEvents") or {})
+            or (section.get("techniques") or [])
+        )
+
+    existing_types = {str(s.get("type") or "") for s in sections if isinstance(s, dict)}
+    rescued: list[str] = []
+
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        if section.get("type") in SECTION_RANK or not has_content(section):
+            continue
+
+        roles = {str(r).lower() for r in (section.get("trackRoles") or [])}
+        lanes = {str(k).lower() for k in (section.get("laneEvents") or {})}
+        signal = roles | lanes
+        techniques = {str(t).lower() for t in (section.get("techniques") or [])}
+
+        # Infer the type from what the section is made of. A part carrying kick,
+        # bass and lead together is a payoff section; drums plus risers is a
+        # build; chords and lead alone is an intro or a break.
+        drums = bool(signal & {"kick", "snare", "drums", "clap", "hat"})
+        low = bool(signal & {"bass", "sub"})
+        melodic = bool(signal & {"lead", "chords"})
+        rising = bool(signal & {"riser", "automation", "noise"}) or "automation" in techniques
+
+        if drums and low and melodic:
+            inferred = "second_drop" if "drop" in existing_types else "drop"
+        elif drums and rising:
+            inferred = "build"
+        elif drums:
+            inferred = "verse"
+        elif melodic:
+            inferred = "break" if "intro" in existing_types else "intro"
+        else:
+            continue
+
+        section["type"] = inferred
+        section["label"] = SECTION_DEFAULTS.get(inferred, {}).get("label", inferred.title())
+        section["rescued"] = True
+        existing_types.add(inferred)
+        rescued.append(f"{section.get('id', '?')} -> {inferred}")
+
+    if rescued:
+        decision(
+            decisions,
+            "arrangement",
+            f"Classified {len(rescued)} described-but-unplaced section(s): {', '.join(rescued[:4])}.",
+            reason="They carried real parts and would otherwise have been dropped from the build entirely.",
+            confidence="medium",
+        )
+
+
+def order_sections_canonically(spec: dict[str, Any], decisions: list[dict[str, Any]]) -> None:
+    """Put the arrangement in playback order.
+
+    Sections come out of ingest in the order the producer *talked* about them,
+    and nobody narrates a song front to back — they say "the second drop is where
+    it goes crazy, but first the intro is just a filtered chord". Laid out as
+    parsed, that puts the biggest section at bar 1.
+    """
+    sections = spec.get("sections")
+    if not isinstance(sections, list) or len(sections) < 2:
+        return
+
+    musical = [s for s in sections if isinstance(s, dict) and s.get("type") in SECTION_RANK]
+    other = [s for s in sections if not (isinstance(s, dict) and s.get("type") in SECTION_RANK)]
+    if len(musical) < 2:
+        return
+
+    before = [str(s.get("type")) for s in musical]
+
+    # A second build belongs after the break, not with the first one, so rank by
+    # type and then by how many of that type have already been seen.
+    seen: dict[str, int] = {}
+    keyed: list[tuple[int, int, int, dict[str, Any]]] = []
+    for index, section in enumerate(musical):
+        kind = str(section.get("type"))
+        ordinal = seen.get(kind, 0)
+        seen[kind] = ordinal + 1
+        rank = SECTION_RANK.get(kind, 5)
+        if kind in ("build", "verse", "intro") and ordinal > 0:
+            rank += 3  # a repeat of a setup section belongs in the second half
+        keyed.append((rank, ordinal, index, section))
+
+    keyed.sort(key=lambda item: (item[0], item[1], item[2]))
+    ordered = [item[3] for item in keyed]
+    after = [str(s.get("type")) for s in ordered]
+
+    if before == after:
+        return
+
+    spec["sections"] = ordered + other
+    decision(
+        decisions,
+        "arrangement",
+        f"Reordered sections into playback order: {' -> '.join(after)}.",
+        reason=f"They were parsed in the order the walkthrough discussed them ({' -> '.join(before)}), which is not the order the song plays.",
+        confidence="high",
+    )
+
+
+def resolve_duplicate_sections(spec: dict[str, Any], decisions: list[dict[str, Any]]) -> None:
+    """Fold away repeats that are artefacts of parsing rather than arrangement.
+
+    Two things come out of ordering that a song would never do. A second intro
+    sitting between a build and a drop is not an intro — a producer returning to
+    sparse material mid-song is writing a break. And two payoff sections back to
+    back are almost always one section the walkthrough described twice, not two
+    drops with nothing between them.
+    """
+    sections = spec.get("sections")
+    if not isinstance(sections, list):
+        return
+    musical = [s for s in sections if isinstance(s, dict) and s.get("type") in SECTION_RANK]
+    if len(musical) < 2:
+        return
+
+    changed: list[str] = []
+
+    # A song has one intro. A second sparse section later is a break — that is
+    # what returning to thin material in the middle of an arrangement is called.
+    seen_intro = False
+    for section in musical:
+        kind = str(section.get("type"))
+        if kind not in ("intro", "pre_intro"):
+            continue
+        if not seen_intro:
+            seen_intro = True
+            continue
+        section["type"] = "break"
+        section["label"] = SECTION_DEFAULTS["break"]["label"]
+        changed.append(f"{section.get('id', '?')}: {kind} -> break")
+
+    # Merge EVERY repeat of a type into its first occurrence, not just adjacent
+    # ones. A walkthrough returns to the same part over and over — "so then the
+    # drop", twenty minutes of detail, "back in the drop" — and ingest makes a
+    # new section each time. Left alone that produced a 360-bar arrangement that
+    # alternated verse and drop ten times. One section per type, carrying the
+    # union of everything said about it, is what the producer actually described.
+    merged: list[dict[str, Any]] = []
+    first_of_type: dict[str, dict[str, Any]] = {}
+    for section in musical:
+        kind = str(section.get("type"))
+        previous = first_of_type.get(kind)
+        if previous is not None:
+            previous["trackRoles"] = ensure_unique(
+                list(previous.get("trackRoles") or []) + list(section.get("trackRoles") or [])
+            )
+            previous["techniques"] = ensure_unique(
+                list(previous.get("techniques") or []) + list(section.get("techniques") or [])
+            )
+            lanes = dict(previous.get("laneEvents") or {})
+            for lane, payload in (section.get("laneEvents") or {}).items():
+                lanes.setdefault(lane, payload)
+            previous["laneEvents"] = lanes
+            for field in ("summary", "excerpt", "transcriptText"):
+                extra = str(section.get(field) or "").strip()
+                if extra and extra not in str(previous.get(field) or ""):
+                    previous[field] = f"{str(previous.get(field) or '').strip()} {extra}".strip()
+            changed.append(f"folded {section.get('id', '?')} into the {kind}")
+            continue
+        first_of_type[kind] = section
+        merged.append(section)
+
+    if not changed:
+        return
+
+    other = [s for s in sections if not (isinstance(s, dict) and s.get("type") in SECTION_RANK)]
+    spec["sections"] = merged + other
+    decision(
+        decisions,
+        "arrangement",
+        f"Resolved {len(changed)} duplicated section(s): {', '.join(changed[:4])}.",
+        reason="The walkthrough described some parts more than once; laid out literally that produces repeated sections with nothing between them.",
+        confidence="medium",
+    )
+
+
+def assign_section_bars(spec: dict[str, Any], decisions: list[dict[str, Any]], style_lane: str) -> None:
+    """Give every section a length.
+
+    Without one, the builder falls back to a per-type constant, so every intro is
+    eight bars and every drop sixteen no matter what the source said — and the
+    timecodes a video transcript already carries go unused.
+    """
+    sections = spec.get("sections")
+    if not isinstance(sections, list):
+        return
+    musical = [s for s in sections if isinstance(s, dict) and s.get("type") in SECTION_RANK]
+    if not musical or all(s.get("bars") for s in musical):
+        return
+
+    tempo = float(spec.get("tempoHint") or STYLE_DEFAULTS.get(style_lane, {}).get("tempo") or 140)
+    seconds_per_bar = (60.0 / max(tempo, 1)) * 4.0
+    from_timecodes = 0
+
+    for section in musical:
+        if section.get("bars"):
+            continue
+        start = section.get("startSeconds")
+        end = section.get("endSeconds")
+        if isinstance(start, (int, float)) and isinstance(end, (int, float)) and end > start:
+            raw = (float(end) - float(start)) / seconds_per_bar
+            # Sections are written in fours; anything else is a parsing artefact.
+            bars = max(4, int(round(raw / 4.0)) * 4)
+            section["bars"] = bars
+            from_timecodes += 1
+        else:
+            section["bars"] = DEFAULT_SECTION_BARS.get(str(section.get("type")), 8)
+
+    total = sum(int(s.get("bars") or 0) for s in musical)
+    minutes = total * seconds_per_bar / 60.0
+    if from_timecodes:
+        detail = f"Set section lengths from the transcript timecodes for {from_timecodes} section(s); the arrangement runs {total} bars (~{minutes:.1f} min at {int(tempo)} BPM)."
+        reason = "The video already timed every section and none of it was being used."
+    else:
+        detail = f"Set section lengths from style defaults; the arrangement runs {total} bars (~{minutes:.1f} min at {int(tempo)} BPM)."
+        reason = "No timecodes were available, and a section with no length gets an arbitrary one at build time."
+    decision(decisions, "arrangement", detail, reason=reason, confidence="medium" if from_timecodes else "low")
+
+
+#: Fallback lengths, used only when the transcript has no timecodes.
+DEFAULT_SECTION_BARS: dict[str, int] = {
+    "pre_intro": 4,
+    "intro": 8,
+    "verse": 16,
+    "pre_build": 4,
+    "build": 8,
+    "drop": 16,
+    "break": 8,
+    "second_drop": 16,
+    "outro": 8,
+}
 
 
 def ensure_section_flow(spec: dict[str, Any], decisions: list[dict[str, Any]], prompt: str | None = None) -> None:
@@ -423,7 +809,117 @@ def normalize_open_questions(spec: dict[str, Any], decisions: list[dict[str, Any
         spec["expectedAmbiguities"] = ensure_unique(list(spec["expectedAmbiguities"]) + expected_unknowns)
 
 
-def fill_in_blanks(spec: dict[str, Any], *, prompt: str | None = None) -> dict[str, Any]:
+def gaps_from_sound_check(report: dict[str, Any]) -> list[Gap]:
+    """Turn a real sound-check report into targeted steps.
+
+    This is the second half of the loop. The first pass guesses what a brief
+    left out; once audio exists, the checker measures what actually went wrong,
+    and every finding it emits carries the ids of the requirements that would
+    have prevented it. Those come back as gaps with `confidence: "measured"` —
+    they are not guesses any more, so they outrank the inferred ones and they
+    carry the checker's own words as evidence.
+    """
+    if not isinstance(report, dict):
+        return []
+    gaps: list[Gap] = []
+    seen: set[str] = set()
+
+    for issue in report.get("issues") or []:
+        if not isinstance(issue, dict):
+            continue
+        area = str(issue.get("area") or "")
+        detail = str(issue.get("detail") or "").strip()
+        ids = issue.get("requirementIds")
+        if not isinstance(ids, list) or not ids:
+            # Older reports predate the tagging; fall back to the area.
+            ids = [r.id for r in requirements_for_area(area)]
+        for requirement_id in ids:
+            if requirement_id in seen:
+                continue
+            requirement = requirement_by_id(str(requirement_id))
+            if requirement is None:
+                continue
+            seen.add(requirement.id)
+            gaps.append(
+                Gap(
+                    id=requirement.id,
+                    label=requirement.label,
+                    why=requirement.why,
+                    step=requirement.step,
+                    area=requirement.area,
+                    roles=requirement.roles,
+                    confidence="measured",
+                    source="sound-check",
+                    evidence=f"The sound check measured this: {detail}" if detail else "",
+                )
+            )
+
+    # The checker's own next actions are advice a human wrote for this song, so
+    # they are worth carrying even when they map to no requirement.
+    for action in (report.get("nextActions") or [])[:5]:
+        text = str(action).strip()
+        if not text or text.lower().startswith("run one human listen"):
+            continue
+        marker = f"soundcheck-action-{slugify(text)[:40]}"
+        if marker in seen:
+            continue
+        seen.add(marker)
+        gaps.append(
+            Gap(
+                id=marker,
+                label="Sound-check follow-up",
+                why="The sound check asked for this after listening to the rendered audio.",
+                step=text,
+                area="Recipe",
+                confidence="measured",
+                source="sound-check",
+            )
+        )
+    return gaps
+
+
+def merge_gaps(existing: list[dict[str, Any]], found: list[Gap]) -> list[dict[str, Any]]:
+    """Combine gaps, letting a measured finding replace an earlier guess."""
+    by_id: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for item in list(existing or []):
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("id") or item.get("requirementId") or len(order))
+        if key not in by_id:
+            order.append(key)
+        by_id[key] = item
+    for gap in found:
+        payload = {
+            "id": gap.id,
+            "label": gap.label,
+            "why": gap.why,
+            "step": gap.step,
+            "soundCheckArea": gap.area,
+            "roles": list(gap.roles),
+            "confidence": gap.confidence,
+            "source": gap.source,
+        }
+        if gap.evidence:
+            payload["evidence"] = gap.evidence
+        previous = by_id.get(gap.id)
+        if previous is None:
+            order.append(gap.id)
+            by_id[gap.id] = payload
+            continue
+        # A measured finding beats an inferred one; otherwise keep what we had,
+        # so re-running the filler never churns a stable spec.
+        if gap.confidence == "measured" and previous.get("confidence") != "measured":
+            by_id[gap.id] = payload
+    return [by_id[key] for key in order if key in by_id]
+
+
+def fill_in_blanks(
+    spec: dict[str, Any],
+    *,
+    prompt: str | None = None,
+    sound_check: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     enriched = deepcopy(spec)
     existing_fill = deepcopy(enriched.get("fillInBlanks") or {})
     existing_decisions = existing_fill.get("decisions") or []
@@ -438,11 +934,41 @@ def fill_in_blanks(spec: dict[str, Any], *, prompt: str | None = None) -> dict[s
         enriched["keyHints"] = [style["key"]]
         decision(decisions, "key", f"Set key hint to {style['key']}.", reason="No explicit key was available; the renderer needs a harmonic center.", confidence="low")
 
+    normalize_role_aliases(enriched, decisions)
+    rescue_unclassified_sections(enriched, decisions)
+    order_sections_canonically(enriched, decisions)
+    resolve_duplicate_sections(enriched, decisions)
+    reindex_sections(enriched.get("sections") or [])
+    assign_section_bars(enriched, decisions, style_lane)
+
     ensure_section_flow(enriched, decisions, prompt)
+    # ensure_section_flow inserts whatever the arrangement was missing, and it
+    # inserts in place rather than in order, so canonicalise once more now that
+    # the final set of sections is known.
+    order_sections_canonically(enriched, decisions)
+    reindex_sections(enriched.get("sections") or [])
+    assign_section_bars(enriched, decisions, style_lane)
+
     ensure_section_roles_and_techniques(enriched, decisions)
     ensure_lane_defaults(enriched, decisions, style_lane)
     rebuild_global_summaries(enriched)
     normalize_open_questions(enriched, decisions)
+
+    # Everything above fills blanks in fields the transcript already had. This
+    # pass is the other half of the job: production steps the brief never
+    # mentioned at all, found by asking what a song of this kind needs and what
+    # the sound check would later complain about.
+    # Structure comes from the enriched spec — the arrangement that will actually
+    # be built, including the sections the passes above just added. Intent comes
+    # from the original, because those same passes inject "sidechain" and
+    # "reverb" into every drop, and asking the enriched spec whether the author
+    # covered something would always answer yes.
+    found_gaps = find_gaps(enriched, style_lane, prompt=prompt, intent=spec)
+    if sound_check:
+        found_gaps = found_gaps + gaps_from_sound_check(sound_check)
+    gaps = merge_gaps(existing_fill.get("gaps") or [], found_gaps)
+    for gap in found_gaps:
+        decisions.append(gap.as_decision())
 
     coverage = list(enriched.get("coverageChecklist", []) or [])
     coverage.append("Fill-in-blanks pass: every musical section has roles, techniques, and starter lane data where practical.")
@@ -457,15 +983,19 @@ def fill_in_blanks(spec: dict[str, Any], *, prompt: str | None = None) -> dict[s
         seen_decisions.add(marker)
         combined_decisions.append(item)
     enriched["fillInBlanks"] = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "styleLane": style_lane,
+        "gaps": gaps,
         "policy": existing_fill.get("policy") or "Infer plausible production defaults from the brief; do not claim exact original samples, patches, MIDI, or mix values without evidence.",
         "decisions": combined_decisions,
         "mixTargets": existing_fill.get("mixTargets") or style["mixTargets"],
-        "postRenderLoop": existing_fill.get("postRenderLoop") or [
+        "postRenderLoop": [
             "Render the project or inspect existing stems.",
-            "Run `python3 tools/does_this_sound_good.py --project-id <project-id> --format markdown`.",
-            "Convert the checker's loudness, low-end, stereo, missing-audio, and arrangement findings into the next Songlab iteration note.",
+            "Run `python3 tools/does_this_sound_good.py --project-id <project-id> --format json > check.json`.",
+            "Feed it straight back: `python3 tools/fill_in_blanks.py --input-json <spec> --feedback-json check.json`."
+            " Every finding is tagged with the requirements that would have prevented it, so the next pass"
+            " gets measured steps instead of fresh guesses.",
+            "Re-materialize and log the pass with `python3 tools/songlab.py iterate --project-id <id> --note ...`.",
         ],
     }
     enriched["derivedPrompt"] = enriched.get("derivedPrompt") or (
@@ -498,6 +1028,28 @@ def render_markdown(spec: dict[str, Any]) -> str:
             lines.append(f"- {item['area']}: {item['detail']} Reason: {item['reason']}")
     else:
         lines.append("- No additional decisions were needed.")
+    gaps = fill.get("gaps") or []
+    if gaps:
+        measured = [g for g in gaps if g.get("confidence") == "measured"]
+        inferred = [g for g in gaps if g.get("confidence") != "measured"]
+        lines.extend(["", "## Missing Steps", "", 
+                      "Production steps the brief never mentioned, added so the song is buildable"
+                      " and so the sound check has less to complain about.", ""])
+        if measured:
+            lines.extend(["### Measured — the sound check found these in the render", ""])
+            for gap in measured:
+                lines.append(f"- **{gap.get('label')}** — {gap.get('step')}")
+                if gap.get("evidence"):
+                    lines.append(f"  - {gap['evidence']}")
+        if inferred:
+            if measured:
+                lines.extend(["", "### Inferred — not mentioned in the brief", ""])
+            for gap in inferred:
+                area = gap.get("soundCheckArea")
+                suffix = f" _(pre-empts: {area})_" if area and area != "none" else ""
+                lines.append(f"- **{gap.get('label')}** — {gap.get('step')}{suffix}")
+                lines.append(f"  - Why: {gap.get('why')}")
+
     lines.extend(["", "## Section Coverage", ""])
     for section in spec.get("sections", []) or []:
         marker = "inferred" if section.get("inferred") else "source"
@@ -521,6 +1073,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-json", help="Optional path for the enriched spec.")
     parser.add_argument("--output-md", help="Optional path for the fill-in-blanks report.")
     parser.add_argument("--prompt", help="Optional user prompt or style lane.")
+    parser.add_argument(
+        "--feedback-json",
+        help="Path to a does_this_sound_good.py JSON report. Its findings become measured steps.",
+    )
     parser.add_argument("--format", choices=("json", "markdown"), default="json")
     return parser
 
@@ -529,7 +1085,14 @@ def main() -> int:
     args = build_parser().parse_args()
     input_path = Path(args.input_json)
     spec = json.loads(input_path.read_text(encoding="utf-8"))
-    enriched = fill_in_blanks(spec, prompt=args.prompt)
+    sound_check = None
+    if args.feedback_json:
+        feedback_path = Path(args.feedback_json)
+        if not feedback_path.exists():
+            print(f"feedback file not found: {feedback_path}", file=sys.stderr)
+            return 2
+        sound_check = json.loads(feedback_path.read_text(encoding="utf-8"))
+    enriched = fill_in_blanks(spec, prompt=args.prompt, sound_check=sound_check)
     if args.output_json:
         Path(args.output_json).write_text(json.dumps(enriched, indent=2) + "\n", encoding="utf-8")
     if args.output_md:

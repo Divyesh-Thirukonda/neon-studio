@@ -314,6 +314,10 @@ def summarize_transcript(spec: dict[str, Any]) -> dict[str, Any]:
         "fillInBlanks": {
             "styleLane": fill.get("styleLane"),
             "decisionCount": len(fill.get("decisions") or []),
+            "gapCount": len(fill.get("gaps") or []),
+            "measuredGapCount": len(
+                [g for g in (fill.get("gaps") or []) if isinstance(g, dict) and g.get("confidence") == "measured"]
+            ),
         } if fill else None,
     }
 

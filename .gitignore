@@ -27,3 +27,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# SwiftPM build output
+mac/NeonStudio/.build/
+mac/NeonStudio/Resources/AppIcon.iconset/
+*.xcworkspace/xcuserdata/

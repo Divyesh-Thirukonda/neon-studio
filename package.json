@@ -4,11 +4,17 @@
   "private": true,
   "scripts": {
     "songlab": "python3 tools/songlab.py",
+    "daw-agent": "python3 tools/daw_agent.py",
     "fill-blanks": "python3 tools/fill_in_blanks.py",
     "soundcheck": "python3 tools/does_this_sound_good.py",
     "build:mac": "./mac/NeonStudio/build.sh",
     "open:mac": "open \"mac/build/Neon Studio.app\"",
     "render:neon": "python3 render_neon_solitude.py",
-    "render:just-cant-stop": "python3 render_just_cant_stop.py"
+    "render:just-cant-stop": "python3 render_just_cant_stop.py",
+    "build:mac:debug": "./mac/NeonStudio/build.sh --debug",
+    "test:mac": "swift run --package-path mac/NeonStudio NeonStudioTests",
+    "test:tools": "python3 -m unittest tools/test_fill_in_blanks.py tools/test_daw_agent.py && python3 tools/mcp_server.py --self-test",
+    "mcp": "python3 tools/mcp_server.py",
+    "mcp:test": "python3 tools/mcp_server.py --self-test"
   }
 }

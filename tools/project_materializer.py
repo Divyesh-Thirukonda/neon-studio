@@ -347,9 +347,14 @@ def choose_track_ids(spec: dict[str, Any]) -> list[str]:
                 chosen.append(track_id)
     if not chosen:
         chosen.extend(DEFAULT_TRACK_IDS)
-    else:
+        return chosen
+
+    # Only pad when the spec is too thin to be a song at all. Topping every
+    # project up to six lanes invented tracks nobody wrote a part for, which
+    # rendered as silence and then counted against the project as missing audio.
+    if len(chosen) < 3:
         for fallback in DEFAULT_TRACK_IDS:
-            if fallback not in chosen and len(chosen) < 6:
+            if fallback not in chosen and len(chosen) < 3:
                 chosen.append(fallback)
     return chosen
 
@@ -388,7 +393,15 @@ def section_bar_layout(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
     current_bar = 0
     laid_out: list[dict[str, Any]] = []
     for section in sections:
-        bars = SECTION_BAR_HINTS.get(section["type"], 8)
+        # A section that already knows its length keeps it. The type constant is
+        # a fallback, not an override — otherwise the timecodes the transcript
+        # carried and the lengths the filler worked out are both thrown away and
+        # every intro is eight bars regardless of the source.
+        declared = section.get("bars")
+        if isinstance(declared, (int, float)) and declared > 0:
+            bars = int(round(float(declared)))
+        else:
+            bars = SECTION_BAR_HINTS.get(section["type"], 8)
         if bars <= 0:
             continue
         placed = deepcopy(section)
@@ -475,7 +488,15 @@ def make_recipe(section_layout: list[dict[str, Any]], all_track_ids: list[str], 
             }
         )
     fill = spec.get("fillInBlanks") or {}
-    for index, item in enumerate(fill.get("decisions", [])[:8], start=1):
+
+    # Decisions are blanks filled in fields the transcript already had — tempo,
+    # key, section roles. Useful context, but not usually work to do.
+    decisions = [
+        item
+        for item in (fill.get("decisions") or [])
+        if isinstance(item, dict) and not item.get("requirementId")
+    ]
+    for index, item in enumerate(decisions[:8], start=1):
         recipe.append(
             {
                 "id": f"fill-{index:02d}",
@@ -486,7 +507,49 @@ def make_recipe(section_layout: list[dict[str, Any]], all_track_ids: list[str], 
                 "trackIds": all_track_ids[:4],
             }
         )
+
+    # Gaps are the other thing entirely: production steps nobody mentioned, which
+    # somebody still has to carry out. They get their own recipe section so they
+    # read as work rather than as notes, and they stay "planned" until done.
+    for index, gap in enumerate((fill.get("gaps") or [])[:16], start=1):
+        if not isinstance(gap, dict):
+            continue
+        measured = gap.get("confidence") == "measured"
+        detail = str(gap.get("step") or "")
+        why = str(gap.get("why") or "")
+        evidence = str(gap.get("evidence") or "")
+        parts = [detail]
+        if why:
+            parts.append(f"Why: {why}")
+        if evidence:
+            parts.append(evidence)
+        area = gap.get("soundCheckArea")
+        if area and area != "none" and not measured:
+            parts.append(f"Skipping this is what the sound check flags as {area}.")
+        recipe.append(
+            {
+                "id": f"gap-{index:02d}",
+                "section": "Missing Steps" if not measured else "Sound Check Follow-Up",
+                "label": str(gap.get("label") or "Missing production step")[:96],
+                "detail": " ".join(parts),
+                "status": "planned",
+                "trackIds": _track_ids_for_roles(gap.get("roles") or [], all_track_ids),
+            }
+        )
     return recipe
+
+
+def _track_ids_for_roles(roles: list[Any], all_track_ids: list[str]) -> list[str]:
+    """Point a step at the tracks it concerns, falling back to the first few.
+
+    Track ids in a materialized project are role-derived slugs, so a substring
+    match lands on the right lanes often enough to be useful and never produces
+    a wrong-looking empty list."""
+    wanted = [str(role).lower() for role in roles if role]
+    if not wanted:
+        return all_track_ids[:4]
+    matched = [tid for tid in all_track_ids if any(role in tid.lower() for role in wanted)]
+    return matched[:4] or all_track_ids[:4]
 
 
 def make_controls(tracks: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -2238,9 +2301,89 @@ def _starter_filter_auto(ctx: RenderContext, section: dict, track: dict) -> None
         )
 
 
-def _starter_sample(ctx: RenderContext, section: dict, track: dict) -> None:
+def _starter_plucks(ctx: RenderContext, section: dict, track: dict) -> None:
+    """Plucks answer the lead rather than doubling it.
+
+    They play on the offbeats, an octave above the chord, so they land in the
+    gaps a hook leaves rather than competing with it for the same moment."""
     buffer = _track_buffer(ctx, track["id"])
-    add_mono(buffer, beat_to_seconds(bar_beat(section["startBar"])), synth_pluck(note_to_freq(72), 0.30 * BEAT), gain=track.get("gain", 0.8) * 0.08, pan=0.0)
+    defaults = _section_defaults(section)
+    energy = float(defaults.get("energy", 1.0))
+    sparse = section["type"] in {"intro", "break", "outro"}
+    offsets = (1.5, 3.5) if sparse else (0.75, 1.5, 2.75, 3.5)
+    for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
+        chord = _progression_for_bar(section, bar)
+        notes = list(chord["notes"]) or [int(chord["root"]) + 12]
+        for index, onset in enumerate(offsets):
+            # Skip a hit every other bar so the pattern breathes instead of
+            # reading as a machine-gun sixteenth line.
+            if sparse and local_bar % 2 == 1 and index == 1:
+                continue
+            note = int(notes[(local_bar + index) % len(notes)]) + 12
+            _schedule_note(
+                buffer, bar_beat(bar, onset), 0.45, note, synth_pluck,
+                gain=track.get("gain", 0.8) * (0.05 if sparse else 0.07) * energy,
+                pan=-0.34 if index % 2 else 0.34,
+            )
+
+
+def _starter_vocals(ctx: RenderContext, section: dict, track: dict) -> None:
+    """A stand-in for the vocal chop line.
+
+    There is no vocal sample to place, so this renders the hook's own first two
+    notes an octave up, short and wide, which is what a chopped topline does
+    structurally. It is audible, it sits in the right register, and it answers
+    the lead — a real part rather than a placeholder blip."""
+    buffer = _track_buffer(ctx, track["id"])
+    defaults = _section_defaults(section)
+    energy = float(defaults.get("energy", 1.0))
+    motif = _lead_motif_for_section(section)
+    if not motif:
+        return
+    for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
+        # Chops answer on alternate bars; doubling every bar buries the hook.
+        if local_bar % 2 == 0 and section["type"] in {"drop", "second_drop"}:
+            continue
+        bar_motif = motif[local_bar % len(motif)]
+        for index, event in enumerate(bar_motif[:2]):
+            onset = float(event["beat"]) + 2.0
+            if onset >= 4.0:
+                onset -= 2.0
+            _schedule_note(
+                buffer, bar_beat(bar, onset), 0.35, int(event["note"]) + 12, synth_pluck,
+                gain=track.get("gain", 0.8) * 0.055 * energy,
+                pan=0.30 if index % 2 else -0.30,
+            )
+
+
+def _starter_sample(ctx: RenderContext, section: dict, track: dict) -> None:
+    """A one-shot texture, placed once per section rather than per bar.
+
+    This lane stands in for the found sounds a walkthrough describes but cannot
+    hand over — breaths, reverses, one-off oddities. Making it a single accent
+    at the section boundary keeps it doing the job those sounds actually do:
+    marking a change, not carrying a part."""
+    buffer = _track_buffer(ctx, track["id"])
+    defaults = _section_defaults(section)
+    energy = float(defaults.get("energy", 1.0))
+    root = int(_progression_for_bar(section, section["startBar"])["root"])
+    add_mono(
+        buffer,
+        beat_to_seconds(bar_beat(section["startBar"])),
+        synth_pluck(note_to_freq(root + 24), 1.2 * BEAT),
+        gain=track.get("gain", 0.8) * 0.06 * energy,
+        pan=-0.22,
+    )
+    # A second accent halfway through anything long enough to need one.
+    if section["bars"] >= 8:
+        middle = section["startBar"] + section["bars"] // 2
+        add_mono(
+            buffer,
+            beat_to_seconds(bar_beat(middle, 2.0)),
+            synth_pluck(note_to_freq(root + 19), 0.9 * BEAT),
+            gain=track.get("gain", 0.8) * 0.045 * energy,
+            pan=0.26,
+        )
 
 
 def _render_lane_starter(ctx: RenderContext, section: dict, track: dict) -> None:
@@ -2264,7 +2407,11 @@ def _render_lane_starter(ctx: RenderContext, section: dict, track: dict) -> None
         _starter_guitar(ctx, section, track)
     elif track["id"] == "filter-auto":
         _starter_filter_auto(ctx, section, track)
-    elif track["id"] in {"sample", "plucks", "vocals"}:
+    elif track["id"] == "plucks":
+        _starter_plucks(ctx, section, track)
+    elif track["id"] == "vocals":
+        _starter_vocals(ctx, section, track)
+    elif track["id"] == "sample":
         _starter_sample(ctx, section, track)
 
 

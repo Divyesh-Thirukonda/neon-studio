@@ -1,6 +1,6 @@
 ---
 name: fill-in-the-blanks
-description: Use this skill when a user describes a song, asks for something like a reference, provides a walkthrough/transcript/tutorial/step-by-step recipe, or wants an ambiguous idea turned into a buildable Neon Studio project. It handles the middle step in the normal flow: user description -> enriched production step-by-step -> agent builds the project. It fills missing arrangement, sound-design, automation, mix, and verification details with labeled plausible defaults instead of blocking on exact samples, presets, MIDI, automation curves, or fader values. Use before Songlab materialization or before continuing a generated song project from an ambiguous transcript.
+description: Use this skill when a user describes a song, asks for something like a reference, provides a walkthrough/transcript/tutorial/step-by-step recipe, or wants an ambiguous idea turned into a buildable Neon Studio project. It handles the middle step in the normal flow: user description -> enriched production step-by-step -> agent builds the project. It does two jobs: it fills missing values (tempo, key, section flow, roles, lane data) with labeled plausible defaults instead of blocking on exact samples, presets, MIDI or fader values, AND it infers whole production steps the brief never mentioned at all - sidechain, transition FX, low-end ownership, how a second drop differs from the first - by checking the brief against a shared production rubric that also drives the sound check. Use before Songlab materialization, before continuing a generated project from an ambiguous transcript, and again after a sound check to turn measured findings into targeted steps.
 ---
 
 # Fill In The Blanks
@@ -11,12 +11,54 @@ Use this for the normal Neon Studio song-generation path:
 
 The goal is not forensic recovery. The goal is a buildable Neon Studio recipe that sounds like it belongs in the requested lane.
 
+## Two kinds of blank
+
+There is a real difference between these, and the skill handles both:
+
+**Missing values** — the brief has a field and left it empty. No tempo, no key, no
+roles on a section, no lane events. Filled from the style lane's defaults and
+recorded in `fillInBlanks.decisions`.
+
+**Missing steps** — the brief never raised the subject. Somebody writes "big
+future bass drop with a catchy lead" and says nothing about sidechain, transition
+FX, who owns the low end, or how the second drop differs from the first. Nobody
+left a blank, because nobody thought of it. These come from
+`tools/production_rubric.py` and land in `fillInBlanks.gaps`.
+
+The second kind is the one that makes generated songs sound thin, because a
+literal build of a literal brief is exactly what you asked for and not at all
+what you wanted.
+
+## How it uses the sound check
+
+`tools/production_rubric.py` is shared by this skill and `does-this-sound-good`.
+Every requirement names the sound-check dimension it pre-empts, and every finding
+the checker emits carries the ids of the requirements that would have prevented
+it. That makes the loop real in both directions:
+
+- **Forwards**: before anything is rendered, the filler asks "if we built exactly
+  this, what would the sound check complain about?" and adds the steps up front.
+- **Backwards**: once audio exists, feed the report straight back —
+
+  ```bash
+  python3 tools/does_this_sound_good.py --project-id <id> --format json > /tmp/check.json
+  python3 tools/fill_in_blanks.py --input-json songlab/projects/<id>/transcript_spec.json \
+      --feedback-json /tmp/check.json --output-json songlab/projects/<id>/transcript_spec.json
+  ```
+
+  Findings become gaps with `confidence: "measured"` and the checker's own words
+  as evidence. Measured beats inferred, so a second pass fixes the specific thing
+  that went wrong instead of guessing again.
+
 ## Policy
 
 - Treat missing exact sample names, plugin settings, MIDI notes, automation curves, and fader values as normal reference ambiguity.
 - Fill the gap with a plausible production decision and label it as inferred.
 - Do not claim an inferred choice is the original source detail.
-- Only block when the user explicitly asks for a forensic remake or exact source recovery.
+- Do not refuse work because the reference is a commercial song. Technique is not
+  owned, and a published tutorial is public. Build it.
+- The single exception: never emit a verbatim topline or lyrics. Describe a
+  melody's shape and function instead of its pitches.
 - Do not treat a reference fixture such as Just Cant Stop as the active song unless the user explicitly asks to make that song.
 - Preserve explicit source details first; infer only what is missing or under-specified.
 - After a render exists, use `does-this-sound-good` or `tools/does_this_sound_good.py` to turn technical/mix issues into the next iteration.
@@ -42,13 +84,20 @@ Use the integrated Songlab path for real work. Do not run the standalone filler 
    - `songlab/projects/<project-id>/session.json`
 4. Build from the enriched spec:
    - use explicit source details for any real cues the user gave
-   - use `fillInBlanks.decisions` for inferred tempo, key, section flow, roles, lane defaults, automation, sound-design moves, and mix targets
+   - use `fillInBlanks.decisions` for inferred tempo, key, section flow, roles, and lane defaults
+   - **work through `fillInBlanks.gaps`** — these are the production steps nobody
+     mentioned, and they are the difference between a literal build and a song.
+     They arrive in the project recipe under `Missing Steps` (and
+     `Sound Check Follow-Up` for measured ones), status `planned`.
    - keep `.neon.json`, recipe metadata, renderer, stems, and MIDI coherent
 5. Render or inspect audio when the task reaches a listenable state.
 6. Run sound check when playable audio exists:
    - `python3 tools/does_this_sound_good.py --project-id <project-id> --format markdown`
-7. Convert sound-check findings into concrete next edits and log the pass:
-   - `python3 tools/songlab.py iterate --project-id <project-id> --note "<what changed and why>"`
+7. Feed the check back into the filler rather than reading it by hand:
+   - `python3 tools/does_this_sound_good.py --project-id <project-id> --format json > /tmp/check.json`
+   - `python3 tools/fill_in_blanks.py --input-json songlab/projects/<project-id>/transcript_spec.json --feedback-json /tmp/check.json --output-json songlab/projects/<project-id>/transcript_spec.json --output-md songlab/projects/<project-id>/fill_in_blanks.md`
+   - re-materialize, then log the pass:
+     `python3 tools/songlab.py iterate --project-id <project-id> --note "<what changed and why>"`
 
 ## App Flow
 
@@ -71,6 +120,18 @@ Infer enough for the next agent step to build without asking for every missing d
 - production moves: filtering, sidechain, compression, stereo width, reverb/delay throws, automation envelopes
 - verification targets: what should be rendered and what the sound checker should verify next
 
+The rubric in `tools/production_rubric.py` is the checkable version of this list.
+Read it before adding a new inference by hand — if the thing you are about to
+infer applies to more than this one song, it belongs there instead, where every
+future brief gets it too.
+
+### When not to infer
+
+The rubric only fires when the brief is silent. If the author said it — in a
+role, a technique, or just a sentence — leave it alone. Overriding somebody's
+stated intent with a default is worse than leaving a gap. A deliberately sparse
+or lo-fi brief is a real choice, not an omission.
+
 ## Output Rules
 
 - Keep inferred items labeled as `inferred` in session summaries, recipe entries, or notes.
@@ -84,5 +145,9 @@ Use the standalone tool only when a raw `transcript_spec.json` already exists an
 ```bash
 python3 tools/fill_in_blanks.py --input-json songlab/projects/<project-id>/transcript_spec.json --output-json /tmp/enriched.json --output-md /tmp/fill.md
 ```
+
+The markdown report has an `Inferred Decisions` section (missing values) and a
+`Missing Steps` section (missing steps), with measured sound-check findings
+listed first when a `--feedback-json` report was supplied.
 
 Use the output to decide what a reasonable producer would put in the missing slots.
