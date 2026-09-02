@@ -21,13 +21,33 @@ the commit, or the session artifacts.
 
 ## Open
 
-- `[ ]` The generated renderer is audible but not balanced.
-  - Every lane now renders real audio, including the vocal/pluck/sample lanes
-    that used to emit one near-silent blip per section. But the starter mix is
-    not gain-staged: drums peak near 0 dBFS while the melodic lanes sit 30 dB
-    down. The renderer prints its own "refine the starter render bodies" note.
-  - The `gain_ladder` requirement in the rubric already describes the fix; wire
-    it into the generated renderer so the scaffold ships balanced.
+- `[x]` Put the person in the loop, and make following a script faithful.
+  - Why: "does this sound good" was answered only by software, and the renderer
+    recorded techniques the transcript named as comments — "sidechain" never
+    ducked anything, so an accurate tutorial still produced the wrong sound.
+  - Done: the generated renderer acts on every technique it is given — sidechain,
+    reverb, delay, filter (opens into the song, sweeps a build, closes a break or
+    outro, moves the lead across a drop), distortion, width, drum layering, eq,
+    compression and the reverse swell — with whole-track techniques from the
+    production notes applied everywhere. Stems ship on a gain ladder and through
+    a master limiter whose gain curve is baked into every stem, so the stems add
+    up to the mix and the app plays at the file's level. A fidelity check
+    (`tools/transcript_fidelity.py`) compares the output to the description
+    with audio evidence per claim. Four human surfaces — Hum a Melody, Ask for a
+    Change, Try Alternatives, Listen With Me — land as undoable edits, in the
+    app (toolbar, Tools menu, Notes view, clip menu) and over MCP (15 tools).
+  - Verified on the Just Can't Stop transcript, end to end: 84-bar project,
+    8.9 s render, fidelity 100/100 (67 of 67 checkable claims match, each with a
+    measurement), sound check 86/100 "Yes, this is in a good place" (was 76 with
+    a crowded low end), stem spread 17 dB (was 33), 28 listening questions,
+    a typed change applied, three alternatives rendered. 186 Python tests,
+    58 Swift tests.
+
+- `[x]` The generated renderer is audible but not balanced.
+  - Done with the item above: `gain_ladder_scales` sets every lane at its rubric
+    offset from the drums, `limiter_gain_curve` puts the mix at -1 dBFS with a
+    normal listening level, and the sound check no longer flags the mix as
+    quiet or crowded.
 
 - `[ ]` Grow the production rubric as blind spots show up.
   - `tools/production_rubric.py` has 34 requirements. When a generated song comes
@@ -56,6 +76,13 @@ Short list of what the product can already do, so nobody re-implements it.
   report can be fed straight back to turn measurements into targeted steps.
 - `[x]` Sound check (`tools/does_this_sound_good.py`) scores a rendered project
   and returns strengths, issues and next actions, in the app and on the CLI.
+- `[x]` Fidelity check (`tools/transcript_fidelity.py`): does the song match
+  what the description *said* — tempo, key, section order, every named
+  technique measured on the stems, explicit numbers. Check My Mix in the app
+  asks both questions when a project was built from a description.
+- `[x]` A person in the loop: `hum_to_melody.py`, `describe_change.py`,
+  `variations.py`, `listening_session.py` — each a toolbar/menu surface in the
+  app and an MCP tool, each landing as one undoable edit.
 - `[x]` DAW agent (`tools/daw_agent.py`) applies production tactics to a project
   and can be steered by the latest sound check.
 - `[x]` Transcript-driven generation preserves precise cues — per-section lane

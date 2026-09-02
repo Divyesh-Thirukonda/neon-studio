@@ -11,7 +11,7 @@ import UniformTypeIdentifiers
 /// remembered between launches, and a status bar that reports progress and
 /// errors distinctly. The 90pt hand-drawn header that duplicated the title bar
 /// is gone.
-public final class DocumentWindowController: NSWindowController, EditorHost, NSToolbarDelegate, NSWindowDelegate, NSMenuItemValidation {
+public final class DocumentWindowController: NSWindowController, EditorHost, ToolHost, NSToolbarDelegate, NSWindowDelegate, NSMenuItemValidation {
 
     // MARK: State
 
@@ -36,6 +36,9 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
     /// The bar a take is being punched in at, so it lands there rather than
     /// wherever the playhead drifted to while the count-in ran.
     private var recordingPunchInBar: Double = 0
+    /// Set while a feature (hum-to-melody, for one) is recording a take it
+    /// wants handed back rather than added to the project as a track.
+    private var takeCompletion: ((URL?) -> Void)?
     private var recordingCountInBars: Int { AppEnvironment.shared.countInBars }
     private var lastSoundCheck: [String: Any]?
     private var runningTask: ToolRunner.Handle?
@@ -192,6 +195,8 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
         static let suggest = NSToolbarItem.Identifier("neon.suggest")
         static let exportMix = NSToolbarItem.Identifier("neon.exportMix")
         static let help = NSToolbarItem.Identifier("neon.help")
+        static let listen = NSToolbarItem.Identifier("neon.listen")
+        static let change = NSToolbarItem.Identifier("neon.change")
     }
 
     private func configureToolbar() {
@@ -214,6 +219,8 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
             ToolbarID.zoom,
             .flexibleSpace,
             ToolbarID.checkMix,
+            ToolbarID.listen,
+            ToolbarID.change,
             ToolbarID.suggest,
             ToolbarID.exportMix,
             ToolbarID.help,
@@ -270,6 +277,22 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
                     term: "Mixdown"
                 ),
                 action: #selector(exportMixdown(_:))
+            )
+        case ToolbarID.listen:
+            return makeActionItem(
+                itemIdentifier,
+                label: "Listen With Me",
+                symbol: "ear",
+                help: "Play each part of the song and answer a few plain questions. Your answers become steps to do.",
+                action: #selector(startListeningSession(_:))
+            )
+        case ToolbarID.change:
+            return makeActionItem(
+                itemIdentifier,
+                label: "Ask for a Change",
+                symbol: "text.bubble",
+                help: "Say what should change in your own words — \"make the drop hit harder\" — and it happens. ⌘Z undoes it.",
+                action: #selector(askForChange(_:))
             )
         case ToolbarID.help:
             return makeActionItem(
@@ -727,10 +750,20 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
         transport.stop()
         guard let url = recordingURL, FileManager.default.fileExists(atPath: url.path) else {
             StatusCenter.shared.warning("Recording stopped, but no audio was captured.")
+            if let pending = takeCompletion {
+                takeCompletion = nil
+                pending(nil)
+            }
             return
         }
         recordingURL = nil
         let bar = recordingPunchInBar
+        if let pending = takeCompletion {
+            // A feature asked for the file rather than a track.
+            takeCompletion = nil
+            pending(url)
+            return
+        }
         addAudioTrack(
             from: url,
             name: "Recording",
@@ -873,6 +906,61 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
     @objc func menuRevealProjectFile(_ sender: Any?) { revealProjectFile() }
     @objc func menuMaterializeTranscript(_ sender: Any?) { materializeTranscript() }
     @objc func menuRunVocalLab(_ sender: Any?) { runVocalLab() }
+    @objc func startListeningSession(_ sender: Any?) {
+        ListeningSessionWindowController.present(
+            host: self,
+            projectId: project.id,
+            specPath: specURLIfPresent()
+        )
+    }
+
+    @objc func askForChange(_ sender: Any?) {
+        let anchor = (sender as? NSToolbarItem)?.view ?? (sender as? NSView)
+        changeRequest.present(relativeTo: anchor)
+    }
+
+    @objc func humMelody(_ sender: Any?) {
+        guard project.track(id: selectedTrackId) != nil else {
+            StatusCenter.shared.warning("Pick a track first — the notes you hum go on the selected track.")
+            return
+        }
+        HumMelodyController(host: self).start(startBar: playheadBar.rounded(.down))
+    }
+
+    @objc func tryAlternatives(_ sender: Any?) {
+        guard let track = project.track(id: selectedTrackId) else {
+            StatusCenter.shared.warning("Pick a track first.")
+            return
+        }
+        let (name, start, bars) = sectionUnderPlayhead()
+        VariationsWindowController.present(host: self, trackId: track.id, section: name, startBar: start, bars: bars)
+    }
+
+    /// The recipe section whose span contains the playhead, falling back to
+    /// the selected clip, then to the loop range, then to 16 bars from the head.
+    private func sectionUnderPlayhead() -> (String, Double, Double) {
+        if !selectedClipId.isEmpty,
+           let clip = project.snapshot.tracks.flatMap({ $0.clips ?? [] }).first(where: { $0.id == selectedClipId }) {
+            let start = max(0, clip.startBar ?? 0)
+            return ("\(Int(start))-\(Int(start + max(1, clip.bars ?? 1)))", start, max(1, clip.bars ?? 1))
+        }
+        if project.snapshot.loopEnabled == true {
+            let start = project.snapshot.loopStartBar ?? 0
+            let end = project.snapshot.loopEndBar ?? start + 8
+            return ("\(Int(start))-\(Int(end))", start, max(1, end - start))
+        }
+        let start = (playheadBar / 8).rounded(.down) * 8
+        return ("\(Int(start))-\(Int(start + 16))", start, 16)
+    }
+
+    private func specURLIfPresent() -> URL? {
+        let url = store.rootURL
+            .appendingPathComponent("songlab/projects/\(project.id)/transcript_spec.json")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    private lazy var changeRequest = ChangeRequestController(host: self)
+
     @objc func showTour(_ sender: Any?) {
         TourController.shared.start(in: self, regions: tourRegions(), force: true)
     }
@@ -1099,11 +1187,25 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
     /// Every helper tool goes through here, so they all get the same behaviour:
     /// a progress message, a working Cancel button, output streamed into the
     /// Activity log, and errors reported properly instead of being swallowed.
-    private func runTool(
+    private func runToolExpectingSuccess(
         name: String,
         progressMessage: String,
         arguments: [String],
         completion: @escaping (ToolResult) -> Void
+    ) {
+        runTool(name: name, progressMessage: progressMessage, arguments: arguments) { result in
+            if case .success(let value) = result { completion(value) }
+        }
+    }
+
+    /// The `ToolHost` entry point. Failures are reported to the user here, so a
+    /// caller that only cares about success can ignore the `.failure` case; one
+    /// that needs to clean up after itself can act on it.
+    public func runTool(
+        name: String,
+        progressMessage: String,
+        arguments: [String],
+        completion: @escaping (Result<ToolResult, Error>) -> Void
     ) {
         guard let python = AppEnvironment.shared.pythonExecutable else {
             StatusCenter.shared.failure(
@@ -1128,7 +1230,10 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
             arguments: arguments,
             currentDirectory: store.rootURL,
             onOutputLine: { line in
-                StatusCenter.shared.post(.progress, "\(progressMessage) — \(String(line.prefix(120)))")
+                // A tool's JSON result line is for the caller, not the status bar.
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty, !trimmed.hasPrefix("{"), !trimmed.hasPrefix("[") else { return }
+                StatusCenter.shared.post(.progress, "\(progressMessage) — \(String(trimmed.prefix(120)))")
             },
             completion: { [weak self] result in
                 guard let self else { return }
@@ -1136,19 +1241,85 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
                 self.statusBar.endTask()
                 switch result {
                 case .success(let value):
-                    completion(value)
+                    // Callers that open a window of their own leave the last
+                    // progress line behind; replace it so the bar does not
+                    // claim to still be working.
+                    if let current = StatusCenter.shared.current, current.message.hasPrefix(progressMessage) {
+                        StatusCenter.shared.post(.info, "\(name) finished.")
+                    }
+                    completion(.success(value))
                 case .failure(let error):
                     if case ToolError.cancelled = error {
                         StatusCenter.shared.info("\(name) cancelled.")
                     } else {
                         StatusCenter.shared.failure("\(name) didn't finish", error: error, window: self.window)
                     }
+                    completion(.failure(error))
                 }
             }
         )
         if runningTask == nil {
             statusBar.endTask()
         }
+    }
+
+    // MARK: ToolHost
+
+    public func exportProjectToTemporaryFile() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(project.id)-\(timestampForId()).neon.json")
+        try store.exportProject(project, to: url)
+        return url
+    }
+
+    public func replaceProject(with next: LocalProject, actionName: String) {
+        neonDocument.replaceProject(next, actionName: actionName)
+        transport.load(project: project, store: store)
+    }
+
+    /// Loops a range without touching the document's own loop setting, so
+    /// auditioning a section for a question or an option never becomes an edit.
+    public func playSection(startBar: Double, bars: Double) {
+        transport.stop()
+        var audition = project
+        audition.snapshot.loopEnabled = true
+        audition.snapshot.loopStartBar = max(0, startBar)
+        audition.snapshot.loopEndBar = max(startBar + 0.25, startBar + bars)
+        transport.load(project: audition, store: store)
+        if !transport.play(project: audition, fromBar: max(0, startBar)) {
+            StatusCenter.shared.warning("Nothing to play in bars \(Int(startBar) + 1)–\(Int(startBar + bars)).")
+        }
+    }
+
+    public func stopPlayback() {
+        transport.stop()
+        // Restore the real project's graph so the next ordinary Play is right.
+        transport.load(project: project, store: store)
+    }
+
+    public func recordTake(progressMessage: String, completion: @escaping (URL?) -> Void) {
+        guard audioRecorder == nil else {
+            StatusCenter.shared.warning("A recording is already running.")
+            completion(nil)
+            return
+        }
+        takeCompletion = completion
+        beginRecording()
+        // beginRecording may bail out (no permission, no input). If it did, the
+        // recorder never started and the caller must not wait forever.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self, self.audioRecorder == nil, let pending = self.takeCompletion else { return }
+            self.takeCompletion = nil
+            pending(nil)
+        }
+        if !progressMessage.isEmpty {
+            StatusCenter.shared.post(.progress, progressMessage)
+        }
+    }
+
+    public func finishTake() {
+        guard audioRecorder != nil else { return }
+        finishRecording()
     }
 
     @objc public func runSoundCheck(_ sender: Any?) {
@@ -1168,7 +1339,7 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
             StatusCenter.shared.failure("Couldn't prepare the sound check", error: error, window: window)
             return
         }
-        runTool(
+        runToolExpectingSuccess(
             name: "Sound check",
             progressMessage: "Listening to \(project.name)",
             arguments: [
@@ -1191,11 +1362,38 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
             }
             self.lastSoundCheck = analysis
             let score = ReportBuilder.intValue(analysis["verdict"].flatMap { ($0 as? [String: Any])?["score"] })
-            StatusCenter.shared.success("Sound check: \(score)/100.")
-            ReportWindowController.present(
-                report: ReportBuilder.soundCheck(analysis, projectName: self.project.name),
-                relativeTo: self.window
-            )
+            // A project built from a description gets the second question too:
+            // not just "is it good" but "is it what was asked for".
+            guard self.specURLIfPresent() != nil else {
+                StatusCenter.shared.success("Sound check: \(score)/100.")
+                ReportWindowController.present(
+                    report: ReportBuilder.combined(sound: analysis, fidelity: nil, projectName: self.project.name),
+                    relativeTo: self.window
+                )
+                return
+            }
+            self.runToolExpectingSuccess(
+                name: "Fidelity check",
+                progressMessage: "Comparing the song to its description",
+                arguments: [
+                    self.store.toolURL("transcript_fidelity.py").path,
+                    "--root", self.store.rootURL.path,
+                    "--project-id", self.project.id,
+                    "--format", "json"
+                ]
+            ) { fidelityResult in
+                let fidelity = fidelityResult.lastJSONObject
+                let summary = fidelity["summary"] as? String ?? ""
+                StatusCenter.shared.success("Sound check: \(score)/100." + (summary.isEmpty ? "" : " Matches the description: \(summary)."))
+                ReportWindowController.present(
+                    report: ReportBuilder.combined(
+                        sound: analysis,
+                        fidelity: fidelity.isEmpty ? nil : fidelity,
+                        projectName: self.project.name
+                    ),
+                    relativeTo: self.window
+                )
+            }
         }
     }
 
@@ -1226,7 +1424,7 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
             return
         }
 
-        runTool(
+        runToolExpectingSuccess(
             name: "Suggestions",
             progressMessage: "Looking for improvements to \(project.name)",
             arguments: arguments
@@ -1275,7 +1473,7 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
                 StatusCenter.shared.failure("Couldn't prepare the export", error: error, window: self.window)
                 return
             }
-            self.runTool(
+            self.runToolExpectingSuccess(
                 name: "Export Mix",
                 progressMessage: "Mixing \(self.project.name) down to one file",
                 arguments: [
@@ -1314,7 +1512,7 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
                 return
             }
             guard let settings = self.promptTranscriptSettings(for: url) else { return }
-            self.runTool(
+            self.runToolExpectingSuccess(
                 name: "Build from description",
                 progressMessage: "Turning \(url.lastPathComponent) into a project",
                 arguments: [
@@ -1419,7 +1617,7 @@ public final class DocumentWindowController: NSWindowController, EditorHost, NST
                     StatusCenter.shared.failure("Couldn't convert the vocal", error: error, window: self.window)
                     return
                 }
-                self.runTool(
+                self.runToolExpectingSuccess(
                     name: "Vocal tuning",
                     progressMessage: "Tuning \(input.lastPathComponent)",
                     arguments: [

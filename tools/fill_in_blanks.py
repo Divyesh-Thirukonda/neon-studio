@@ -518,10 +518,32 @@ def resolve_duplicate_sections(spec: dict[str, Any], decisions: list[dict[str, A
         first_of_type[kind] = section
         merged.append(section)
 
+    other = [s for s in sections if not (isinstance(s, dict) and s.get("type") in SECTION_RANK)]
+
+    # Production notes come out of ingest one per paragraph — a long walkthrough
+    # produced fifty-eight of them. They describe the whole track, so they are
+    # one section carrying everything said.
+    notes = [s for s in other if isinstance(s, dict) and s.get("type") == "production_notes"]
+    if len(notes) > 1:
+        first = notes[0]
+        for extra in notes[1:]:
+            for field in ("techniques", "plugins", "trackRoles"):
+                first[field] = ensure_unique(list(first.get(field) or []) + list(extra.get(field) or []))
+            lanes = dict(first.get("laneEvents") or {})
+            for lane, payload in (extra.get("laneEvents") or {}).items():
+                lanes.setdefault(lane, payload)
+            if lanes:
+                first["laneEvents"] = lanes
+            for field in ("summary", "excerpt", "transcriptText"):
+                text = str(extra.get(field) or "").strip()
+                if text and text not in str(first.get(field) or ""):
+                    first[field] = f"{str(first.get(field) or '').strip()} {text}".strip()
+        other = [s for s in other if s is first or not (isinstance(s, dict) and s.get("type") == "production_notes")]
+        changed.append(f"folded {len(notes) - 1} production note(s) into one")
+
     if not changed:
         return
 
-    other = [s for s in sections if not (isinstance(s, dict) and s.get("type") in SECTION_RANK)]
     spec["sections"] = merged + other
     decision(
         decisions,
@@ -878,8 +900,26 @@ def gaps_from_sound_check(report: dict[str, Any]) -> list[Gap]:
     return gaps
 
 
-def merge_gaps(existing: list[dict[str, Any]], found: list[Gap]) -> list[dict[str, Any]]:
-    """Combine gaps, letting a measured finding replace an earlier guess."""
+# How much a gap's confidence is worth when two gaps name the same requirement.
+# "measured" is what the sound check heard in the render; "human" is what a
+# person said after listening (listening_session.py); everything else is a
+# guess made before any audio existed. A person's ear beats a guess, and a
+# measurement is never overwritten by either.
+CONFIDENCE_RANK: dict[str, int] = {"measured": 3, "human": 2}
+
+
+def confidence_rank(confidence: Any) -> int:
+    return CONFIDENCE_RANK.get(str(confidence or ""), 1)
+
+
+def merge_gaps(existing: list[dict[str, Any]], found: list[Any]) -> list[dict[str, Any]]:
+    """Combine gaps, letting a stronger finding replace a weaker one.
+
+    ``found`` holds ``Gap`` objects from the rubric, or ready-made gap dicts
+    (the listening session builds those, because it needs to carry a section
+    id that ``Gap`` has no field for). Either way the winner is decided by
+    ``confidence_rank``: measured >= human > inferred.
+    """
     by_id: dict[str, dict[str, Any]] = {}
     order: list[str] = []
     for item in list(existing or []):
@@ -890,27 +930,35 @@ def merge_gaps(existing: list[dict[str, Any]], found: list[Gap]) -> list[dict[st
             order.append(key)
         by_id[key] = item
     for gap in found:
-        payload = {
-            "id": gap.id,
-            "label": gap.label,
-            "why": gap.why,
-            "step": gap.step,
-            "soundCheckArea": gap.area,
-            "roles": list(gap.roles),
-            "confidence": gap.confidence,
-            "source": gap.source,
-        }
-        if gap.evidence:
-            payload["evidence"] = gap.evidence
-        previous = by_id.get(gap.id)
+        if isinstance(gap, dict):
+            payload = dict(gap)
+            gap_id = str(payload.get("id") or payload.get("requirementId") or "")
+            if not gap_id:
+                continue
+            payload.setdefault("id", gap_id)
+        else:
+            gap_id = gap.id
+            payload = {
+                "id": gap.id,
+                "label": gap.label,
+                "why": gap.why,
+                "step": gap.step,
+                "soundCheckArea": gap.area,
+                "roles": list(gap.roles),
+                "confidence": gap.confidence,
+                "source": gap.source,
+            }
+            if gap.evidence:
+                payload["evidence"] = gap.evidence
+        previous = by_id.get(gap_id)
         if previous is None:
-            order.append(gap.id)
-            by_id[gap.id] = payload
+            order.append(gap_id)
+            by_id[gap_id] = payload
             continue
-        # A measured finding beats an inferred one; otherwise keep what we had,
+        # A stronger finding beats a weaker one; otherwise keep what we had,
         # so re-running the filler never churns a stable spec.
-        if gap.confidence == "measured" and previous.get("confidence") != "measured":
-            by_id[gap.id] = payload
+        if confidence_rank(payload.get("confidence")) > confidence_rank(previous.get("confidence")):
+            by_id[gap_id] = payload
     return [by_id[key] for key in order if key in by_id]
 
 
@@ -1031,7 +1079,8 @@ def render_markdown(spec: dict[str, Any]) -> str:
     gaps = fill.get("gaps") or []
     if gaps:
         measured = [g for g in gaps if g.get("confidence") == "measured"]
-        inferred = [g for g in gaps if g.get("confidence") != "measured"]
+        human = [g for g in gaps if g.get("confidence") == "human"]
+        inferred = [g for g in gaps if g.get("confidence") not in ("measured", "human")]
         lines.extend(["", "## Missing Steps", "", 
                       "Production steps the brief never mentioned, added so the song is buildable"
                       " and so the sound check has less to complain about.", ""])
@@ -1041,8 +1090,16 @@ def render_markdown(spec: dict[str, Any]) -> str:
                 lines.append(f"- **{gap.get('label')}** — {gap.get('step')}")
                 if gap.get("evidence"):
                     lines.append(f"  - {gap['evidence']}")
-        if inferred:
+        if human:
             if measured:
+                lines.append("")
+            lines.extend(["### Heard — a person said this after listening", ""])
+            for gap in human:
+                lines.append(f"- **{gap.get('label')}** — {gap.get('step')}")
+                if gap.get("evidence"):
+                    lines.append(f"  - {gap['evidence']}")
+        if inferred:
+            if measured or human:
                 lines.extend(["", "### Inferred — not mentioned in the brief", ""])
             for gap in inferred:
                 area = gap.get("soundCheckArea")

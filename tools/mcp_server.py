@@ -328,6 +328,246 @@ def tool_production_rubric(args: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Human-in-the-loop tools
+#
+# These are the surfaces where a person, not the software, decides. Each one
+# wraps a tool the Mac app also calls, so an agent in Cursor and a user at the
+# app get identical behaviour.
+# ---------------------------------------------------------------------------
+
+def tool_fidelity(args: dict[str, Any]) -> str:
+    project_id = _safe_id(args.get("project_id") or "")
+    code, out, err = _run([
+        str(TOOLS / "transcript_fidelity.py"),
+        "--root", str(ROOT), "--project-id", project_id, "--format", "markdown",
+    ])
+    if code != 0:
+        return f"Fidelity check failed (exit {code}).\n\n{(err or out).strip()[-1200:]}"
+    return out.strip()[-6000:]
+
+
+def tool_hum_to_melody(args: dict[str, Any]) -> str:
+    wav = str(args.get("wav_path") or "").strip()
+    if not wav or not Path(wav).expanduser().exists():
+        return "Pass `wav_path` — a WAV of somebody humming or singing. The app records one with a count-in; any mono or stereo WAV works."
+    project_id = _safe_id(args.get("project_id") or "")
+    paths = _project_paths(project_id) if project_id else None
+    bpm = args.get("bpm")
+    key = args.get("key")
+    if paths and paths["project"].exists():
+        data = _read_json(paths["project"])
+        bpm = bpm or (data.get("snapshot") or {}).get("bpm")
+        key = key or data.get("keyCenter")
+    cmd = [
+        str(TOOLS / "hum_to_melody.py"),
+        "--input", str(Path(wav).expanduser()),
+        "--bpm", str(bpm or 120),
+        "--start-bar", str(int(args.get("start_bar") or 0)),
+        "--track-id", str(args.get("track_id") or "lead"),
+        "--snap", str(args.get("snap") or "1/8"),
+        "--format", "json",
+    ]
+    if key:
+        cmd += ["--key", str(key)]
+    code, out, err = _run(cmd)
+    if code != 0:
+        return f"Couldn't read the melody (exit {code}).\n\n{(err or out).strip()[-1200:]}"
+    try:
+        result = json.loads(out.strip().splitlines()[-1])
+    except Exception:
+        return out.strip()[-2000:]
+    notes = result.get("notes") or []
+    detected = result.get("detected") or {}
+    lines = [f"Heard {len(notes)} note(s) over {detected.get('voicedSeconds', 0)}s"
+             + (f", snapped to {detected.get('keyUsed')}" if detected.get("keyUsed") else "") + "."]
+    for note in notes[:12]:
+        lines.append(f"  beat {note.get('beat'):>5}  MIDI {note.get('note')}  {note.get('duration')} beats  vel {note.get('velocity')}")
+    if len(notes) > 12:
+        lines.append(f"  ... and {len(notes) - 12} more")
+    for warning in result.get("warnings") or []:
+        lines.append(f"  ! {warning}")
+
+    if args.get("insert") is True and paths and paths["project"].exists() and notes:
+        data = _read_json(paths["project"])
+        snapshot = data.setdefault("snapshot", {})
+        track_id = str(args.get("track_id") or "lead")
+        span_start = min(n["beat"] for n in notes)
+        span_end = max(n["beat"] + n["duration"] for n in notes)
+        kept = [n for n in (snapshot.get("notes") or [])
+                if n.get("trackId") != track_id or n.get("beat", 0) + n.get("duration", 0) <= span_start or n.get("beat", 0) >= span_end]
+        snapshot["notes"] = kept + notes
+        paths["project"].write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        lines.append(f"\nInserted onto track `{track_id}` in {paths['project'].name}, replacing any notes already in beats {span_start:g}–{span_end:g}.")
+    elif args.get("insert") is True:
+        lines.append("\nNot inserted: pass a `project_id` whose project exists.")
+    else:
+        lines.append("\nPass insert=true with a project_id to write these onto the track.")
+    return "\n".join(lines)
+
+
+def tool_variations(args: dict[str, Any]) -> str:
+    project_id = _safe_id(args.get("project_id") or "")
+    paths = _project_paths(project_id)
+    if not paths["project"].exists():
+        return f"No project at {paths['project']}."
+    out_dir = paths["session"] / "variations"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        str(TOOLS / "variations.py"), "--root", str(ROOT),
+        "--project", str(paths["project"]),
+        "--track-id", str(args.get("track_id") or "lead"),
+        "--section", str(args.get("section") or "drop"),
+        "--count", str(int(args.get("count") or 3)),
+        "--seed", str(int(args.get("seed") or 7)),
+        "--output-dir", str(out_dir),
+        "--format", "json",
+    ]
+    code, out, err = _run(cmd, timeout=1200)
+    if code != 0:
+        return f"Couldn't make alternatives (exit {code}).\n\n{(err or out).strip()[-1200:]}"
+    try:
+        result = json.loads(out.strip().splitlines()[-1])
+    except Exception:
+        return out.strip()[-2000:]
+    target = result.get("target") or {}
+    lines = [f"{len(result.get('variations') or [])} alternative(s) for {target.get('trackName')} in {target.get('section')} (bars {int(target.get('startBar', 0)) + 1}–{int(target.get('startBar', 0) + target.get('bars', 0))}):", ""]
+    for v in result.get("variations") or []:
+        lines.append(f"  [{v.get('id')}] {v.get('label')}")
+        lines.append(f"      {v.get('description')}")
+        lines.append(f"      preview: {v.get('preview')}")
+        lines.append(f"      project: {v.get('project')}")
+    lines.append(f"\n{result.get('previewNote', '')}")
+    lines.append("To adopt one, call `songlab_use_variation` with its project path, or copy only that track from it.")
+    return "\n".join(lines)
+
+
+def tool_use_variation(args: dict[str, Any]) -> str:
+    project_id = _safe_id(args.get("project_id") or "")
+    paths = _project_paths(project_id)
+    variant_path = Path(str(args.get("variation_project") or "")).expanduser()
+    track_id = str(args.get("track_id") or "")
+    if not paths["project"].exists() or not variant_path.exists() or not track_id:
+        return "Pass `project_id`, `variation_project` (a path from songlab_variations) and `track_id`."
+    real = _read_json(paths["project"])
+    variant = _read_json(variant_path)
+    real_snap = real.setdefault("snapshot", {})
+    var_snap = variant.get("snapshot") or {}
+    var_track = next((t for t in var_snap.get("tracks") or [] if t.get("id") == track_id), None)
+    if var_track is None:
+        return f"The variation has no track `{track_id}`."
+    # Only the chosen lane changes. The real stem file stays; the variant
+    # cleared it so its preview would synthesise.
+    for track in real_snap.get("tracks") or []:
+        if track.get("id") == track_id:
+            keep_file = track.get("file")
+            track.update({k: v for k, v in var_track.items() if k != "file"})
+            track["file"] = keep_file
+    real_snap["notes"] = [n for n in (real_snap.get("notes") or []) if n.get("trackId") != track_id] + \
+                         [n for n in (var_snap.get("notes") or []) if n.get("trackId") == track_id]
+    real_snap["automationLanes"] = [l for l in (real_snap.get("automationLanes") or []) if l.get("trackId") != track_id] + \
+                                   [l for l in (var_snap.get("automationLanes") or []) if l.get("trackId") == track_id]
+    paths["project"].write_text(json.dumps(real, indent=2) + "\n", encoding="utf-8")
+    return f"Applied the variation to `{track_id}` in {paths['project'].name}. Re-render to hear it in the full song."
+
+
+def tool_describe_change(args: dict[str, Any]) -> str:
+    project_id = _safe_id(args.get("project_id") or "")
+    request = str(args.get("request") or "").strip()
+    paths = _project_paths(project_id)
+    if not paths["project"].exists():
+        return f"No project at {paths['project']}."
+    if not request:
+        return "Say what should change, in your own words: 'make the drop hit harder', 'the lead is too bright', 'a bit slower'."
+    output = paths["session"] / "describe_change_output.neon.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    code, out, err = _run([
+        str(TOOLS / "describe_change.py"), "--root", str(ROOT),
+        "--project", str(paths["project"]), "--request", request,
+        "--output", str(output), "--format", "json",
+    ])
+    if code != 0:
+        return f"Couldn't apply that (exit {code}).\n\n{(err or out).strip()[-1200:]}"
+    try:
+        result = json.loads(out.strip().splitlines()[-1])
+    except Exception:
+        return out.strip()[-2000:]
+    edits = result.get("edits") or []
+    lines = []
+    if edits:
+        lines.append(f"Done — {result.get('understood', request)}")
+        for edit in edits:
+            lines.append(f"  - {edit.get('title')}: {edit.get('detail')}")
+        if args.get("apply", True) is not False:
+            paths["project"].write_text(output.read_text(encoding="utf-8"), encoding="utf-8")
+            lines.append(f"\nWritten to {paths['project'].name}.")
+        else:
+            lines.append(f"\nProposed only; the edited project is at {output}.")
+    else:
+        lines.append("I didn't understand that yet.")
+    if result.get("unresolved"):
+        lines.append("\nDidn't understand: " + "; ".join(result["unresolved"]))
+    if result.get("suggestions"):
+        lines.append("\nThings I do understand:")
+        lines += [f"  - {s}" for s in result["suggestions"][:6]]
+    if result.get("tactics"):
+        lines.append("\nBigger ideas that might fit:")
+        lines += [f"  - {t.get('title')} (score {t.get('score')})" for t in result["tactics"][:3]]
+    return "\n".join(lines)
+
+
+def tool_listening_questions(args: dict[str, Any]) -> str:
+    project_id = _safe_id(args.get("project_id") or "")
+    paths = _project_paths(project_id)
+    if not paths["project"].exists():
+        return f"No project at {paths['project']}."
+    code, out, err = _run([
+        str(TOOLS / "listening_session.py"), "--root", str(ROOT),
+        "--project", str(paths["project"]), "questions", "--format", "json",
+    ])
+    if code != 0:
+        return f"Couldn't build the questions (exit {code}).\n\n{(err or out).strip()[-1200:]}"
+    try:
+        result = json.loads(out.strip().splitlines()[-1])
+    except Exception:
+        return out.strip()[-2000:]
+    lines = ["Play each section for the user and ask. Then call `songlab_listening_apply` with their answers.", ""]
+    for section in result.get("sections") or []:
+        start = int(section.get("startBar", 0))
+        lines.append(f"## {section.get('label')} (bars {start + 1}–{start + int(section.get('bars', 0))})")
+        for q in section.get("questions") or []:
+            if q.get("freeText"):
+                lines.append(f"  {q.get('id')}: {q.get('text')} (free text)")
+            else:
+                lines.append(f"  {q.get('id')}: {q.get('text')}  [{' / '.join(q.get('options') or [])}]")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def tool_listening_apply(args: dict[str, Any]) -> str:
+    project_id = _safe_id(args.get("project_id") or "")
+    paths = _project_paths(project_id)
+    answers = args.get("answers")
+    if not paths["project"].exists():
+        return f"No project at {paths['project']}."
+    if not isinstance(answers, list) or not answers:
+        return "Pass `answers`: a list of {questionId, option} or {questionId, text} from songlab_listening_questions."
+    answers_path = paths["session"] / "listening_answers.json"
+    answers_path.parent.mkdir(parents=True, exist_ok=True)
+    answers_path.write_text(json.dumps({"answers": answers}, indent=2), encoding="utf-8")
+    cmd = [
+        str(TOOLS / "listening_session.py"), "--root", str(ROOT),
+        "--project", str(paths["project"]),
+    ]
+    if paths["spec"].exists():
+        cmd += ["--spec", str(paths["spec"])]
+    cmd += ["apply", "--answers", str(answers_path), "--project-id", project_id, "--format", "markdown"]
+    code, out, err = _run(cmd)
+    if code != 0:
+        return f"Couldn't apply the answers (exit {code}).\n\n{(err or out).strip()[-1200:]}"
+    return out.strip()[-4000:]
+
+
 TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any]]] = {
     "songlab_build_song": (
         tool_build_song,
@@ -409,6 +649,101 @@ TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any
         {
             "type": "object",
             "properties": {"area": {"type": "string", "description": "e.g. 'Low end', 'Stereo', 'Arrangement'."}},
+        },
+    ),
+    "songlab_fidelity": (
+        tool_fidelity,
+        "Does the built song match what the description or tutorial actually said? Checks tempo, "
+        "key, section order, every technique the text named (with audio evidence when stems exist), "
+        "and explicit numbers. The counterpart to songlab_sound_check: that asks 'is it good', this "
+        "asks 'is it what was asked for'.",
+        {"type": "object", "properties": {"project_id": {"type": "string"}}, "required": ["project_id"]},
+    ),
+    "songlab_hum_to_melody": (
+        tool_hum_to_melody,
+        "Turn a recording of someone humming or singing into piano-roll notes. Pass a WAV path; "
+        "optionally a project_id (to pick up its tempo and key) and insert=true to write the notes "
+        "onto a track. This is how 'sing what you want it to sound like' becomes literal.",
+        {
+            "type": "object",
+            "properties": {
+                "wav_path": {"type": "string"},
+                "project_id": {"type": "string"},
+                "track_id": {"type": "string", "description": "Default 'lead'."},
+                "start_bar": {"type": "integer", "description": "Bar the take began on (0-based). Default 0."},
+                "snap": {"type": "string", "description": "Grid: 1/4, 1/8 (default) or 1/16."},
+                "bpm": {"type": "number"}, "key": {"type": "string"},
+                "insert": {"type": "boolean", "description": "Write the notes into the project."},
+            },
+            "required": ["wav_path"],
+        },
+    ),
+    "songlab_variations": (
+        tool_variations,
+        "Write a few musically distinct alternatives for one track in one section and render a short "
+        "preview of each, so the user can listen and choose rather than describe. Returns labels, "
+        "descriptions and preview WAV paths. About 20 seconds.",
+        {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string"},
+                "track_id": {"type": "string"},
+                "section": {"type": "string", "description": "A section name like 'Drop', or a bar range '24-40'."},
+                "count": {"type": "integer"}, "seed": {"type": "integer"},
+            },
+            "required": ["project_id", "track_id", "section"],
+        },
+    ),
+    "songlab_use_variation": (
+        tool_use_variation,
+        "Adopt one alternative from songlab_variations: copies only that track's notes, steps, clips "
+        "and automation into the real project, keeping the project's own audio file for the track.",
+        {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string"},
+                "variation_project": {"type": "string", "description": "The 'project' path of the chosen variation."},
+                "track_id": {"type": "string"},
+            },
+            "required": ["project_id", "variation_project", "track_id"],
+        },
+    ),
+    "songlab_describe_change": (
+        tool_describe_change,
+        "Change the song from a plain-English request — 'make the drop hit harder', 'the lead is too "
+        "bright', 'more bounce in the drums', 'a bit slower'. Applies by default; pass apply=false to "
+        "see the edits without writing them. Says honestly when it does not understand and lists what it can do.",
+        {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string"},
+                "request": {"type": "string"},
+                "apply": {"type": "boolean"},
+            },
+            "required": ["project_id", "request"],
+        },
+    ),
+    "songlab_listening_questions": (
+        tool_listening_questions,
+        "The human sound check, part one: plain questions to ask the user about each section while "
+        "it plays ('Does the drop land?', 'Can you hum the main tune?'). Returns questions with their "
+        "options and the bar range to play for each.",
+        {"type": "object", "properties": {"project_id": {"type": "string"}}, "required": ["project_id"]},
+    ),
+    "songlab_listening_apply": (
+        tool_listening_apply,
+        "The human sound check, part two: turn the user's answers into concrete production steps in "
+        "the project's plan, marked as human evidence, and log the session.",
+        {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string"},
+                "answers": {
+                    "type": "array",
+                    "items": {"type": "object", "properties": {"questionId": {"type": "string"}, "option": {"type": "string"}, "text": {"type": "string"}}, "required": ["questionId"]},
+                },
+            },
+            "required": ["project_id", "answers"],
         },
     ),
 }

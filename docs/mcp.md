@@ -60,15 +60,33 @@ tool call without needing a client attached.
 | `songlab_list_projects` | Every project with tempo and track count. |
 | `songlab_inspect_project` | Tracks, clips, audio status, and the steps still outstanding. |
 | `songlab_production_rubric` | The requirements a song is checked against, and why each matters. |
+| `songlab_fidelity` | Does the song match what the description *said*? Tempo, key, section order, every named technique (with audio evidence), explicit numbers. |
+| `songlab_hum_to_melody` | A WAV of someone humming → piano-roll notes, snapped to the project's grid and key. `insert=true` writes them to a track. |
+| `songlab_variations` | Three musically distinct alternatives for one track in one section, each with a short preview WAV. |
+| `songlab_use_variation` | Adopt one alternative — only that track changes. |
+| `songlab_describe_change` | "Make the drop hit harder" → concrete edits. Honest when it doesn't understand. |
+| `songlab_listening_questions` | The human sound check, part one: plain questions per section, with the bars to play. |
+| `songlab_listening_apply` | Part two: the user's answers become production steps marked as human evidence. |
 
 ## The loop it is designed for
 
 ```
-songlab_build_song      paste the description or tutorial
-songlab_render          make audio
-songlab_sound_check     find out what is wrong
-songlab_apply_sound_check   turn those findings into concrete steps
-                        ... edit, re-render, check again
+songlab_build_song          paste the description or tutorial
+songlab_render              make audio
+songlab_fidelity            does it match what was said?
+songlab_sound_check         does it sound good, to the software?
+songlab_listening_questions does it sound good, to the person?  (play each section, ask)
+songlab_listening_apply     their answers become steps
+songlab_apply_sound_check   the measurements become steps
+                            ... edit, re-render, check again
+```
+
+Two ways the person edits without touching a control:
+
+```
+songlab_describe_change     "make the drop hit harder" — typed, in their own words
+songlab_hum_to_melody       a WAV of them humming — sung, literally
+songlab_variations          "here are three ways this could go" — chosen, by listening
 ```
 
 The fourth step is the one worth knowing about. Every problem the sound check

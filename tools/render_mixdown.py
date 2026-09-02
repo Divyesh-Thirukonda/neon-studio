@@ -305,16 +305,32 @@ def stem_timeline_offset(
     return first_bar * seconds_per_bar
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--root", required=True, help="Workspace or support root containing exports/")
-    parser.add_argument("--project", required=True, help="Path to the .neon.json project file")
-    parser.add_argument("--output", required=True, help="Where to write the rendered mixdown WAV")
-    args = parser.parse_args()
+DRUM_WORDS = ("drum", "kick", "snare", "clap", "hat", "perc", "cymbal", "ride", "shaker", "tom")
 
-    root = Path(args.root)
-    project_path = Path(args.project)
-    project = json.loads(project_path.read_text(encoding="utf-8"))
+
+def is_drum_track(track: dict[str, object]) -> bool:
+    """True for the tracks a soloed preview keeps as rhythmic context."""
+    if str(track.get("kind") or "").lower() == "drum":
+        return True
+    text = " ".join(str(track.get(key) or "") for key in ("name", "instrument", "id")).lower()
+    return any(word in text for word in DRUM_WORDS)
+
+
+def mix_project(
+    root: Path,
+    project: dict[str, object],
+    start_bar: int | None = None,
+    bars: int | None = None,
+    solo_track: str | None = None,
+) -> tuple[np.ndarray, int, dict[str, object]]:
+    """Mix a project to stereo float audio.
+
+    ``start_bar``/``bars`` crop the mix to that window (bar 0 is the first
+    bar, like clip ``startBar``). ``solo_track`` mixes only that track, plus
+    the drum tracks when the target is not itself a drum track, so a preview
+    of one edited lane still has a beat under it. Both default to off, so a
+    plain mixdown is unchanged.
+    """
     snapshot = project.get("snapshot", {})
     tracks = snapshot.get("tracks", [])
     controls = snapshot.get("controls", {})
@@ -325,6 +341,15 @@ def main() -> None:
     sample_rate = 44_100
     max_len = 0
     synthesised = 0
+
+    solo_target = None
+    if solo_track is not None:
+        solo_target = next(
+            (t for t in tracks if isinstance(t, dict) and str(t.get("id", "")) == solo_track), None
+        )
+        if solo_target is None:
+            raise RuntimeError(f"No track with id {solo_track!r} to solo.")
+    keep_drums = solo_target is not None and not is_drum_track(solo_target)
 
     # Resolve the sample rate from the first real audio file, so synthesised
     # tracks are generated to match rather than being resampled.
@@ -346,7 +371,12 @@ def main() -> None:
             control = {}
         if control.get("mute") is True:
             continue
-        if solo_active and control.get("solo") is not True:
+        if solo_target is not None:
+            # An explicit --solo-track overrides the mixer's own solo buttons;
+            # the caller asked to hear one lane, not whatever was soloed last.
+            if track is not solo_target and not (keep_drums and is_drum_track(track)):
+                continue
+        elif solo_active and control.get("solo") is not True:
             continue
 
         audio_path = resolve_audio_path(root, track, assets if isinstance(assets, list) else [])
@@ -366,7 +396,7 @@ def main() -> None:
         max_len = max(max_len, offset + len(audio))
 
     if not loaded:
-        raise SystemExit(
+        raise RuntimeError(
             "Nothing to mix: no track has an audio file, any notes, or any steps switched on."
         )
 
@@ -380,17 +410,62 @@ def main() -> None:
         mix[offset:end, 1] += audio[:, 1] * gain * right
 
     mix = soft_clip(mix, drive=1.08) * 0.94
-    output_path = Path(args.output)
-    write_wav(output_path, mix, sample_rate)
-    print(json.dumps({
-        "ok": True,
-        "file": output_path.name,
+
+    info: dict[str, object] = {
         "tracksMixed": len(loaded),
         "tracksSynthesised": synthesised,
         "sampleRate": sample_rate,
-        "seconds": round(max_len / sample_rate, 2),
-        "sizeKb": round(os.path.getsize(output_path) / 1024, 1) if output_path.exists() else 0,
-    }))
+    }
+    if start_bar is not None or bars is not None:
+        bpm = float(snapshot.get("bpm") or 120) or 120.0
+        seconds_per_bar = (60.0 / bpm) * 4.0
+        first_bar = max(0, int(start_bar or 0))
+        window_bars = int(bars) if bars is not None else None
+        first = int(round(first_bar * seconds_per_bar * sample_rate))
+        if window_bars is not None and window_bars > 0:
+            length = int(round(window_bars * seconds_per_bar * sample_rate))
+        else:
+            length = max(0, len(mix) - first)
+        # Pad with silence rather than returning a short file: a preview of
+        # bars 24-40 must be exactly 16 bars long even if the song ends early.
+        window = np.zeros((length, 2), dtype=np.float32)
+        available = mix[first:first + length]
+        window[:len(available)] = available
+        mix = window
+        info["startBar"] = first_bar
+        info["bars"] = window_bars if window_bars is not None else round(length / (seconds_per_bar * sample_rate), 2)
+    if solo_target is not None:
+        info["soloTrack"] = solo_track
+    return mix, sample_rate, info
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", required=True, help="Workspace or support root containing exports/")
+    parser.add_argument("--project", required=True, help="Path to the .neon.json project file")
+    parser.add_argument("--output", required=True, help="Where to write the rendered mixdown WAV")
+    parser.add_argument("--start-bar", type=int, default=None, help="Crop the mix to start at this bar (0-based)")
+    parser.add_argument("--bars", type=int, default=None, help="Crop the mix to this many bars")
+    parser.add_argument("--solo-track", default=None, help="Mix only this track id (plus drums for context)")
+    args = parser.parse_args()
+
+    root = Path(args.root)
+    project_path = Path(args.project)
+    project = json.loads(project_path.read_text(encoding="utf-8"))
+    try:
+        mix, sample_rate, info = mix_project(
+            root, project, start_bar=args.start_bar, bars=args.bars, solo_track=args.solo_track
+        )
+    except RuntimeError as error:
+        raise SystemExit(str(error))
+
+    output_path = Path(args.output)
+    write_wav(output_path, mix, sample_rate)
+    result: dict[str, object] = {"ok": True, "file": output_path.name}
+    result.update(info)
+    result["seconds"] = round(len(mix) / sample_rate, 2)
+    result["sizeKb"] = round(os.path.getsize(output_path) / 1024, 1) if output_path.exists() else 0
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":

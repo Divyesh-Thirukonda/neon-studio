@@ -35,6 +35,19 @@ final class WorkAreaPane: BaseDocumentPane, NSSplitViewDelegate {
     private let viewPicker = NSSegmentedControl()
     private let toolPicker = NSSegmentedControl()
     private let explainerLabel = makeLabel("", font: Theme.Font.caption(11), color: Theme.muted)
+    /// Shown only in the Notes view: the one place "sing it" makes sense.
+    private lazy var humButton: NSButton = Controls.button(
+        title: "Hum a Melody",
+        symbol: "mic",
+        help: "Sing or hum, and the notes land on the selected track at the playhead.",
+        style: .quiet
+    ) { NSApp.sendAction(#selector(DocumentWindowController.humMelody(_:)), to: nil, from: self) }
+    private lazy var alternativesButton: NSButton = Controls.button(
+        title: "Try Alternatives",
+        symbol: "shuffle",
+        help: "Hear three different takes on the selected track in this part, and pick one.",
+        style: .quiet
+    ) { NSApp.sendAction(#selector(DocumentWindowController.tryAlternatives(_:)), to: nil, from: self) }
 
     private let splitView = NSSplitView()
     private let canvasContainer = ThemedBackgroundView { Theme.canvas }
@@ -113,7 +126,7 @@ final class WorkAreaPane: BaseDocumentPane, NSSplitViewDelegate {
         explainerLabel.setAccessibilityRole(.staticText)
         explainerLabel.setAccessibilityLabel("What this view is for")
 
-        let row = NSStackView(views: [viewPicker, toolPicker, explainerLabel])
+        let row = NSStackView(views: [viewPicker, toolPicker, humButton, alternativesButton, explainerLabel])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.distribution = .fill
@@ -573,6 +586,8 @@ final class WorkAreaPane: BaseDocumentPane, NSSplitViewDelegate {
         // Tools only mean something where you can draw or erase; showing them
         // over the mixer would just be three buttons that do nothing.
         let toolsApply = (active == .playlist || active == .piano)
+        humButton.isHidden = active != .piano
+        alternativesButton.isHidden = !(active == .piano || active == .playlist)
         if toolPicker.isHidden == toolsApply {
             toolPicker.isHidden = !toolsApply
         }

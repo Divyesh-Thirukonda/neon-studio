@@ -214,6 +214,11 @@ Rules for editing the app:
 
 - Build with `npm run build:mac` (release) or `./mac/NeonStudio/build.sh --debug`
   while iterating. Run `npm run test:mac` for the unit tests.
+- A feature that runs a Python tool, plays a section, or records a take talks to
+  the window only through `ToolHost` (`Document/ToolHost.swift`) — never by
+  casting to `DocumentWindowController`. That is what lets the hum-to-melody,
+  variations, change-request and listening-session controllers be built and
+  reasoned about on their own. Add to the protocol before reaching around it.
 - Every project change goes through `host.edit("Title Case Action") { ... }` so
   it lands on the document's `NSUndoManager` and the Edit menu names it.
   Selection and view state go through `updateTransientState` instead, because

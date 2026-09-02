@@ -6,7 +6,7 @@
   "wordCount": 481,
   "timecoded": false,
   "segmentCount": 11,
-  "sectionCount": 11,
+  "sectionCount": 8,
   "durationHintSeconds": null,
   "tempoHint": 142,
   "keyHints": [
@@ -15,207 +15,6 @@
   "sections": [
     {
       "id": "section-01",
-      "type": "production_notes",
-      "label": "Production Notes",
-      "startSeconds": null,
-      "endSeconds": null,
-      "timecodeStart": null,
-      "timecodeEnd": null,
-      "summary": "Project: Neon Alone, an original future-bass / melodic trap production in the production lane of Marshmello's Alone, not a literal cover. Global tempo: 142 BPM, 4/4.",
-      "excerpt": "Project: Neon Alone, an original future-bass / melodic trap production in the production lane of Marshmello's Alone, not a literal cover. Global tempo: 142 BPM, 4/4. Key center: D major.",
-      "transcriptText": "Project: Neon Alone, an original future-bass / melodic trap production in the production lane of Marshmello's Alone, not a literal cover. Global tempo: 142 BPM, 4/4. Key center: D major.",
-      "sourceSegmentCount": 1,
-      "trackRoles": [
-        "bass"
-      ],
-      "plugins": [],
-      "techniques": [],
-      "ordinalWithinType": 1,
-      "laneEvents": {
-        "bass": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0,
-              "duration": 0.72
-            },
-            {
-              "beat": 2.0,
-              "duration": 0.72
-            }
-          ],
-          "source": "fill_in_blanks"
-        }
-      }
-    },
-    {
-      "id": "section-02",
-      "type": "second_drop",
-      "label": "Second Drop",
-      "startSeconds": null,
-      "endSeconds": null,
-      "timecodeStart": null,
-      "timecodeEnd": null,
-      "summary": "Mood: lonely-to-euphoric, bright, simple, chant-like, festival-ready. Sound identity: childlike square/saw lead hook, wide supersaw chords, clean sub plus mid bass, trap/future-bass drums, clap stack, offbeat hats, ride lift in the final drop, white noise risers, reverse tails, i",
-      "excerpt": "Mood: lonely-to-euphoric, bright, simple, chant-like, festival-ready. Sound identity: childlike square/saw lead hook, wide supersaw chords, clean sub plus mid bass, trap/future-bass drums, clap stack, offbeat hats, ride lift in the final drop, white noise risers, reverse tails, impacts, small vocal-chop-like synth ear candy with no copied lyrics. Mix identity: hard sidechain pump on chords and bass, kick/sub separati",
-      "transcriptText": "Mood: lonely-to-euphoric, bright, simple, chant-like, festival-ready. Sound identity: childlike square/saw lead hook, wide supersaw chords, clean sub plus mid bass, trap/future-bass drums, clap stack, offbeat hats, ride lift in the final drop, white noise risers, reverse tails, impacts, small vocal-chop-like synth ear candy with no copied lyrics. Mix identity: hard sidechain pump on chords and bass, kick/sub separation, bright lead that is not brittle, wide claps and supersaws, clean low end, final drop wider and brighter than drop one.",
-      "sourceSegmentCount": 1,
-      "trackRoles": [
-        "bass",
-        "chords",
-        "clap",
-        "drums",
-        "fx",
-        "hat",
-        "impact",
-        "kick",
-        "lead",
-        "noise",
-        "reverse",
-        "ride",
-        "riser",
-        "sub",
-        "vocal"
-      ],
-      "plugins": [],
-      "techniques": [
-        "layering",
-        "reverb",
-        "reverse",
-        "sidechain",
-        "automation",
-        "stereo",
-        "distortion"
-      ],
-      "ordinalWithinType": 1,
-      "laneEvents": {
-        "clap": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.5
-            },
-            {
-              "beat": 1.5
-            },
-            {
-              "beat": 2.5
-            },
-            {
-              "beat": 3.5
-            }
-          ],
-          "source": "natural_language"
-        },
-        "chords": {
-          "kind": "progressionSymbols",
-          "progressionSymbols": [
-            "Em7",
-            "Cmaj7",
-            "Gadd9",
-            "Dadd9"
-          ],
-          "source": "fill_in_blanks"
-        },
-        "bass": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0,
-              "duration": 0.72
-            },
-            {
-              "beat": 1.5,
-              "duration": 0.72
-            },
-            {
-              "beat": 2.5,
-              "duration": 0.72
-            }
-          ],
-          "source": "fill_in_blanks"
-        },
-        "lead": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0,
-              "duration": 0.42
-            },
-            {
-              "beat": 0.5,
-              "duration": 0.42
-            },
-            {
-              "beat": 1.0,
-              "duration": 0.42
-            },
-            {
-              "beat": 2.0,
-              "duration": 0.42
-            },
-            {
-              "beat": 2.5,
-              "duration": 0.42
-            }
-          ],
-          "source": "fill_in_blanks",
-          "motifRole": "hook"
-        },
-        "kick": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0
-            },
-            {
-              "beat": 2.0
-            }
-          ],
-          "source": "fill_in_blanks"
-        },
-        "snare": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 1.0
-            },
-            {
-              "beat": 3.0
-            }
-          ],
-          "source": "fill_in_blanks"
-        },
-        "hat": {
-          "kind": "beatPattern",
-          "spacingBeats": 0.25,
-          "events": [
-            {
-              "beat": 0.0
-            },
-            {
-              "beat": 0.25
-            },
-            {
-              "beat": 0.5
-            },
-            {
-              "beat": 0.75
-            }
-          ],
-          "source": "fill_in_blanks"
-        }
-      },
-      "laneTransforms": {
-        "drums": {
-          "overrides": {
-            "ride": true
-          }
-        }
-      }
-    },
-    {
-      "id": "section-03",
       "type": "intro",
       "label": "Intro",
       "startSeconds": null,
@@ -299,10 +98,11 @@
           ],
           "source": "lane_map"
         }
-      }
+      },
+      "bars": 8
     },
     {
-      "id": "section-04",
+      "id": "section-02",
       "type": "verse",
       "label": "Verse",
       "startSeconds": null,
@@ -421,19 +221,20 @@
             3.0
           ]
         }
-      }
+      },
+      "bars": 16
     },
     {
-      "id": "section-05",
+      "id": "section-03",
       "type": "build",
       "label": "Build",
       "startSeconds": null,
       "endSeconds": null,
       "timecodeStart": null,
       "timecodeEnd": null,
-      "summary": "Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5. Add a muted pluck double and soft air bed.",
-      "excerpt": "Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5. Add a muted pluck double and soft air bed. Section 3 Build bars 17-24: copy verse harmony, open the filter, add clap roll, snare roll, riser, and lead tease.",
-      "transcriptText": "Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5. Add a muted pluck double and soft air bed. Section 3 Build bars 17-24: copy verse harmony, open the filter, add clap roll, snare roll, riser, and lead tease.",
+      "summary": "Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5. Add a muted pluck double and soft air bed. Section 6 Build 2 bars 49-56: copy build 1 but add double-time hats, stronger riser, fake stop before drop. Automation: bars 49-56 lead.filter 0.2->1 ease-in | drums.volume 0.25->0.95 step | master.width 0.45->0.85.",
+      "excerpt": "Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5. Add a muted pluck double and soft air bed. Section 3 Build bars 17-24: copy verse harmony, open the filter, add clap roll, snare roll, riser, and lead tease. Section 6 Build 2 bars 49-56: copy build 1 but add double-time hats, stronger riser, fake stop before drop. Automation: bars 49-56 lead.filter 0.2->1 ease-in | drums.volume 0.25->0.95 step | master.width 0.45->0.85. Section 7 Drop 2 bars 57-72: same identity as drop 1, bigger energy.",
+      "transcriptText": "Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5. Add a muted pluck double and soft air bed. Section 3 Build bars 17-24: copy verse harmony, open the filter, add clap roll, snare roll, riser, and lead tease. Section 6 Build 2 bars 49-56: copy build 1 but add double-time hats, stronger riser, fake stop before drop. Automation: bars 49-56 lead.filter 0.2->1 ease-in | drums.volume 0.25->0.95 step | master.width 0.45->0.85. Section 7 Drop 2 bars 57-72: same identity as drop 1, bigger energy.",
       "sourceSegmentCount": 1,
       "trackRoles": [
         "clap",
@@ -560,514 +361,11 @@
           ],
           "source": "fill_in_blanks"
         }
-      }
-    },
-    {
-      "id": "section-06",
-      "type": "intro",
-      "label": "Intro",
-      "startSeconds": null,
-      "endSeconds": null,
-      "timecodeStart": null,
-      "timecodeEnd": null,
-      "summary": "Lead: copy intro lead bars 1 transpose +12, then repeat filled in. Automation: bars 17-24 lead.filter 0.35->0.95 ease-in | drums.volume 0.35->0.85 step | fx.riser 0.2->1.",
-      "excerpt": "Lead: copy intro lead bars 1 transpose +12, then repeat filled in. Automation: bars 17-24 lead.filter 0.35->0.95 ease-in | drums.volume 0.35->0.85 step | fx.riser 0.2->1. Section 4 Drop 1 bars 25-40: big but clean future-bass drop.",
-      "transcriptText": "Lead: copy intro lead bars 1 transpose +12, then repeat filled in. Automation: bars 17-24 lead.filter 0.35->0.95 ease-in | drums.volume 0.35->0.85 step | fx.riser 0.2->1. Section 4 Drop 1 bars 25-40: big but clean future-bass drop.",
-      "sourceSegmentCount": 1,
-      "trackRoles": [
-        "automation",
-        "bass",
-        "drums",
-        "fx",
-        "lead",
-        "riser",
-        "chords"
-      ],
-      "plugins": [],
-      "techniques": [
-        "arrangement_reuse",
-        "automation",
-        "filtering",
-        "reverb"
-      ],
-      "ordinalWithinType": 2,
-      "laneEvents": {
-        "lead": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0,
-              "duration": 0.28
-            },
-            {
-              "beat": 0.0,
-              "duration": 0.82
-            },
-            {
-              "beat": 1.0,
-              "duration": 0.45
-            }
-          ],
-          "source": "lane_map"
-        },
-        "automation": {
-          "kind": "automationEnvelope",
-          "envelopes": [
-            {
-              "parameter": "filter",
-              "start": 0.35,
-              "end": 0.95,
-              "curve": "ease_in",
-              "targetLane": "lead",
-              "barOffset": 16,
-              "bars": 8
-            },
-            {
-              "parameter": "volume",
-              "start": 0.35,
-              "end": 0.85,
-              "curve": "step",
-              "targetLane": "drums"
-            }
-          ],
-          "source": "lane_map"
-        },
-        "chords": {
-          "kind": "progressionSymbols",
-          "progressionSymbols": [
-            "Em7",
-            "Cmaj7",
-            "Gadd9",
-            "Dadd9"
-          ],
-          "source": "fill_in_blanks"
-        },
-        "bass": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0,
-              "duration": 0.72
-            },
-            {
-              "beat": 2.0,
-              "duration": 0.72
-            }
-          ],
-          "source": "fill_in_blanks"
-        },
-        "kick": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0
-            },
-            {
-              "beat": 2.0
-            }
-          ],
-          "source": "fill_in_blanks"
-        },
-        "snare": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 1.0
-            },
-            {
-              "beat": 3.0
-            }
-          ],
-          "source": "fill_in_blanks"
-        }
       },
-      "laneTransforms": {
-        "lead": {
-          "transform": "fill_in",
-          "transposeSemitones": 12
-        }
-      }
+      "bars": 8
     },
     {
-      "id": "section-07",
-      "type": "production_notes",
-      "label": "Production Notes",
-      "startSeconds": null,
-      "endSeconds": null,
-      "timecodeStart": null,
-      "timecodeEnd": null,
-      "summary": "Use wide supersaw chords with sidechain, sub root pulses, mid bass, clap stack, offbeat hats, simple memorable lead hook with a different contour from the reference. Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5 crash 1.",
-      "excerpt": "Use wide supersaw chords with sidechain, sub root pulses, mid bass, clap stack, offbeat hats, simple memorable lead hook with a different contour from the reference. Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5 crash 1. Lead: D5@1/0.5*0.9, A4@1.5/0.25*0.75, F#5@2/0.5*0.92, E5@2.75/0.25*0.7, B4@3.25/0.5*0.8.",
-      "transcriptText": "Use wide supersaw chords with sidechain, sub root pulses, mid bass, clap stack, offbeat hats, simple memorable lead hook with a different contour from the reference. Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5 crash 1. Lead: D5@1/0.5*0.9, A4@1.5/0.25*0.75, F#5@2/0.5*0.92, E5@2.75/0.25*0.7, B4@3.25/0.5*0.8.",
-      "sourceSegmentCount": 1,
-      "trackRoles": [
-        "bass",
-        "chords",
-        "clap",
-        "crash",
-        "drums",
-        "hat",
-        "kick",
-        "lead",
-        "snare",
-        "sub"
-      ],
-      "plugins": [],
-      "techniques": [
-        "layering",
-        "sidechain"
-      ],
-      "ordinalWithinType": 2,
-      "laneEvents": {
-        "kick": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0
-            },
-            {
-              "beat": 2.0
-            }
-          ],
-          "source": "lane_map"
-        },
-        "snare": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 1.0
-            },
-            {
-              "beat": 3.0
-            }
-          ],
-          "source": "lane_map"
-        },
-        "hat": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.5
-            },
-            {
-              "beat": 1.5
-            },
-            {
-              "beat": 2.5
-            },
-            {
-              "beat": 0.0
-            }
-          ],
-          "source": "lane_map",
-          "spacingBeats": 1.0
-        },
-        "lead": {
-          "kind": "notePattern",
-          "events": [
-            {
-              "beat": 0.0,
-              "note": 74,
-              "noteName": "D5",
-              "duration": 0.5,
-              "gain": 0.9
-            },
-            {
-              "beat": 0.5,
-              "note": 69,
-              "noteName": "A4",
-              "duration": 0.25,
-              "gain": 0.75
-            },
-            {
-              "beat": 1.0,
-              "note": 78,
-              "noteName": "F#5",
-              "duration": 0.5,
-              "gain": 0.92
-            },
-            {
-              "beat": 1.75,
-              "note": 76,
-              "noteName": "E5",
-              "duration": 0.25,
-              "gain": 0.7
-            },
-            {
-              "beat": 2.25,
-              "note": 71,
-              "noteName": "B4",
-              "duration": 0.5,
-              "gain": 0.8
-            }
-          ],
-          "source": "lane_map"
-        },
-        "chords": {
-          "kind": "progressionSymbols",
-          "progressionSymbols": [
-            "Em7",
-            "Cmaj7",
-            "Gadd9",
-            "Dadd9"
-          ],
-          "source": "fill_in_blanks"
-        },
-        "bass": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0,
-              "duration": 0.72
-            },
-            {
-              "beat": 2.0,
-              "duration": 0.72
-            }
-          ],
-          "source": "fill_in_blanks"
-        },
-        "clap": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 1.0,
-              "gain": 0.8
-            },
-            {
-              "beat": 3.0,
-              "gain": 0.8
-            }
-          ],
-          "source": "fill_in_blanks"
-        }
-      }
-    },
-    {
-      "id": "section-08",
-      "type": "break",
-      "label": "Break",
-      "startSeconds": null,
-      "endSeconds": null,
-      "timecodeStart": null,
-      "timecodeEnd": null,
-      "summary": "Automation: bars 25-40 chords.volume 0.95->0.88 sidechain | lead.width 0.55->0.78. Section 5 Break bars 41-48: strip to filtered chords, echo lead tails, tiny vocal-chop-like synth syllables without words, and reverse cymbal tail.",
-      "excerpt": "Automation: bars 25-40 chords.volume 0.95->0.88 sidechain | lead.width 0.55->0.78. Section 5 Break bars 41-48: strip to filtered chords, echo lead tails, tiny vocal-chop-like synth syllables without words, and reverse cymbal tail. Copy intro lead but reverse the last bar and lower velocity.",
-      "transcriptText": "Automation: bars 25-40 chords.volume 0.95->0.88 sidechain | lead.width 0.55->0.78. Section 5 Break bars 41-48: strip to filtered chords, echo lead tails, tiny vocal-chop-like synth syllables without words, and reverse cymbal tail. Copy intro lead but reverse the last bar and lower velocity.",
-      "sourceSegmentCount": 1,
-      "trackRoles": [
-        "automation",
-        "chords",
-        "lead",
-        "reverse",
-        "vocal",
-        "fx"
-      ],
-      "plugins": [],
-      "techniques": [
-        "automation",
-        "filtering",
-        "reverb",
-        "reverse",
-        "sidechain"
-      ],
-      "ordinalWithinType": 1,
-      "laneEvents": {
-        "automation": {
-          "kind": "automationEnvelope",
-          "envelopes": [
-            {
-              "parameter": "volume",
-              "start": 0.95,
-              "end": 0.88,
-              "curve": "linear",
-              "targetLane": "chords",
-              "barOffset": 24,
-              "bars": 16
-            },
-            {
-              "parameter": "width",
-              "start": 0.55,
-              "end": 0.78,
-              "curve": "linear",
-              "targetLane": "lead"
-            }
-          ],
-          "source": "lane_map"
-        },
-        "chords": {
-          "kind": "progressionSymbols",
-          "progressionSymbols": [
-            "Em7",
-            "Cmaj7",
-            "Gadd9",
-            "Dadd9"
-          ],
-          "source": "fill_in_blanks"
-        },
-        "lead": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0,
-              "duration": 0.42
-            },
-            {
-              "beat": 1.0,
-              "duration": 0.42
-            },
-            {
-              "beat": 2.5,
-              "duration": 0.42
-            }
-          ],
-          "source": "fill_in_blanks",
-          "motifRole": "motif"
-        }
-      }
-    },
-    {
-      "id": "section-09",
-      "type": "build",
-      "label": "Build",
-      "startSeconds": null,
-      "endSeconds": null,
-      "timecodeStart": null,
-      "timecodeEnd": null,
-      "summary": "Section 6 Build 2 bars 49-56: copy build 1 but add double-time hats, stronger riser, fake stop before drop. Automation: bars 49-56 lead.filter 0.2->1 ease-in | drums.volume 0.25->0.95 step | master.width 0.45->0.85.",
-      "excerpt": "Section 6 Build 2 bars 49-56: copy build 1 but add double-time hats, stronger riser, fake stop before drop. Automation: bars 49-56 lead.filter 0.2->1 ease-in | drums.volume 0.25->0.95 step | master.width 0.45->0.85. Section 7 Drop 2 bars 57-72: same identity as drop 1, bigger energy.",
-      "transcriptText": "Section 6 Build 2 bars 49-56: copy build 1 but add double-time hats, stronger riser, fake stop before drop. Automation: bars 49-56 lead.filter 0.2->1 ease-in | drums.volume 0.25->0.95 step | master.width 0.45->0.85. Section 7 Drop 2 bars 57-72: same identity as drop 1, bigger energy.",
-      "sourceSegmentCount": 1,
-      "trackRoles": [
-        "automation",
-        "drums",
-        "hat",
-        "lead",
-        "riser",
-        "clap",
-        "fx",
-        "noise"
-      ],
-      "plugins": [],
-      "techniques": [
-        "automation",
-        "filtering",
-        "layering",
-        "delay"
-      ],
-      "ordinalWithinType": 2,
-      "laneEvents": {
-        "automation": {
-          "kind": "automationEnvelope",
-          "envelopes": [
-            {
-              "parameter": "filter",
-              "start": 0.2,
-              "end": 1.0,
-              "curve": "ease_in",
-              "targetLane": "lead",
-              "barOffset": 48,
-              "bars": 8
-            },
-            {
-              "parameter": "volume",
-              "start": 0.25,
-              "end": 0.95,
-              "curve": "step",
-              "targetLane": "drums"
-            },
-            {
-              "parameter": "width",
-              "start": 0.45,
-              "end": 0.85,
-              "curve": "linear"
-            }
-          ],
-          "source": "lane_map"
-        },
-        "lead": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0,
-              "duration": 0.42
-            },
-            {
-              "beat": 0.5,
-              "duration": 0.42
-            }
-          ],
-          "source": "fill_in_blanks",
-          "motifRole": "tease"
-        },
-        "kick": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 0.0
-            },
-            {
-              "beat": 2.0
-            }
-          ],
-          "source": "fill_in_blanks"
-        },
-        "snare": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 1.0
-            },
-            {
-              "beat": 3.0
-            }
-          ],
-          "source": "fill_in_blanks"
-        },
-        "clap": {
-          "kind": "beatPattern",
-          "events": [
-            {
-              "beat": 1.0,
-              "gain": 0.8
-            },
-            {
-              "beat": 3.0,
-              "gain": 0.8
-            }
-          ],
-          "source": "fill_in_blanks"
-        },
-        "hat": {
-          "kind": "beatPattern",
-          "spacingBeats": 0.25,
-          "events": [
-            {
-              "beat": 0.0
-            },
-            {
-              "beat": 0.25
-            },
-            {
-              "beat": 0.5
-            },
-            {
-              "beat": 0.75
-            }
-          ],
-          "source": "fill_in_blanks"
-        }
-      },
-      "laneTransforms": {
-        "drums": {
-          "overrides": {
-            "hatSpacing": 0.25
-          }
-        }
-      }
-    },
-    {
-      "id": "section-10",
+      "id": "section-04",
       "type": "drop",
       "label": "Drop",
       "startSeconds": null,
@@ -1240,10 +538,311 @@
             "ride": true
           }
         }
-      }
+      },
+      "bars": 16
     },
     {
-      "id": "section-11",
+      "id": "section-05",
+      "type": "break",
+      "label": "Break",
+      "startSeconds": null,
+      "endSeconds": null,
+      "timecodeStart": null,
+      "timecodeEnd": null,
+      "summary": "Lead: copy intro lead bars 1 transpose +12, then repeat filled in. Automation: bars 17-24 lead.filter 0.35->0.95 ease-in | drums.volume 0.35->0.85 step | fx.riser 0.2->1. Automation: bars 25-40 chords.volume 0.95->0.88 sidechain | lead.width 0.55->0.78. Section 5 Break bars 41-48: strip to filtered chords, echo lead tails, tiny vocal-chop-like synth syllables without words, and reverse cymbal tail.",
+      "excerpt": "Lead: copy intro lead bars 1 transpose +12, then repeat filled in. Automation: bars 17-24 lead.filter 0.35->0.95 ease-in | drums.volume 0.35->0.85 step | fx.riser 0.2->1. Section 4 Drop 1 bars 25-40: big but clean future-bass drop. Automation: bars 25-40 chords.volume 0.95->0.88 sidechain | lead.width 0.55->0.78. Section 5 Break bars 41-48: strip to filtered chords, echo lead tails, tiny vocal-chop-like synth syllables without words, and reverse cymbal tail. Copy intro lead but reverse the last bar and lower velocity.",
+      "transcriptText": "Lead: copy intro lead bars 1 transpose +12, then repeat filled in. Automation: bars 17-24 lead.filter 0.35->0.95 ease-in | drums.volume 0.35->0.85 step | fx.riser 0.2->1. Section 4 Drop 1 bars 25-40: big but clean future-bass drop. Automation: bars 25-40 chords.volume 0.95->0.88 sidechain | lead.width 0.55->0.78. Section 5 Break bars 41-48: strip to filtered chords, echo lead tails, tiny vocal-chop-like synth syllables without words, and reverse cymbal tail. Copy intro lead but reverse the last bar and lower velocity.",
+      "sourceSegmentCount": 1,
+      "trackRoles": [
+        "automation",
+        "bass",
+        "drums",
+        "fx",
+        "lead",
+        "riser",
+        "chords",
+        "reverse",
+        "vocal"
+      ],
+      "plugins": [],
+      "techniques": [
+        "arrangement_reuse",
+        "automation",
+        "filtering",
+        "reverb",
+        "reverse",
+        "sidechain"
+      ],
+      "ordinalWithinType": 1,
+      "laneEvents": {
+        "lead": {
+          "kind": "beatPattern",
+          "events": [
+            {
+              "beat": 0.0,
+              "duration": 0.28
+            },
+            {
+              "beat": 0.0,
+              "duration": 0.82
+            },
+            {
+              "beat": 1.0,
+              "duration": 0.45
+            }
+          ],
+          "source": "lane_map"
+        },
+        "automation": {
+          "kind": "automationEnvelope",
+          "envelopes": [
+            {
+              "parameter": "filter",
+              "start": 0.35,
+              "end": 0.95,
+              "curve": "ease_in",
+              "targetLane": "lead",
+              "barOffset": 16,
+              "bars": 8
+            },
+            {
+              "parameter": "volume",
+              "start": 0.35,
+              "end": 0.85,
+              "curve": "step",
+              "targetLane": "drums"
+            }
+          ],
+          "source": "lane_map"
+        },
+        "chords": {
+          "kind": "progressionSymbols",
+          "progressionSymbols": [
+            "Em7",
+            "Cmaj7",
+            "Gadd9",
+            "Dadd9"
+          ],
+          "source": "fill_in_blanks"
+        },
+        "bass": {
+          "kind": "beatPattern",
+          "events": [
+            {
+              "beat": 0.0,
+              "duration": 0.72
+            },
+            {
+              "beat": 2.0,
+              "duration": 0.72
+            }
+          ],
+          "source": "fill_in_blanks"
+        },
+        "kick": {
+          "kind": "beatPattern",
+          "events": [
+            {
+              "beat": 0.0
+            },
+            {
+              "beat": 2.0
+            }
+          ],
+          "source": "fill_in_blanks"
+        },
+        "snare": {
+          "kind": "beatPattern",
+          "events": [
+            {
+              "beat": 1.0
+            },
+            {
+              "beat": 3.0
+            }
+          ],
+          "source": "fill_in_blanks"
+        }
+      },
+      "laneTransforms": {
+        "lead": {
+          "transform": "fill_in",
+          "transposeSemitones": 12
+        }
+      },
+      "bars": 8
+    },
+    {
+      "id": "section-06",
+      "type": "second_drop",
+      "label": "Second Drop",
+      "startSeconds": null,
+      "endSeconds": null,
+      "timecodeStart": null,
+      "timecodeEnd": null,
+      "summary": "Mood: lonely-to-euphoric, bright, simple, chant-like, festival-ready. Sound identity: childlike square/saw lead hook, wide supersaw chords, clean sub plus mid bass, trap/future-bass drums, clap stack, offbeat hats, ride lift in the final drop, white noise risers, reverse tails, i Use wide supersaw chords with sidechain, sub root pulses, mid bass, clap stack, offbeat hats, simple memorable lead hook with a different contour from the reference. Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5 crash 1.",
+      "excerpt": "Mood: lonely-to-euphoric, bright, simple, chant-like, festival-ready. Sound identity: childlike square/saw lead hook, wide supersaw chords, clean sub plus mid bass, trap/future-bass drums, clap stack, offbeat hats, ride lift in the final drop, white noise risers, reverse tails, impacts, small vocal-chop-like synth ear candy with no copied lyrics. Mix identity: hard sidechain pump on chords and bass, kick/sub separati Use wide supersaw chords with sidechain, sub root pulses, mid bass, clap stack, offbeat hats, simple memorable lead hook with a different contour from the reference. Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5 crash 1. Lead: D5@1/0.5*0.9, A4@1.5/0.25*0.75, F#5@2/0.5*0.92, E5@2.75/0.25*0.7, B4@3.25/0.5*0.8.",
+      "transcriptText": "Mood: lonely-to-euphoric, bright, simple, chant-like, festival-ready. Sound identity: childlike square/saw lead hook, wide supersaw chords, clean sub plus mid bass, trap/future-bass drums, clap stack, offbeat hats, ride lift in the final drop, white noise risers, reverse tails, impacts, small vocal-chop-like synth ear candy with no copied lyrics. Mix identity: hard sidechain pump on chords and bass, kick/sub separation, bright lead that is not brittle, wide claps and supersaws, clean low end, final drop wider and brighter than drop one. Use wide supersaw chords with sidechain, sub root pulses, mid bass, clap stack, offbeat hats, simple memorable lead hook with a different contour from the reference. Drums: kick 1,3 snare 2,4 hats 1.5,2.5,3.5 crash 1. Lead: D5@1/0.5*0.9, A4@1.5/0.25*0.75, F#5@2/0.5*0.92, E5@2.75/0.25*0.7, B4@3.25/0.5*0.8.",
+      "sourceSegmentCount": 1,
+      "trackRoles": [
+        "bass",
+        "chords",
+        "clap",
+        "drums",
+        "fx",
+        "hat",
+        "impact",
+        "kick",
+        "lead",
+        "noise",
+        "reverse",
+        "ride",
+        "riser",
+        "sub",
+        "vocal",
+        "crash",
+        "snare"
+      ],
+      "plugins": [],
+      "techniques": [
+        "layering",
+        "reverb",
+        "reverse",
+        "sidechain",
+        "automation",
+        "stereo",
+        "distortion"
+      ],
+      "ordinalWithinType": 1,
+      "laneEvents": {
+        "clap": {
+          "kind": "beatPattern",
+          "events": [
+            {
+              "beat": 0.5
+            },
+            {
+              "beat": 1.5
+            },
+            {
+              "beat": 2.5
+            },
+            {
+              "beat": 3.5
+            }
+          ],
+          "source": "natural_language"
+        },
+        "chords": {
+          "kind": "progressionSymbols",
+          "progressionSymbols": [
+            "Em7",
+            "Cmaj7",
+            "Gadd9",
+            "Dadd9"
+          ],
+          "source": "fill_in_blanks"
+        },
+        "bass": {
+          "kind": "beatPattern",
+          "events": [
+            {
+              "beat": 0.0,
+              "duration": 0.72
+            },
+            {
+              "beat": 1.5,
+              "duration": 0.72
+            },
+            {
+              "beat": 2.5,
+              "duration": 0.72
+            }
+          ],
+          "source": "fill_in_blanks"
+        },
+        "lead": {
+          "kind": "beatPattern",
+          "events": [
+            {
+              "beat": 0.0,
+              "duration": 0.42
+            },
+            {
+              "beat": 0.5,
+              "duration": 0.42
+            },
+            {
+              "beat": 1.0,
+              "duration": 0.42
+            },
+            {
+              "beat": 2.0,
+              "duration": 0.42
+            },
+            {
+              "beat": 2.5,
+              "duration": 0.42
+            }
+          ],
+          "source": "fill_in_blanks",
+          "motifRole": "hook"
+        },
+        "kick": {
+          "kind": "beatPattern",
+          "events": [
+            {
+              "beat": 0.0
+            },
+            {
+              "beat": 2.0
+            }
+          ],
+          "source": "fill_in_blanks"
+        },
+        "snare": {
+          "kind": "beatPattern",
+          "events": [
+            {
+              "beat": 1.0
+            },
+            {
+              "beat": 3.0
+            }
+          ],
+          "source": "fill_in_blanks"
+        },
+        "hat": {
+          "kind": "beatPattern",
+          "spacingBeats": 0.25,
+          "events": [
+            {
+              "beat": 0.0
+            },
+            {
+              "beat": 0.25
+            },
+            {
+              "beat": 0.5
+            },
+            {
+              "beat": 0.75
+            }
+          ],
+          "source": "fill_in_blanks"
+        }
+      },
+      "laneTransforms": {
+        "drums": {
+          "overrides": {
+            "ride": true
+          }
+        }
+      },
+      "bars": 16
+    },
+    {
+      "id": "section-07",
       "type": "outro",
       "label": "Outro",
       "startSeconds": null,
@@ -1347,149 +946,115 @@
           ],
           "source": "fill_in_blanks"
         }
+      },
+      "bars": 8
+    },
+    {
+      "id": "section-08",
+      "type": "production_notes",
+      "label": "Production Notes",
+      "startSeconds": null,
+      "endSeconds": null,
+      "timecodeStart": null,
+      "timecodeEnd": null,
+      "summary": "Project: Neon Alone, an original future-bass / melodic trap production in the production lane of Marshmello's Alone, not a literal cover. Global tempo: 142 BPM, 4/4.",
+      "excerpt": "Project: Neon Alone, an original future-bass / melodic trap production in the production lane of Marshmello's Alone, not a literal cover. Global tempo: 142 BPM, 4/4. Key center: D major.",
+      "transcriptText": "Project: Neon Alone, an original future-bass / melodic trap production in the production lane of Marshmello's Alone, not a literal cover. Global tempo: 142 BPM, 4/4. Key center: D major.",
+      "sourceSegmentCount": 1,
+      "trackRoles": [
+        "bass"
+      ],
+      "plugins": [],
+      "techniques": [],
+      "ordinalWithinType": 1,
+      "laneEvents": {
+        "bass": {
+          "kind": "beatPattern",
+          "events": [
+            {
+              "beat": 0.0,
+              "duration": 0.72
+            },
+            {
+              "beat": 2.0,
+              "duration": 0.72
+            }
+          ],
+          "source": "fill_in_blanks"
+        }
       }
     }
   ],
   "globalTracks": [
     {
       "name": "lead",
-      "mentions": 10,
+      "mentions": 7,
       "sections": [
+        "section-01",
         "section-02",
         "section-03",
         "section-04",
         "section-05",
         "section-06",
-        "section-07",
-        "section-08",
-        "section-09",
-        "section-10",
-        "section-11"
+        "section-07"
       ]
     },
     {
       "name": "fx",
-      "mentions": 9,
+      "mentions": 7,
       "sections": [
+        "section-01",
         "section-02",
         "section-03",
         "section-04",
         "section-05",
         "section-06",
-        "section-08",
-        "section-09",
-        "section-10",
-        "section-11"
+        "section-07"
       ]
     },
     {
       "name": "chords",
-      "mentions": 8,
-      "sections": [
-        "section-02",
-        "section-03",
-        "section-04",
-        "section-06",
-        "section-07",
-        "section-08",
-        "section-10",
-        "section-11"
-      ]
-    },
-    {
-      "name": "drums",
-      "mentions": 8,
-      "sections": [
-        "section-02",
-        "section-04",
-        "section-05",
-        "section-06",
-        "section-07",
-        "section-09",
-        "section-10",
-        "section-11"
-      ]
-    },
-    {
-      "name": "bass",
       "mentions": 6,
       "sections": [
         "section-01",
         "section-02",
         "section-04",
-        "section-06",
-        "section-07",
-        "section-10"
-      ]
-    },
-    {
-      "name": "automation",
-      "mentions": 6,
-      "sections": [
-        "section-04",
         "section-05",
         "section-06",
-        "section-08",
-        "section-09",
-        "section-11"
-      ]
-    },
-    {
-      "name": "hat",
-      "mentions": 5,
-      "sections": [
-        "section-02",
-        "section-05",
-        "section-07",
-        "section-09",
-        "section-10"
-      ]
-    },
-    {
-      "name": "clap",
-      "mentions": 4,
-      "sections": [
-        "section-02",
-        "section-05",
-        "section-07",
-        "section-09"
-      ]
-    },
-    {
-      "name": "riser",
-      "mentions": 4,
-      "sections": [
-        "section-02",
-        "section-05",
-        "section-06",
-        "section-09"
-      ]
-    },
-    {
-      "name": "kick",
-      "mentions": 3,
-      "sections": [
-        "section-02",
-        "section-05",
         "section-07"
       ]
     },
     {
-      "name": "noise",
-      "mentions": 3,
+      "name": "drums",
+      "mentions": 6,
       "sections": [
         "section-02",
+        "section-03",
+        "section-04",
         "section-05",
-        "section-09"
+        "section-06",
+        "section-07"
       ]
     },
     {
-      "name": "sub",
-      "mentions": 3,
+      "name": "bass",
+      "mentions": 5,
       "sections": [
         "section-02",
-        "section-07",
-        "section-10"
+        "section-04",
+        "section-05",
+        "section-06",
+        "section-08"
+      ]
+    },
+    {
+      "name": "automation",
+      "mentions": 4,
+      "sections": [
+        "section-02",
+        "section-03",
+        "section-05",
+        "section-07"
       ]
     },
     {
@@ -1497,103 +1062,153 @@
       "mentions": 3,
       "sections": [
         "section-02",
+        "section-05",
+        "section-06"
+      ]
+    },
+    {
+      "name": "hat",
+      "mentions": 3,
+      "sections": [
+        "section-03",
         "section-04",
-        "section-08"
+        "section-06"
       ]
     },
     {
-      "name": "impact",
-      "mentions": 2,
+      "name": "riser",
+      "mentions": 3,
       "sections": [
-        "section-02",
-        "section-11"
+        "section-03",
+        "section-05",
+        "section-06"
       ]
     },
     {
-      "name": "reverse",
+      "name": "clap",
       "mentions": 2,
       "sections": [
-        "section-02",
-        "section-08"
+        "section-03",
+        "section-06"
       ]
     },
     {
-      "name": "ride",
+      "name": "kick",
       "mentions": 2,
       "sections": [
-        "section-02",
-        "section-10"
+        "section-03",
+        "section-06"
       ]
     },
     {
       "name": "snare",
       "mentions": 2,
       "sections": [
-        "section-05",
-        "section-07"
+        "section-03",
+        "section-06"
+      ]
+    },
+    {
+      "name": "noise",
+      "mentions": 2,
+      "sections": [
+        "section-03",
+        "section-06"
       ]
     },
     {
       "name": "crash",
       "mentions": 2,
       "sections": [
-        "section-07",
-        "section-10"
+        "section-04",
+        "section-06"
+      ]
+    },
+    {
+      "name": "ride",
+      "mentions": 2,
+      "sections": [
+        "section-04",
+        "section-06"
+      ]
+    },
+    {
+      "name": "sub",
+      "mentions": 2,
+      "sections": [
+        "section-04",
+        "section-06"
+      ]
+    },
+    {
+      "name": "reverse",
+      "mentions": 2,
+      "sections": [
+        "section-05",
+        "section-06"
+      ]
+    },
+    {
+      "name": "impact",
+      "mentions": 2,
+      "sections": [
+        "section-06",
+        "section-07"
       ]
     },
     {
       "name": "crowd",
       "mentions": 1,
       "sections": [
-        "section-05"
+        "section-03"
       ]
     },
     {
       "name": "pluck",
       "mentions": 1,
       "sections": [
-        "section-05"
+        "section-03"
       ]
     },
     {
       "name": "guitar",
       "mentions": 1,
       "sections": [
-        "section-05"
+        "section-03"
       ]
     },
     {
       "name": "downlifter",
       "mentions": 1,
       "sections": [
-        "section-11"
+        "section-07"
       ]
     }
   ],
   "globalPlugins": [],
   "globalTechniques": [
     {
-      "name": "automation",
-      "mentions": 7
-    },
-    {
       "name": "filtering",
-      "mentions": 7
+      "mentions": 5
     },
     {
       "name": "reverb",
-      "mentions": 6
+      "mentions": 5
     },
     {
-      "name": "layering",
+      "name": "automation",
       "mentions": 5
     },
     {
       "name": "sidechain",
-      "mentions": 5
+      "mentions": 4
     },
     {
-      "name": "reverse",
+      "name": "layering",
+      "mentions": 3
+    },
+    {
+      "name": "eq",
       "mentions": 2
     },
     {
@@ -1601,19 +1216,19 @@
       "mentions": 2
     },
     {
-      "name": "eq",
+      "name": "reverse",
       "mentions": 2
-    },
-    {
-      "name": "delay",
-      "mentions": 2
-    },
-    {
-      "name": "distortion",
-      "mentions": 1
     },
     {
       "name": "tease_hook",
+      "mentions": 1
+    },
+    {
+      "name": "delay",
+      "mentions": 1
+    },
+    {
+      "name": "compression",
       "mentions": 1
     },
     {
@@ -1621,7 +1236,7 @@
       "mentions": 1
     },
     {
-      "name": "compression",
+      "name": "distortion",
       "mentions": 1
     }
   ],
@@ -1671,8 +1286,101 @@
   "openQuestions": [],
   "derivedPrompt": "Convert the production walkthrough for Neon Alone into an original Neon Studio project. Carry over the described arrangement (Production Notes, Second Drop, Intro, Verse, Build, Intro), track roles (lead, chords, drums, bass, hat, automation), and production techniques, but keep the result original and portable.",
   "fillInBlanks": {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "styleLane": "bright_future_bass",
+    "gaps": [
+      {
+        "id": "hpf_ladder",
+        "label": "High-pass everything that is not the low end",
+        "why": "Every melodic and FX layer carries low rumble that adds up into the 200-500 Hz range, which is exactly where the checker reports mud.",
+        "step": "Give each lane a high-pass: chords 180 Hz, lead 220 Hz (250 in the drop), plucks 250 Hz, vocals 150 Hz, guitars 120 Hz, FX/risers/noise/crashes 300 Hz. Only the kick, sub and bass are exempt. Record it as a mix note so the renderer and a human agree.",
+        "soundCheckArea": "Low mids",
+        "roles": [
+          "chords",
+          "lead",
+          "pluck",
+          "vocal",
+          "fx"
+        ],
+        "confidence": "medium",
+        "source": "rubric"
+      },
+      {
+        "id": "mono_below_crossover",
+        "label": "Keep the bottom mono",
+        "why": "Widened low frequencies partially cancel when the track is played in mono, so the bass disappears on phones and club systems.",
+        "step": "State a mono crossover \u2014 110 Hz for house, 130 for future bass and modern EDM, 150 for darker bass music \u2014 and mark the kick, sub and bass lanes mono. Apply every widener, chorus and reverb send after the lane's high-pass, never before it.",
+        "soundCheckArea": "Mono",
+        "roles": [
+          "sub",
+          "bass",
+          "kick"
+        ],
+        "confidence": "medium",
+        "source": "rubric"
+      },
+      {
+        "id": "width_budget",
+        "label": "Decide what is allowed to be wide",
+        "why": "When every layer is widened, nothing sounds wide, the centre hollows out, and stereo correlation drops far enough for the checker to flag it.",
+        "step": "Assign each lane a width tier: centre-locked (kick, sub, bass, snare body, the main hook), mid 0.25-0.40 (chords, hats, plucks), wide 0.60-0.80 (the lead octave double, vocal chops, FX, reverb returns). Keep no more than two or three lanes wide at once.",
+        "soundCheckArea": "Stereo",
+        "roles": [
+          "chords",
+          "lead",
+          "fx",
+          "vocal"
+        ],
+        "confidence": "medium",
+        "source": "rubric"
+      },
+      {
+        "id": "gain_ladder",
+        "label": "Set a level ladder and a peak budget",
+        "why": "With no target levels the render is balanced by whatever the generator's defaults happen to be, which is how a mix ends up either quiet or squashed.",
+        "step": "Write lane offsets relative to the kick: kick 0 dB, sub -2, bass -5, lead -4, clap -6, chords -7, vocal -8, plucks -12, FX -12, hats -14. Set a master ceiling of -1.0 dBFS and allow only the drop within a dB of it.",
+        "soundCheckArea": "Level",
+        "roles": [],
+        "confidence": "medium",
+        "source": "rubric"
+      },
+      {
+        "id": "per_bar_drum_variation",
+        "label": "Stop the drums repeating bar for bar",
+        "why": "The renderer reuses an unscoped pattern for every bar, so without bar-scoped events the sixteenth bar of a drop is identical to the first.",
+        "step": "Scope some drum events to particular bars: an open hat on odd bars, a kick dropped on the last beat of bar 4, an extra clap on bar 6. Small differences, but they stop the pattern reading as a loop.",
+        "soundCheckArea": "Punch",
+        "roles": [
+          "kick",
+          "snare",
+          "hat"
+        ],
+        "confidence": "medium",
+        "source": "rubric"
+      },
+      {
+        "id": "roles_need_content",
+        "label": "Give every named part something to play",
+        "why": "A role listed in a section but never given events becomes a track with no clips: the project looks fuller than it sounds, and the checker reports it as missing audio.",
+        "step": "For each role with no lane events, either write a starter pattern for it or take it out of the section. An empty lane is worse than an absent one, because it hides the fact that the part was never made.",
+        "soundCheckArea": "Missing audio",
+        "roles": [],
+        "confidence": "medium",
+        "source": "rubric"
+      },
+      {
+        "id": "single_motif_family",
+        "label": "Derive every melodic part from one idea",
+        "why": "Unrelated melodies in the intro, drop and break give a song three identities and no hook; one idea restated is what makes an arrangement cohere.",
+        "step": "Pick the drop's hook as canonical and derive the rest from it: the intro states a truncated filtered version, the break plays it slower or on a different instrument, the outro plays its first two notes. Same idea, different treatment.",
+        "soundCheckArea": "none",
+        "roles": [
+          "lead"
+        ],
+        "confidence": "medium",
+        "source": "rubric"
+      }
+    ],
     "policy": "Infer plausible production defaults from the brief; do not claim exact original samples, patches, MIDI, or mix values without evidence.",
     "decisions": [
       {
@@ -1842,6 +1550,104 @@
         "reason": "No explicit enough lane events existed for those musical roles.",
         "confidence": "medium",
         "source": "fill_in_blanks"
+      },
+      {
+        "area": "arrangement",
+        "detail": "Classified 1 described-but-unplaced section(s): section-07 -> second_drop.",
+        "reason": "They carried real parts and would otherwise have been dropped from the build entirely.",
+        "confidence": "medium",
+        "source": "fill_in_blanks"
+      },
+      {
+        "area": "arrangement",
+        "detail": "Reordered sections into playback order: intro -> verse -> build -> intro -> drop -> break -> build -> second_drop -> second_drop -> outro.",
+        "reason": "They were parsed in the order the walkthrough discussed them (second_drop -> intro -> verse -> build -> intro -> second_drop -> break -> build -> drop -> outro), which is not the order the song plays.",
+        "confidence": "high",
+        "source": "fill_in_blanks"
+      },
+      {
+        "area": "arrangement",
+        "detail": "Resolved 4 duplicated section(s): section-06: intro -> break, folded section-08 into the break, folded section-09 into the build, folded section-07 into the second_drop.",
+        "reason": "The walkthrough described some parts more than once; laid out literally that produces repeated sections with nothing between them.",
+        "confidence": "medium",
+        "source": "fill_in_blanks"
+      },
+      {
+        "area": "arrangement",
+        "detail": "Set section lengths from style defaults; the arrangement runs 80 bars (~2.3 min at 142 BPM).",
+        "reason": "No timecodes were available, and a section with no length gets an arbitrary one at build time.",
+        "confidence": "low",
+        "source": "fill_in_blanks"
+      },
+      {
+        "area": "arrangement",
+        "detail": "Reordered sections into playback order: intro -> verse -> build -> drop -> break -> second_drop -> outro.",
+        "reason": "They were parsed in the order the walkthrough discussed them (intro -> verse -> build -> break -> drop -> second_drop -> outro), which is not the order the song plays.",
+        "confidence": "high",
+        "source": "fill_in_blanks"
+      },
+      {
+        "area": "missing step: High-pass everything that is not the low end",
+        "detail": "Give each lane a high-pass: chords 180 Hz, lead 220 Hz (250 in the drop), plucks 250 Hz, vocals 150 Hz, guitars 120 Hz, FX/risers/noise/crashes 300 Hz. Only the kick, sub and bass are exempt. Record it as a mix note so the renderer and a human agree.",
+        "reason": "Every melodic and FX layer carries low rumble that adds up into the 200-500 Hz range, which is exactly where the checker reports mud.",
+        "confidence": "medium",
+        "requirementId": "hpf_ladder",
+        "soundCheckArea": "Low mids",
+        "source": "rubric"
+      },
+      {
+        "area": "missing step: Keep the bottom mono",
+        "detail": "State a mono crossover \u2014 110 Hz for house, 130 for future bass and modern EDM, 150 for darker bass music \u2014 and mark the kick, sub and bass lanes mono. Apply every widener, chorus and reverb send after the lane's high-pass, never before it.",
+        "reason": "Widened low frequencies partially cancel when the track is played in mono, so the bass disappears on phones and club systems.",
+        "confidence": "medium",
+        "requirementId": "mono_below_crossover",
+        "soundCheckArea": "Mono",
+        "source": "rubric"
+      },
+      {
+        "area": "missing step: Decide what is allowed to be wide",
+        "detail": "Assign each lane a width tier: centre-locked (kick, sub, bass, snare body, the main hook), mid 0.25-0.40 (chords, hats, plucks), wide 0.60-0.80 (the lead octave double, vocal chops, FX, reverb returns). Keep no more than two or three lanes wide at once.",
+        "reason": "When every layer is widened, nothing sounds wide, the centre hollows out, and stereo correlation drops far enough for the checker to flag it.",
+        "confidence": "medium",
+        "requirementId": "width_budget",
+        "soundCheckArea": "Stereo",
+        "source": "rubric"
+      },
+      {
+        "area": "missing step: Set a level ladder and a peak budget",
+        "detail": "Write lane offsets relative to the kick: kick 0 dB, sub -2, bass -5, lead -4, clap -6, chords -7, vocal -8, plucks -12, FX -12, hats -14. Set a master ceiling of -1.0 dBFS and allow only the drop within a dB of it.",
+        "reason": "With no target levels the render is balanced by whatever the generator's defaults happen to be, which is how a mix ends up either quiet or squashed.",
+        "confidence": "medium",
+        "requirementId": "gain_ladder",
+        "soundCheckArea": "Level",
+        "source": "rubric"
+      },
+      {
+        "area": "missing step: Stop the drums repeating bar for bar",
+        "detail": "Scope some drum events to particular bars: an open hat on odd bars, a kick dropped on the last beat of bar 4, an extra clap on bar 6. Small differences, but they stop the pattern reading as a loop.",
+        "reason": "The renderer reuses an unscoped pattern for every bar, so without bar-scoped events the sixteenth bar of a drop is identical to the first.",
+        "confidence": "medium",
+        "requirementId": "per_bar_drum_variation",
+        "soundCheckArea": "Punch",
+        "source": "rubric"
+      },
+      {
+        "area": "missing step: Give every named part something to play",
+        "detail": "For each role with no lane events, either write a starter pattern for it or take it out of the section. An empty lane is worse than an absent one, because it hides the fact that the part was never made.",
+        "reason": "A role listed in a section but never given events becomes a track with no clips: the project looks fuller than it sounds, and the checker reports it as missing audio.",
+        "confidence": "medium",
+        "requirementId": "roles_need_content",
+        "soundCheckArea": "Missing audio",
+        "source": "rubric"
+      },
+      {
+        "area": "missing step: Derive every melodic part from one idea",
+        "detail": "Pick the drop's hook as canonical and derive the rest from it: the intro states a truncated filtered version, the break plays it slower or on a different instrument, the outro plays its first two notes. Same idea, different treatment.",
+        "reason": "Unrelated melodies in the intro, drop and break give a song three identities and no hook; one idea restated is what makes an arrangement cohere.",
+        "confidence": "medium",
+        "requirementId": "single_motif_family",
+        "soundCheckArea": "none",
+        "source": "rubric"
       }
     ],
     "mixTargets": [
@@ -1851,8 +1657,9 @@
     ],
     "postRenderLoop": [
       "Render the project or inspect existing stems.",
-      "Run `python3 tools/does_this_sound_good.py --project-id <project-id> --format markdown`.",
-      "Convert the checker's loudness, low-end, stereo, missing-audio, and arrangement findings into the next Songlab iteration note."
+      "Run `python3 tools/does_this_sound_good.py --project-id <project-id> --format json > check.json`.",
+      "Feed it straight back: `python3 tools/fill_in_blanks.py --input-json <spec> --feedback-json check.json`. Every finding is tagged with the requirements that would have prevented it, so the next pass gets measured steps instead of fresh guesses.",
+      "Re-materialize and log the pass with `python3 tools/songlab.py iterate --project-id <id> --note ...`."
     ]
   }
 }

@@ -561,6 +561,11 @@ public final class ShortcutsWindowController: NSWindowController {
             Shortcut("B", "Draw — add a clip or a note.", term: "Clip"),
             Shortcut("E", "Erase — remove whatever you click on.")
         ]),
+        Group(title: "Working with a person in the loop", items: [
+            Shortcut("⇧⌘H", "Hum a melody — sing it, and the notes land on the selected track.", term: "Piano roll"),
+            Shortcut("⇧⌘K", "Ask for a change in your own words — \"make the drop hit harder\".", term: "Mix"),
+            Shortcut("—", "Listen With Me plays each part and asks plain questions; Try Alternatives plays three takes to pick from. Both are in the Tools menu and the toolbar.")
+        ]),
         Group(title: "Files", items: [
             Shortcut("⌘N", "Start a new song."),
             Shortcut("⌘O", "Open a song you saved earlier."),

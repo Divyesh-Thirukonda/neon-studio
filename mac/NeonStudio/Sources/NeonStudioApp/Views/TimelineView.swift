@@ -1586,6 +1586,8 @@ public final class TimelineView: NSView, EditorCanvas, NSViewToolTipOwner {
                     help: "Place a copy of this block straight after it.")
             addItem(to: menu, title: "Rename Clip…", action: #selector(contextRenameClip(_:)),
                     help: "Give this block a name you'll recognise later.")
+            addItem(to: menu, title: "Try Alternatives…", action: #selector(contextTryAlternatives(_:)),
+                    help: "Hear three different takes on this block and pick one.")
 
             let start = max(0, hit.clip.startBar ?? 0)
             let bars = max(TimelineView.minimumClipBars, hit.clip.bars ?? 1)
@@ -1605,6 +1607,10 @@ public final class TimelineView: NSView, EditorCanvas, NSViewToolTipOwner {
                     help: "Add an empty track to the bottom of the song.")
         }
         return menu
+    }
+
+    @objc private func contextTryAlternatives(_ sender: Any?) {
+        NSApp.sendAction(#selector(DocumentWindowController.tryAlternatives(_:)), to: nil, from: self)
     }
 
     @discardableResult

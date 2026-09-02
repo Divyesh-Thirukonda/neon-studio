@@ -211,6 +211,7 @@ TRACK_BLUEPRINTS: dict[str, TrackBlueprint] = {
         ],
         default_sections=("build", "drop", "second_drop"),
         clip_type="pattern",
+        kind="automation",
     ),
     "sample": TrackBlueprint(
         id="sample",
@@ -427,6 +428,56 @@ def infer_clip_type(track_id: str, section: dict[str, Any]) -> str:
     return TRACK_BLUEPRINTS[track_id].clip_type
 
 
+# Which effect entry on which track the generated renderer actually drives when a
+# section names a technique. Kept in step with the technique pass in the
+# renderer template: an entry marked active here is one that ducks, rings, or
+# widens in the render, not a reminder.
+TECHNIQUE_EFFECT_ENTRIES: dict[str, dict[str, tuple[str, str, float]]] = {
+    "sidechain": {
+        "sub": ("duck", "Kick Duck", 0.65),
+        "bass": ("duck", "Sidechain", 0.50),
+        "chords": ("duck", "Sidechain", 0.45),
+        "plucks": ("duck", "Sidechain", 0.35),
+    },
+    "reverb": {
+        "lead": ("verb", "Reverb", 0.22),
+        "chords": ("verb", "Reverb", 0.22),
+        "vocals": ("verb", "Reverb", 0.22),
+        "plucks": ("verb", "Reverb", 0.22),
+    },
+    "delay": {
+        "lead": ("delay", "Ping Delay", 0.28),
+        "vocals": ("delay", "Stereo Delay", 0.28),
+    },
+    "distortion": {
+        "bass": ("sat", "Saturator", 0.32),
+        "lead": ("sat", "Saturator", 0.32),
+    },
+    "stereo": {
+        "chords": ("wide", "Stereo Spread", 0.3),
+        "plucks": ("wide", "Stereo Spread", 0.3),
+        "fx": ("width", "Stereo Spread", 0.42),
+    },
+    "eq": {
+        "lead": ("eq", "Air EQ", 0.3),
+        "chords": ("eq", "EQ Eight", 0.3),
+        "vocals": ("eq", "EQ Eight", 0.3),
+        "plucks": ("eq", "EQ Eight", 0.3),
+        "bass": ("eq", "Low Cut", 0.3),
+        "sub": ("eq", "Sub EQ", 0.3),
+    },
+    "compression": {
+        "drums": ("comp", "Bus Comp", 0.4),
+        "clap-stack": ("comp", "Bus Comp", 0.4),
+        "vocals": ("comp", "Compressor", 0.35),
+        "guitar": ("comp", "Compressor", 0.35),
+    },
+    "reverse": {
+        "fx": ("reverse", "Reverse Swell", 0.5),
+    },
+}
+
+
 def enrich_effects(track: dict[str, Any], section: dict[str, Any], global_plugins: list[str]) -> None:
     effect_names = {effect["name"] for effect in track["effects"]}
     section_plugins = section.get("plugins", [])
@@ -434,8 +485,17 @@ def enrich_effects(track: dict[str, Any], section: dict[str, Any], global_plugin
         if plugin not in effect_names:
             track["effects"].append({"id": slugify(plugin), "name": plugin, "active": False, "amount": 0.3})
             effect_names.add(plugin)
-    if "sidechain" in section.get("techniques", []) and "Sidechain" not in effect_names:
-        track["effects"].append({"id": "duck", "name": "Sidechain", "active": False, "amount": 0.55})
+    for technique in section.get("techniques", []):
+        entry = TECHNIQUE_EFFECT_ENTRIES.get(str(technique).lower(), {}).get(track["id"])
+        if not entry:
+            continue
+        effect_id, name, amount = entry
+        existing = next((effect for effect in track["effects"] if effect["name"] == name), None)
+        if existing is not None:
+            existing["active"] = True
+        else:
+            track["effects"].append({"id": effect_id, "name": name, "active": True, "amount": amount})
+            effect_names.add(name)
     if "automation" in section.get("techniques", []) and track["id"] == "filter-auto" and "Filter Macro" not in effect_names:
         track["effects"].append({"id": "macro", "name": "Filter Macro", "active": True, "amount": 0.62})
     if global_plugins:
@@ -632,6 +692,7 @@ def build_project_materialization(spec: dict[str, Any], project_id: str, prompt:
             "tracks": tracks,
             "controls": make_controls(tracks),
             "notes": [],
+            "automationLanes": technique_automation_lanes(section_layout),
             "selectedTrackId": tracks[0]["id"] if tracks else "",
             "selectedClipId": tracks[0]["clips"][0]["id"] if tracks and tracks[0]["clips"] else "",
             "activeView": "playlist",
@@ -641,6 +702,49 @@ def build_project_materialization(spec: dict[str, Any], project_id: str, prompt:
         },
     }
     return project
+
+
+# The filter moves the generated renderer performs, as automation lanes in the
+# project - so the app's automation view shows what the render does, and a
+# fidelity check can see the move without listening.
+AUTOMATION_OPEN_TYPES = ("pre_intro", "intro", "verse", "pre_build")
+AUTOMATION_CLOSE_TYPES = ("break", "outro")
+
+
+def technique_automation_lanes(section_layout: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    lanes: list[dict[str, Any]] = []
+    for section in section_layout:
+        techniques = [str(t).strip().lower() for t in (section.get("techniques") or [])]
+        kind = str(section.get("type") or "")
+        move: tuple[float, float, str] | None = None
+        if kind == "build" and ("filtering" in techniques or "automation" in techniques):
+            move = (0.15, 0.92, "sweeps open")
+        elif "filtering" in techniques and kind in AUTOMATION_OPEN_TYPES:
+            move = (0.35, 0.9, "opens")
+        elif "filtering" in techniques and kind in AUTOMATION_CLOSE_TYPES:
+            move = (0.9, 0.35, "closes")
+        elif "automation" in techniques and kind in ("drop", "second_drop"):
+            move = (0.45, 0.9, "opens across the drop")
+        if move is None:
+            continue
+        start_bar = float(section.get("startBar") or 0)
+        bars = float(section.get("bars") or 0)
+        if bars <= 0:
+            continue
+        lanes.append({
+            "id": f"auto-{section.get('id', kind)}-filter",
+            "trackId": "filter-auto",
+            "parameter": "filter",
+            "label": f"{section.get('label') or kind.title()}: filter {move[2]}",
+            "color": "#7dd3fc",
+            "enabled": True,
+            "curve": "exponential",
+            "points": [
+                {"bar": start_bar, "value": move[0]},
+                {"bar": start_bar + bars, "value": move[1]},
+            ],
+        })
+    return lanes
 
 
 def renderer_section_name(section_type: str) -> str:
@@ -708,11 +812,30 @@ def render_track_plan(project: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+# Techniques a producer states about the track as a whole ("I put OTT on the
+# drums", "everything is high-passed") are processing that stays on, so they
+# apply to every section. One-off moves (a reverse, a filter sweep) do not.
+WHOLE_TRACK_TECHNIQUES = ("eq", "compression", "distortion", "stereo", "sidechain", "reverb", "delay", "layering")
+
+
+def whole_track_techniques(spec: dict[str, Any]) -> list[str]:
+    found: list[str] = []
+    for section in spec.get("sections", []) or []:
+        if not isinstance(section, dict) or section.get("type") != "production_notes":
+            continue
+        for technique in section.get("techniques", []) or []:
+            name = str(technique).strip().lower()
+            if name in WHOLE_TRACK_TECHNIQUES and name not in found:
+                found.append(name)
+    return found
+
+
 def render_section_plan(project: dict[str, Any], spec: dict[str, Any]) -> list[dict[str, Any]]:
     tracks = {track["id"]: track for track in project["snapshot"]["tracks"]}
     recipe_by_section = {item["section"]: item for item in project["snapshot"].get("recipe", [])[1:]}
     sections = normalized_sections(spec)
     layout = section_bar_layout(sections)
+    global_techniques = whole_track_techniques(spec)
     plan: list[dict[str, Any]] = []
     defaults_by_section_id: dict[str, dict[str, Any]] = {}
     for section in layout:
@@ -730,7 +853,7 @@ def render_section_plan(project: dict[str, Any], spec: dict[str, Any]) -> list[d
                 "trackRoles": section.get("trackRoles", []),
                 "trackIds": section_track_ids,
                 "plugins": section.get("plugins", []),
-                "techniques": section.get("techniques", []),
+                "techniques": list(section.get("techniques", []) or []) + [t for t in global_techniques if t not in (section.get("techniques", []) or [])],
                 "laneEvents": deep_copy_jsonish(section.get("laneEvents", {}) or {}),
                 "laneTransforms": deep_copy_jsonish(section.get("laneTransforms", {}) or {}),
                 "recipeDetail": recipe_by_section.get(section["label"], {}).get("detail"),
@@ -2091,6 +2214,72 @@ def _starter_lead(ctx: RenderContext, section: dict, track: dict) -> None:
             _schedule_note(buffer, bar_beat(bar, onset), dur, note + transpose, synth_lead, gain=track.get("gain", 0.8) * (0.10 if not soft else 0.06) * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * accent_gain, pan=float(event.get("pan", (-0.08 if (local_bar + int(onset * 10)) % 2 else 0.08))), soft=soft)
 
 
+DEFAULT_KICK_BEATS = [0.0, 1.5, 2.75]
+DEFAULT_SNARE_BEATS = [1.0, 3.0]
+
+
+def _kick_events_for_bar(drum_pattern: dict, local_bar: int) -> list[dict]:
+    return _drum_event_data_for_bar(drum_pattern, "kicks", local_bar, DEFAULT_KICK_BEATS)
+
+
+def _snare_events_for_bar(drum_pattern: dict, local_bar: int) -> list[dict]:
+    return _drum_event_data_for_bar(drum_pattern, "snares", local_bar, DEFAULT_SNARE_BEATS)
+
+
+def _clap_events_for_bar(drum_pattern: dict, local_bar: int) -> list[dict]:
+    if _drum_flag_for_bar(drum_pattern, "clapRoll", local_bar):
+        return [{"beat": step * 0.5} for step in range(8)]
+    return _drum_event_data_for_bar(drum_pattern, "claps", local_bar, _drum_values_for_bar(drum_pattern, "snares", local_bar, DEFAULT_SNARE_BEATS))
+
+
+def _snare_hit_gain(track: dict, defaults: dict, event: dict) -> float:
+    ghost_gain = 0.55 if event.get("ghost") else 1.0
+    accent_gain = 1.18 if event.get("accent") else 1.0
+    return track.get("gain", 0.8) * 0.34 * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * ghost_gain * accent_gain
+
+
+def _clap_hit_gain(track: dict, defaults: dict, drum_pattern: dict, local_bar: int, event: dict) -> float:
+    accent_gain = 1.16 if event.get("accent") else (0.72 if event.get("ghost") else 1.0)
+    roll_gain = 0.18 if _drum_flag_for_bar(drum_pattern, "clapRoll", local_bar) else 0.24
+    return track.get("gain", 0.8) * roll_gain * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * accent_gain
+
+
+def _kick_onsets_for_section(section: dict) -> list[float]:
+    """Absolute onset times (seconds) of every kick in the section's drum pattern.
+
+    The sidechain keys from this list, not from the rendered audio: it is the
+    same lookup the drums lane plays from, so the duck lands on the kick even
+    when the drums lane is silent in this section (the classic ghost-kick pump)."""
+    drum_pattern = _section_defaults(section).get("drumPattern") or {}
+    onsets: list[float] = []
+    for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
+        for event in _kick_events_for_bar(drum_pattern, local_bar):
+            onsets.append(beat_to_seconds(bar_beat(bar, float(event["beat"]))))
+    return onsets
+
+
+def _snare_hits_for_section(section: dict, track: dict) -> list[tuple[float, float]]:
+    """(onset seconds, gain) for each snare the drums lane plays here, same math as the lane."""
+    defaults = _section_defaults(section)
+    drum_pattern = defaults.get("drumPattern") or {}
+    hits: list[tuple[float, float]] = []
+    for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
+        for event in _snare_events_for_bar(drum_pattern, local_bar):
+            hits.append((beat_to_seconds(bar_beat(bar, float(event["beat"]))), _snare_hit_gain(track, defaults, event)))
+    return hits
+
+
+def _clap_hits_for_section(section: dict, track: dict) -> list[tuple[float, float]]:
+    """(onset seconds, gain) for each clap the clap lane plays here, same math as the lane."""
+    defaults = _section_defaults(section)
+    drum_pattern = defaults.get("drumPattern") or {}
+    hits: list[tuple[float, float]] = []
+    for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
+        for event in _clap_events_for_bar(drum_pattern, local_bar):
+            hits.append((beat_to_seconds(bar_beat(bar, float(event["beat"]))), _clap_hit_gain(track, defaults, drum_pattern, local_bar, event)))
+    return hits
+
+
 def _starter_drums(ctx: RenderContext, section: dict, track: dict) -> None:
     buffer = _track_buffer(ctx, track["id"])
     defaults = _section_defaults(section)
@@ -2099,8 +2288,8 @@ def _starter_drums(ctx: RenderContext, section: dict, track: dict) -> None:
     s = snare(False)
     h = hat(False)
     for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
-        kicks = _drum_event_data_for_bar(drum_pattern, "kicks", local_bar, [0.0, 1.5, 2.75])
-        snares = _drum_event_data_for_bar(drum_pattern, "snares", local_bar, [1.0, 3.0])
+        kicks = _kick_events_for_bar(drum_pattern, local_bar)
+        snares = _snare_events_for_bar(drum_pattern, local_bar)
         hats = _drum_event_data_for_bar(drum_pattern, "hats", local_bar, [step * 0.5 for step in range(8)])
         for event in kicks:
             beat = float(event["beat"])
@@ -2108,9 +2297,7 @@ def _starter_drums(ctx: RenderContext, section: dict, track: dict) -> None:
             add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), k, gain=track.get("gain", 0.8) * 0.95 * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * accent_gain, pan=float(event.get("pan", track.get("pan", 0.0))))
         for event in snares:
             beat = float(event["beat"])
-            ghost_gain = 0.55 if event.get("ghost") else 1.0
-            accent_gain = 1.18 if event.get("accent") else 1.0
-            add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), s, gain=track.get("gain", 0.8) * 0.34 * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * ghost_gain * accent_gain)
+            add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), s, gain=_snare_hit_gain(track, defaults, event))
         for event in hats:
             beat_value = float(event["beat"])
             open_hat = bool(event.get("open"))
@@ -2126,15 +2313,9 @@ def _starter_clap_stack(ctx: RenderContext, section: dict, track: dict) -> None:
     drum_pattern = defaults.get("drumPattern") or {}
     c = snare(True)
     for local_bar, bar in enumerate(range(section["startBar"], section["startBar"] + section["bars"])):
-        beats = (
-            [{"beat": step * 0.5} for step in range(8)]
-            if _drum_flag_for_bar(drum_pattern, "clapRoll", local_bar)
-            else _drum_event_data_for_bar(drum_pattern, "claps", local_bar, _drum_values_for_bar(drum_pattern, "snares", local_bar, [1.0, 3.0]))
-        )
-        for event in beats:
+        for event in _clap_events_for_bar(drum_pattern, local_bar):
             beat = float(event["beat"])
-            accent_gain = 1.16 if event.get("accent") else (0.72 if event.get("ghost") else 1.0)
-            add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), c, gain=track.get("gain", 0.8) * (0.18 if _drum_flag_for_bar(drum_pattern, "clapRoll", local_bar) else 0.24) * float(defaults.get("energy", 1.0)) * float(event.get("gain", 1.0)) * accent_gain, pan=float(event.get("pan", 0.18)))
+            add_mono(buffer, beat_to_seconds(bar_beat(bar, beat)), c, gain=_clap_hit_gain(track, defaults, drum_pattern, local_bar, event), pan=float(event.get("pan", 0.18)))
 
 
 def _starter_hat_ride(ctx: RenderContext, section: dict, track: dict) -> None:
@@ -2415,6 +2596,729 @@ def _render_lane_starter(ctx: RenderContext, section: dict, track: dict) -> None
         _starter_sample(ctx, section, track)
 
 
+# ---------------------------------------------------------------------------
+# Technique pass
+#
+# Sections arrive with the techniques the transcript named. The functions below
+# turn those words into audio. The pass runs once per section after every lane
+# has rendered, on the slice of each stem that section owns, so a technique only
+# touches the bars the tutorial attached it to. Each effect is a pure function on
+# a (samples, 2) float array so it can be checked on a sine without rendering a
+# song, and each is plain numpy so the emitted renderer stays self-contained.
+# ---------------------------------------------------------------------------
+
+SIDECHAIN_DEPTHS = {"sub": 0.65, "bass": 0.50, "chords": 0.45, "plucks": 0.35}
+SIDECHAIN_ATTACK_SECONDS = 0.005
+SIDECHAIN_RELEASE_BEATS = 0.5
+REVERB_TARGETS = ("lead", "chords", "vocals", "plucks")
+REVERB_WET = 0.22
+REVERB_DECAY_SECONDS = 1.6
+REVERB_HIGHPASS_HZ = 300.0
+DELAY_TARGETS = ("lead", "vocals")
+DELAY_NOTE_BEATS = 0.75
+DELAY_FEEDBACK = 0.38
+DELAY_WET = 0.28
+SWEEP_TARGETS = ("lead", "chords", "plucks")
+SWEEP_START_HZ = 400.0
+SWEEP_END_HZ = 12000.0
+# "Filtering" outside a build: a producer opens the filter into the song and
+# closes it on the way out. Drops are left static; a sweep across a drop is not
+# what anyone means by filtering there.
+SWEEP_OPEN_TYPES = ("pre_intro", "intro", "verse", "pre_build")
+SWEEP_CLOSE_TYPES = ("break", "outro")
+SWEEP_OPEN_START_HZ = 600.0
+SWEEP_OPEN_END_HZ = 10000.0
+DROP_AUTOMATION_START_HZ = 800.0
+DROP_AUTOMATION_END_HZ = 12000.0
+EQ_HIGHPASS_HZ = 120.0
+EQ_HIGHPASS_POLES = 4
+EQ_HIGHPASS_TARGETS = ("lead", "chords", "vocals", "plucks", "fx", "guitar", "sample")
+EQ_BASS_HIGHPASS_HZ = 60.0
+EQ_SUB_LOWPASS_HZ = 120.0
+COMPRESSION_TARGETS = ("drums", "clap_stack", "vocals", "guitar")
+COMPRESSION_THRESHOLD_DB = -18.0   # under the lane's own loudest moment
+COMPRESSION_RATIO = 6.0            # OTT-territory, which is what these tutorials reach for
+COMPRESSION_ATTACK_SECONDS = 0.005
+COMPRESSION_RELEASE_SECONDS = 0.08
+REVERSE_SOURCE_ORDER = ("chords", "lead", "fx")
+REVERSE_SWELL_BEATS = 2.0
+REVERSE_SWELL_DB = -6.0            # under the source, when the fx lane is empty
+REVERSE_SWELL_ABOVE_LANE_DB = 9.0  # over the fx lane's own level, so it reads as a swell
+MASTER_DRIVE_DB = 6.0
+MASTER_LIMITER_RELEASE_SECONDS = 0.05
+DISTORTION_TARGETS = ("bass", "lead")
+DISTORTION_DRIVE = 2.2
+WIDEN_TARGETS = ("chords", "plucks", "fx")
+WIDEN_DELAY_MS = 12.0
+WIDEN_LEVEL_DB = -3.0
+SNARE_LAYER_DB = -9.0
+EFFECT_TAIL_SECONDS = 2.5
+HANDLED_TECHNIQUES = ("sidechain", "reverb", "delay", "filtering", "automation", "distortion", "stereo", "layering", "eq", "compression", "reverse")
+
+# Lane offsets relative to the drums, from the rubric's gain_ladder step, keyed
+# by stem id. Anything not listed sits at the default so a new lane is never
+# accidentally the loudest thing in the mix.
+GAIN_LADDER_DB = {
+    "drums": 0.0,
+    "sub": -7.0,
+    "bass": -7.0,
+    "lead": -4.0,
+    "clap_stack": -6.0,
+    "chords": -7.0,
+    "vocals": -8.0,
+    "plucks": -12.0,
+    "fx": -12.0,
+    "hat_ride": -14.0,
+    "guitar": -6.0,
+    "sample": -10.0,
+    "filter_auto": -12.0,
+}
+GAIN_LADDER_DEFAULT_DB = -10.0
+GAIN_LADDER_REFERENCE_ORDER = ("drums", "clap_stack", "bass", "sub", "lead", "chords")
+MASTER_PEAK_DBFS = -1.0
+
+
+def db_to_gain(db: float) -> float:
+    return float(10.0 ** (db / 20.0))
+
+
+def _one_pole_scan(x: np.ndarray, a, b, y0: float = 0.0) -> np.ndarray:
+    """y[n] = a[n] * y[n-1] + b[n] * x[n], vectorised; a and b may be scalars or arrays.
+
+    numpy has no scan, and a per-sample Python loop over a three-minute stem takes
+    minutes. Rewriting the recursion with cumulative products turns each chunk
+    into one cumsum. Chunks are kept short enough that the running product cannot
+    underflow, and the last output of a chunk seeds the next one."""
+    x = np.asarray(x, dtype=np.float64)
+    n = len(x)
+    out = np.empty(n, dtype=np.float64)
+    if n == 0:
+        return out
+    a_arr = np.broadcast_to(np.asarray(a, dtype=np.float64), (n,))
+    b_arr = np.broadcast_to(np.asarray(b, dtype=np.float64), (n,))
+    a_min = float(min(max(float(np.min(a_arr)), 1e-3), 1.0))
+    chunk = 4096 if a_min >= 1.0 else int(min(4096, max(16, math.floor(-200.0 / math.log10(a_min)))))
+    prev = float(y0)
+    for start in range(0, n, chunk):
+        stop = min(n, start + chunk)
+        running = np.cumprod(a_arr[start:stop])
+        driven = np.cumsum(b_arr[start:stop] * x[start:stop] / running)
+        y = running * (prev + driven)
+        out[start:stop] = y
+        prev = float(y[-1])
+    return out
+
+
+def lowpass_vectorised(x: np.ndarray, cutoff_hz: float, sr: int = SR) -> np.ndarray:
+    """One-pole low-pass, same response as one_pole_lowpass but fast enough for whole stems."""
+    rc = 1.0 / (2.0 * math.pi * max(cutoff_hz, 1.0))
+    dt = 1.0 / sr
+    alpha = dt / (rc + dt)
+    return _one_pole_scan(x, 1.0 - alpha, alpha)
+
+
+def highpass_vectorised(x: np.ndarray, cutoff_hz: float, sr: int = SR) -> np.ndarray:
+    """One-pole high-pass: y[n] = a * (y[n-1] + x[n] - x[n-1])."""
+    rc = 1.0 / (2.0 * math.pi * max(cutoff_hz, 1.0))
+    dt = 1.0 / sr
+    a = rc / (rc + dt)
+    step = np.diff(np.asarray(x, dtype=np.float64), prepend=0.0)
+    return _one_pole_scan(step, a, a)
+
+
+def sidechain_envelope(n: int, onsets_seconds, sr: int = SR, bpm: float = BPM, attack_seconds: float = SIDECHAIN_ATTACK_SECONDS, release_beats: float = SIDECHAIN_RELEASE_BEATS) -> np.ndarray:
+    """0..1 duck amount over n samples: a 5 ms attack into a smooth release lasting an eighth note.
+
+    The release is a smoothstep rather than a straight line because a compressor
+    keyed from a kick holds near full reduction while the kick body is still
+    sounding and lets go towards the end of the eighth; that is what reads as a
+    pump rather than a volume wobble."""
+    env = np.zeros(n, dtype=np.float64)
+    attack_n = max(1, int(round(attack_seconds * sr)))
+    release_n = max(1, int(round(release_beats * (60.0 / bpm) * sr)))
+    release_progress = np.linspace(0.0, 1.0, release_n)
+    shape = np.concatenate([
+        np.linspace(0.0, 1.0, attack_n, endpoint=False),
+        1.0 - (3.0 * release_progress ** 2 - 2.0 * release_progress ** 3),
+    ])
+    for onset in onsets_seconds:
+        start = int(round(float(onset) * sr))
+        stop = start + len(shape)
+        lo = max(start, 0)
+        hi = min(stop, n)
+        if hi <= lo:
+            continue
+        env[lo:hi] = np.maximum(env[lo:hi], shape[lo - start:hi - start])
+    return env
+
+
+def apply_sidechain(stereo: np.ndarray, onsets_seconds, depth: float, sr: int = SR, bpm: float = BPM) -> np.ndarray:
+    """Duck the signal by `depth` at every kick onset: gain = 1 - depth * envelope."""
+    env = sidechain_envelope(len(stereo), onsets_seconds, sr=sr, bpm=bpm)
+    gain = (1.0 - float(depth) * env).astype(np.float32)
+    return (np.asarray(stereo, dtype=np.float32) * gain[:, None]).astype(np.float32)
+
+
+def _feedback_comb(x: np.ndarray, delay: int, g: float) -> np.ndarray:
+    # y[n] = x[n] + g * y[n - delay]. Blocks of `delay` samples only depend on
+    # the previous block, so the recursion vectorises one block at a time.
+    n = len(x)
+    y = np.zeros(n, dtype=np.float64)
+    y[:delay] = x[:delay]
+    for start in range(delay, n, delay):
+        stop = min(n, start + delay)
+        y[start:stop] = x[start:stop] + g * y[start - delay:stop - delay]
+    return y
+
+
+def _allpass(x: np.ndarray, delay: int, g: float) -> np.ndarray:
+    # y[n] = -g * x[n] + x[n - delay] + g * y[n - delay]
+    n = len(x)
+    y = np.zeros(n, dtype=np.float64)
+    y[:delay] = -g * x[:delay]
+    for start in range(delay, n, delay):
+        stop = min(n, start + delay)
+        y[start:stop] = -g * x[start:stop] + x[start - delay:stop - delay] + g * y[start - delay:stop - delay]
+    return y
+
+
+REVERB_COMB_DELAYS = (1557, 1617, 1491, 1422)
+REVERB_ALLPASS_DELAYS = (556, 341)
+REVERB_STEREO_SPREAD = 23
+
+
+def schroeder_reverb(stereo: np.ndarray, sr: int = SR, decay_seconds: float = REVERB_DECAY_SECONDS) -> np.ndarray:
+    """Wet-only Schroeder reverb: four parallel feedback combs into two series allpasses.
+
+    The right channel's delays are nudged by a few samples so the two tails
+    decorrelate and the reverb reads as a space rather than a mono echo. The comb
+    sum is normalised by its average power gain so `wet` means the same thing
+    whatever the decay time."""
+    x = np.asarray(stereo, dtype=np.float64)
+    out = np.zeros_like(x)
+    scale = sr / 44100.0
+    for channel in range(x.shape[1]):
+        spread = 0 if channel == 0 else REVERB_STEREO_SPREAD
+        acc = np.zeros(len(x), dtype=np.float64)
+        power_gain = 0.0
+        for base in REVERB_COMB_DELAYS:
+            delay = max(1, int(round((base + spread) * scale)))
+            g = 10.0 ** (-3.0 * delay / (max(decay_seconds, 0.05) * sr))
+            acc += _feedback_comb(x[:, channel], delay, g)
+            power_gain += 1.0 / (1.0 - g * g)
+        acc /= math.sqrt(power_gain)
+        for base in REVERB_ALLPASS_DELAYS:
+            acc = _allpass(acc, max(1, int(round((base + spread) * scale))), 0.5)
+        out[:, channel] = acc
+    return out
+
+
+def apply_reverb(stereo: np.ndarray, sr: int = SR, wet: float = REVERB_WET, decay_seconds: float = REVERB_DECAY_SECONDS, highpass_hz: float = REVERB_HIGHPASS_HZ) -> np.ndarray:
+    """Dry plus a reverb send. The send is high-passed so the tail never sits on the low end."""
+    x = np.asarray(stereo, dtype=np.float64)
+    send = np.stack([
+        lowpass_vectorised(highpass_vectorised(x[:, channel], highpass_hz, sr), 7000.0, sr)
+        for channel in range(x.shape[1])
+    ], axis=1)
+    return (x + float(wet) * schroeder_reverb(send, sr, decay_seconds)).astype(np.float32)
+
+
+def apply_pingpong_delay(stereo: np.ndarray, sr: int = SR, bpm: float = BPM, note_beats: float = DELAY_NOTE_BEATS, feedback: float = DELAY_FEEDBACK, wet: float = DELAY_WET, max_repeats: int = 16) -> np.ndarray:
+    """Stereo ping-pong: the mono sum repeats every `note_beats`, first left, then right, fading by `feedback`."""
+    x = np.asarray(stereo, dtype=np.float64)
+    n = len(x)
+    delay = max(1, int(round(note_beats * (60.0 / bpm) * sr)))
+    mono = 0.5 * (x[:, 0] + x[:, 1])
+    echoes = np.zeros_like(x)
+    amp = 1.0
+    for repeat in range(1, max_repeats + 1):
+        offset = repeat * delay
+        if offset >= n or amp < 1e-3:
+            break
+        echoes[offset:, (repeat - 1) % 2] += amp * mono[:n - offset]
+        amp *= feedback
+    return (x + float(wet) * echoes).astype(np.float32)
+
+
+def apply_filter_sweep(stereo: np.ndarray, sr: int = SR, start_hz: float = SWEEP_START_HZ, end_hz: float = SWEEP_END_HZ) -> np.ndarray:
+    """One-pole low-pass whose cutoff glides from start_hz to end_hz across the whole array.
+
+    The glide is exponential in frequency (constant octaves per second), which is
+    how a filter knob turned steadily sounds; a linear sweep spends almost all of
+    its time already open."""
+    x = np.asarray(stereo, dtype=np.float64)
+    n = len(x)
+    if n == 0:
+        return np.asarray(stereo, dtype=np.float32)
+    progress = np.linspace(0.0, 1.0, n)
+    cutoff = start_hz * (end_hz / start_hz) ** progress
+    dt = 1.0 / sr
+    alpha = dt / (1.0 / (2.0 * math.pi * cutoff) + dt)
+    out = np.empty_like(x)
+    for channel in range(x.shape[1]):
+        out[:, channel] = _one_pole_scan(x[:, channel], 1.0 - alpha, alpha)
+    return out.astype(np.float32)
+
+
+def _sweep_range_for(section_type: str, techniques: list) -> "tuple[float, float] | None":
+    """Where a filter goes for this section, or None when nothing should move."""
+    if section_type == "build" and ("filtering" in techniques or "automation" in techniques):
+        return SWEEP_START_HZ, SWEEP_END_HZ
+    if "filtering" not in techniques:
+        return None
+    if section_type in SWEEP_OPEN_TYPES:
+        return SWEEP_OPEN_START_HZ, SWEEP_OPEN_END_HZ
+    if section_type in SWEEP_CLOSE_TYPES:
+        return SWEEP_OPEN_END_HZ, SWEEP_OPEN_START_HZ
+    return None
+
+
+def _drop_automation_range(section_type: str, techniques: list) -> "tuple[float, float] | None":
+    if section_type in ("drop", "second_drop") and "automation" in techniques:
+        return DROP_AUTOMATION_START_HZ, DROP_AUTOMATION_END_HZ
+    return None
+
+
+def _one_pole_alpha(cutoff_hz: float, sr: int) -> float:
+    dt = 1.0 / sr
+    return dt / (1.0 / (2.0 * math.pi * max(1.0, cutoff_hz)) + dt)
+
+
+def apply_lowpass(stereo: np.ndarray, sr: int = SR, cutoff_hz: float = EQ_SUB_LOWPASS_HZ, poles: int = 2) -> np.ndarray:
+    """Cascaded one-pole low-pass: two poles give the 12 dB/octave slope of a stock EQ band."""
+    x = np.asarray(stereo, dtype=np.float64)
+    if x.size == 0:
+        return np.asarray(stereo, dtype=np.float32)
+    alpha = _one_pole_alpha(cutoff_hz, sr)
+    out = x.copy()
+    for _ in range(max(1, poles)):
+        for channel in range(out.shape[1]):
+            out[:, channel] = _one_pole_scan(out[:, channel], 1.0 - alpha, alpha)
+    return out.astype(np.float32)
+
+
+def apply_highpass(stereo: np.ndarray, sr: int = SR, cutoff_hz: float = EQ_HIGHPASS_HZ, poles: int = 2) -> np.ndarray:
+    """High-pass as the input minus its low-passed copy, one pole at a time."""
+    x = np.asarray(stereo, dtype=np.float64)
+    if x.size == 0:
+        return np.asarray(stereo, dtype=np.float32)
+    alpha = _one_pole_alpha(cutoff_hz, sr)
+    out = x.copy()
+    for _ in range(max(1, poles)):
+        for channel in range(out.shape[1]):
+            out[:, channel] = out[:, channel] - _one_pole_scan(out[:, channel], 1.0 - alpha, alpha)
+    return out.astype(np.float32)
+
+
+def apply_compressor(stereo: np.ndarray, sr: int = SR, threshold_db: float = COMPRESSION_THRESHOLD_DB, ratio: float = COMPRESSION_RATIO,
+                     attack_seconds: float = COMPRESSION_ATTACK_SECONDS, release_seconds: float = COMPRESSION_RELEASE_SECONDS) -> np.ndarray:
+    """Feed-forward RMS compressor with make-up so the loudest hit lands where it was.
+
+    The threshold is relative to the block's own peak, so the amount of squash
+    does not depend on how hot the lane was rendered. The follower is the larger
+    of a fast and a slow one-pole, which is the cheap way to get a fast attack
+    and a slow release without a per-sample loop."""
+    x = np.asarray(stereo, dtype=np.float64)
+    peak = float(np.max(np.abs(x))) if x.size else 0.0
+    if peak <= 1e-9:
+        return np.asarray(stereo, dtype=np.float32)
+    power = np.mean(x * x, axis=1)
+    fast = _one_pole_alpha(1.0 / (2.0 * math.pi * max(attack_seconds, 1e-4)), sr)
+    slow = _one_pole_alpha(1.0 / (2.0 * math.pi * max(release_seconds, 1e-3)), sr)
+    env = np.sqrt(np.maximum(_one_pole_scan(power, 1.0 - fast, fast), _one_pole_scan(power, 1.0 - slow, slow)))
+    # Threshold against the follower's own loudest moment, not the sample peak:
+    # a drum hit's RMS sits 10-15 dB under its transient, and a threshold set
+    # from the transient never gets crossed.
+    threshold = float(np.max(env)) * (10.0 ** (threshold_db / 20.0))
+    over = np.maximum(env / max(threshold, 1e-12), 1.0)
+    gain = over ** (1.0 / max(ratio, 1.0) - 1.0)
+    y = x * gain[:, None]
+    out_peak = float(np.max(np.abs(y))) if y.size else 0.0
+    if out_peak > 1e-12:
+        y *= peak / out_peak
+    return y.astype(np.float32)
+
+
+def limiter_gain_curve(stereo: np.ndarray, sr: int = SR, drive_db: float = MASTER_DRIVE_DB, ceiling_db: float = MASTER_PEAK_DBFS,
+                       release_seconds: float = MASTER_LIMITER_RELEASE_SECONDS) -> np.ndarray:
+    """Per-sample gain (drive included) that pushes the mix up by drive_db and
+    holds every peak at the ceiling.
+
+    Gain reduction is instant on the way in (no overshoot, so no clip) and
+    released through a one-pole, which is what keeps it from sounding like a
+    clipper. Returned as a curve so the same gain can be applied to every stem:
+    the stems then still add up to the mastered mix, and the app - which plays
+    the stems - sits at the same level as the file."""
+    x = np.asarray(stereo, dtype=np.float64) * (10.0 ** (drive_db / 20.0))
+    if x.size == 0:
+        return np.ones(0, dtype=np.float64)
+    ceiling = 10.0 ** (ceiling_db / 20.0)
+    amplitude = np.max(np.abs(x), axis=1)
+    desired = np.minimum(1.0, ceiling / np.maximum(amplitude, 1e-9))
+    release = _one_pole_alpha(1.0 / (2.0 * math.pi * max(release_seconds, 1e-3)), sr)
+    smoothed = _one_pole_scan(desired, 1.0 - release, release, y0=1.0)
+    return np.minimum(desired, smoothed) * (10.0 ** (drive_db / 20.0))
+
+
+def apply_peak_limiter(stereo: np.ndarray, sr: int = SR, drive_db: float = MASTER_DRIVE_DB, ceiling_db: float = MASTER_PEAK_DBFS,
+                       release_seconds: float = MASTER_LIMITER_RELEASE_SECONDS) -> np.ndarray:
+    """The mix through limiter_gain_curve, with a hard clip as a guard, not the design."""
+    x = np.asarray(stereo, dtype=np.float64)
+    if x.size == 0:
+        return np.asarray(stereo, dtype=np.float32)
+    curve = limiter_gain_curve(x, sr, drive_db, ceiling_db, release_seconds)
+    ceiling = 10.0 ** (ceiling_db / 20.0)
+    return np.clip(x * curve[:, None], -ceiling, ceiling).astype(np.float32)
+
+
+def reverse_swell(source: np.ndarray, level_db: float = REVERSE_SWELL_DB, reference_peak: "float | None" = None,
+                  target_rms: "float | None" = None) -> np.ndarray:
+    """The classic reverse: the first thing you hear, played backwards into itself.
+
+    With target_rms the loud end of the swell (its last quarter) lands at that
+    RMS - what the ear compares against the lane it sits on; a chord slice has
+    a 13 dB crest, so scaling by peak would leave it under the bed. Otherwise
+    the swell peaks level_db under reference_peak or the source's own peak."""
+    x = np.asarray(source, dtype=np.float64)[::-1].copy()
+    n = len(x)
+    if n == 0:
+        return np.zeros((0, 2), dtype=np.float32)
+    ramp = np.linspace(0.0, 1.0, n) ** 2
+    x *= ramp[:, None]
+    if target_rms is not None:
+        loud_end = x[-max(1, n // 4):]
+        current = math.sqrt(float(np.mean(loud_end * loud_end))) if loud_end.size else 0.0
+        if current > 1e-9:
+            x *= float(target_rms) / current
+        return x.astype(np.float32)
+    peak = float(np.max(np.abs(x))) if x.size else 0.0
+    target = float(reference_peak) if reference_peak else float(np.max(np.abs(source)))
+    if peak > 1e-9:
+        x *= (10.0 ** (level_db / 20.0)) * target / peak
+    return x.astype(np.float32)
+
+
+def noise_riser(duration_seconds: float, sr: int = SR, seed: int = 2203) -> np.ndarray:
+    """A white-noise riser: two decorrelated noise channels opening up and swelling to the end."""
+    n = max(1, int(duration_seconds * sr))
+    rng = np.random.default_rng(seed)
+    noise = np.stack([rng.standard_normal(n), rng.standard_normal(n)], axis=1)
+    swept = apply_filter_sweep(noise, sr, 600.0, 14000.0).astype(np.float64)
+    env = np.linspace(0.0, 1.0, n) ** 2.0
+    return (0.14 * swept * env[:, None]).astype(np.float32)
+
+
+def apply_soft_clip(stereo: np.ndarray, drive: float = DISTORTION_DRIVE) -> np.ndarray:
+    """tanh saturation, driven relative to the signal's own peak and returned at its original RMS.
+
+    Driving relative to the peak means the amount of grit does not depend on
+    how hot the lane happened to be rendered; matching the RMS afterwards means
+    turning distortion on never turns the part up."""
+    x = np.asarray(stereo, dtype=np.float64)
+    peak = float(np.max(np.abs(x))) if x.size else 0.0
+    if peak <= 1e-9:
+        return np.asarray(stereo, dtype=np.float32)
+    rms_in = math.sqrt(float(np.mean(x * x)))
+    y = np.tanh(float(drive) * x / peak)
+    rms_out = math.sqrt(float(np.mean(y * y)))
+    if rms_out > 1e-12:
+        y *= rms_in / rms_out
+    return y.astype(np.float32)
+
+
+def apply_haas_widener(stereo: np.ndarray, sr: int = SR, delay_ms: float = WIDEN_DELAY_MS, level_db: float = WIDEN_LEVEL_DB) -> np.ndarray:
+    """Haas widening: each channel gets a short delayed copy of itself, added on the left and
+    subtracted on the right, so the side signal grows while the mono sum is unchanged."""
+    x = np.asarray(stereo, dtype=np.float64)
+    delay = max(1, int(round(delay_ms / 1000.0 * sr)))
+    g = db_to_gain(level_db)
+    out = x.copy()
+    if delay < len(x):
+        out[delay:, 0] += g * x[:-delay, 0]
+        out[delay:, 1] -= g * x[:-delay, 1]
+    out /= math.sqrt(1.0 + g * g)
+    return out.astype(np.float32)
+
+
+def snare_layer_burst(sr: int = SR, seed: int = 9021) -> np.ndarray:
+    """A 110 ms band-passed noise burst, peak-normalised, to sit under a snare or clap."""
+    n = max(1, int(0.11 * sr))
+    t = np.arange(n, dtype=np.float64) / sr
+    noise = np.random.default_rng(seed).standard_normal(n)
+    shaped = lowpass_vectorised(highpass_vectorised(noise, 900.0, sr), 5000.0, sr) * np.exp(-t * 32.0)
+    peak = float(np.max(np.abs(shaped)))
+    return (shaped / peak if peak > 0 else shaped).astype(np.float32)
+
+
+def apply_snare_layer(stereo: np.ndarray, hits, sr: int = SR, relative_db: float = SNARE_LAYER_DB) -> np.ndarray:
+    """Add a noise layer under each (onset_seconds, hit_peak) at relative_db below the hit's own peak."""
+    out = np.array(stereo, dtype=np.float32, copy=True)
+    burst = snare_layer_burst(sr)
+    left, right = equal_power_pan(0.0)
+    level = db_to_gain(relative_db)
+    n = len(out)
+    for onset, hit_peak in hits:
+        start = int(round(float(onset) * sr))
+        stop = min(n, start + len(burst))
+        if start < 0 or stop <= start:
+            continue
+        chunk = burst[:stop - start] * (float(hit_peak) * level)
+        out[start:stop, 0] += chunk * left
+        out[start:stop, 1] += chunk * right
+    return out
+
+
+def stem_level_db(audio: np.ndarray, sr: int = SR, window_seconds: float = 0.1) -> float:
+    """Level of a stem while it is actually playing, in dBFS.
+
+    Whole-file RMS punishes a lane that rests for half the song, and the peak is
+    set by one crash. The 95th percentile of 100 ms window RMS tracks the hits
+    for a drum lane and the sustain for a pad, which is the level a fader is set
+    against. Silence reports -120."""
+    x = np.asarray(audio, dtype=np.float64)
+    if x.ndim == 2:
+        power = np.mean(x * x, axis=1)
+    else:
+        power = x * x
+    window = max(1, int(window_seconds * sr))
+    usable = (len(power) // window) * window
+    if usable == 0:
+        return -120.0
+    window_power = power[:usable].reshape(-1, window).mean(axis=1)
+    loudest = float(window_power.max())
+    if loudest <= 1e-20:
+        return -120.0
+    playing = window_power[window_power > loudest * 1e-6]
+    return float(10.0 * math.log10(float(np.percentile(playing, 95)) + 1e-20))
+
+
+def gain_ladder_scales(stems: dict) -> dict:
+    """Per-stem linear scale so each lane sits at its GAIN_LADDER_DB offset from the drums.
+
+    Silent stems keep a scale of 1.0. When there is no drums stem the next lane in
+    GAIN_LADDER_REFERENCE_ORDER anchors the ladder and the offsets shift with it."""
+    levels = {stem_id: stem_level_db(audio) for stem_id, audio in stems.items()}
+    audible = [stem_id for stem_id, level in levels.items() if level > -100.0]
+    if not audible:
+        return {stem_id: 1.0 for stem_id in stems}
+    reference = next((stem_id for stem_id in GAIN_LADDER_REFERENCE_ORDER if stem_id in audible), audible[0])
+    reference_offset = GAIN_LADDER_DB.get(reference, GAIN_LADDER_DEFAULT_DB)
+    scales = {}
+    for stem_id in stems:
+        if stem_id not in audible:
+            scales[stem_id] = 1.0
+            continue
+        target = levels[reference] + GAIN_LADDER_DB.get(stem_id, GAIN_LADDER_DEFAULT_DB) - reference_offset
+        scales[stem_id] = db_to_gain(target - levels[stem_id])
+    return scales
+
+
+def master_peak_scale(mix: np.ndarray, peak_dbfs: float = MASTER_PEAK_DBFS) -> float:
+    """The single gain that puts the mix's peak at peak_dbfs. Silence returns 1.0."""
+    peak = float(np.max(np.abs(mix))) if np.asarray(mix).size else 0.0
+    if peak <= 1e-12:
+        return 1.0
+    return db_to_gain(peak_dbfs) / peak
+
+
+def _section_window(section: dict) -> tuple[int, int]:
+    start = int(round(beat_to_seconds(bar_beat(section["startBar"])) * SR))
+    end = int(round(beat_to_seconds(bar_beat(section["startBar"] + section["bars"])) * SR))
+    return max(0, min(start, N_SAMPLES)), max(0, min(end, N_SAMPLES))
+
+
+def _process_window(stem: np.ndarray, start: int, end: int, effect, tail_samples: int = 0) -> None:
+    """Run `effect` on the section's slice of a stem, in place.
+
+    A reverb or delay keeps ringing after the section ends. Feeding the effect
+    the slice plus silence and ADDING whatever comes out past the end to the
+    next section keeps the tail, without processing the next section's notes."""
+    n = end - start
+    if n <= 0:
+        return
+    tail = max(0, min(int(tail_samples), len(stem) - end))
+    block = np.zeros((n + tail, stem.shape[1]), dtype=np.float32)
+    block[:n] = stem[start:end]
+    out = effect(block)
+    stem[start:end] = out[:n]
+    if tail > 0:
+        stem[end:end + tail] += out[n:n + tail]
+
+
+def _sample_peak(audio: np.ndarray) -> float:
+    return float(np.max(np.abs(audio))) if np.asarray(audio).size else 0.0
+
+
+def apply_section_techniques(ctx: RenderContext, section: dict) -> list[str]:
+    """Apply the techniques the section lists to the stems over the section's bars.
+
+    Returns one human-readable line per technique that changed audio. A section
+    that lists nothing is left untouched."""
+    techniques = [str(item).strip().lower() for item in (section.get("techniques") or [])]
+    if not techniques:
+        return []
+    start, end = _section_window(section)
+    if end <= start:
+        return []
+    stems = ctx.stems
+    section_tracks = set(section.get("trackIds") or [])
+    section_start_seconds = start / SR
+    tail = int(EFFECT_TAIL_SECONDS * SR)
+    applied: list[str] = []
+
+    if "layering" in techniques:
+        layered: list[str] = []
+        if "drums" in section_tracks and "drums" in stems:
+            track = TRACK_PLAN_BY_ID.get("drums", {})
+            snare_peak = _sample_peak(snare(False))
+            hits = [(onset, gain * snare_peak) for onset, gain in _snare_hits_for_section(section, track)]
+            if hits:
+                stems["drums"][:] = apply_snare_layer(stems["drums"], hits)
+                layered.append(f"drums x{len(hits)}")
+        if "clap-stack" in section_tracks and "clap_stack" in stems:
+            track = TRACK_PLAN_BY_ID.get("clap-stack", {})
+            clap_peak = _sample_peak(snare(True))
+            hits = [(onset, gain * clap_peak) for onset, gain in _clap_hits_for_section(section, track)]
+            if hits:
+                stems["clap_stack"][:] = apply_snare_layer(stems["clap_stack"], hits)
+                layered.append(f"clap_stack x{len(hits)}")
+        if layered:
+            applied.append(f"layering: noise layer {SNARE_LAYER_DB:.0f} dB under {', '.join(layered)}")
+
+    sweep = _sweep_range_for(str(section.get("type") or ""), techniques)
+    if sweep is not None:
+        lo, hi = sweep
+        targets = [key for key in SWEEP_TARGETS if key in stems]
+        for key in targets:
+            _process_window(stems[key], start, end, lambda block, lo=lo, hi=hi: apply_filter_sweep(block, SR, lo, hi))
+        if targets:
+            applied.append(f"filter {'opens' if hi > lo else 'closes'}: {lo:.0f} Hz -> {hi:.0f} Hz on {', '.join(targets)}")
+    elif "filtering" in techniques and section.get("type") in ("drop", "second_drop"):
+        applied.append("filtering: left static in the drop (a sweep across a drop is not what a producer means by it)")
+    motion = _drop_automation_range(str(section.get("type") or ""), techniques)
+    if motion is not None and "lead" in stems:
+        lo, hi = motion
+        _process_window(stems["lead"], start, end, lambda block, lo=lo, hi=hi: apply_filter_sweep(block, SR, lo, hi))
+        applied.append(f"automation: the lead opens {lo:.0f} Hz -> {hi:.0f} Hz across the drop")
+    if "distortion" in techniques:
+        targets = [key for key in DISTORTION_TARGETS if key in stems]
+        for key in targets:
+            _process_window(stems[key], start, end, lambda block: apply_soft_clip(block, DISTORTION_DRIVE))
+        if targets:
+            applied.append(f"distortion: tanh drive {DISTORTION_DRIVE} on {', '.join(targets)}")
+
+    if "eq" in techniques:
+        cut: list[str] = []
+        for key in EQ_HIGHPASS_TARGETS:
+            if key in stems and key.replace("_", "-") in section_tracks:
+                _process_window(stems[key], start, end, lambda block: apply_highpass(block, SR, EQ_HIGHPASS_HZ, EQ_HIGHPASS_POLES))
+                cut.append(key)
+        parts = []
+        if cut:
+            parts.append(f"high-pass {EQ_HIGHPASS_HZ:.0f} Hz on {', '.join(cut)}")
+        if "bass" in stems and "bass" in section_tracks:
+            _process_window(stems["bass"], start, end, lambda block: apply_highpass(block, SR, EQ_BASS_HIGHPASS_HZ))
+            parts.append(f"bass high-passed {EQ_BASS_HIGHPASS_HZ:.0f} Hz")
+        if "sub" in stems and "sub" in section_tracks:
+            _process_window(stems["sub"], start, end, lambda block: apply_lowpass(block, SR, EQ_SUB_LOWPASS_HZ))
+            parts.append(f"sub low-passed {EQ_SUB_LOWPASS_HZ:.0f} Hz so it owns the bottom alone")
+        if parts:
+            applied.append("eq: " + "; ".join(parts))
+    if "compression" in techniques:
+        targets = [key for key in COMPRESSION_TARGETS if key in stems and key.replace("_", "-") in section_tracks]
+        for key in targets:
+            _process_window(stems[key], start, end, lambda block: apply_compressor(block, SR))
+        if targets:
+            applied.append(f"compression: {COMPRESSION_RATIO:.0f}:1 above {COMPRESSION_THRESHOLD_DB:.0f} dB (peak-relative), "
+                           f"{COMPRESSION_ATTACK_SECONDS * 1000:.0f} ms / {COMPRESSION_RELEASE_SECONDS * 1000:.0f} ms on {', '.join(targets)}")
+    if "reverse" in techniques:
+        if section["startBar"] <= 0:
+            applied.append("reverse: nothing plays before the first bar to swell into it")
+        else:
+            length = int(round(REVERSE_SWELL_BEATS * BEAT * SR))
+            source_key = next((key for key in REVERSE_SOURCE_ORDER if key in stems and key.replace("_", "-") in section_tracks
+                               and float(np.max(np.abs(stems[key][start:start + length]))) > 1e-6), None)
+            if source_key is not None and start - length >= 0:
+                fx_stem = _track_buffer(ctx, "fx")
+                lane_level = stem_level_db(fx_stem)
+                if lane_level > -100.0:
+                    swell = reverse_swell(stems[source_key][start:start + length], target_rms=db_to_gain(lane_level + REVERSE_SWELL_ABOVE_LANE_DB))
+                    level_note = f"+{REVERSE_SWELL_ABOVE_LANE_DB:.0f} dB over the fx lane's level"
+                else:
+                    swell = reverse_swell(stems[source_key][start:start + length], REVERSE_SWELL_DB)
+                    level_note = f"{REVERSE_SWELL_DB:.0f} dB under the {source_key}"
+                fx_stem[start - length:start] += swell
+                applied.append(f"reverse: the first {REVERSE_SWELL_BEATS:.0f} beats of {source_key} reversed into bar {section['startBar']} on fx, {level_note}")
+    if section.get("type") == "build" and ("filtering" in techniques or "automation" in techniques):
+        # The fx lane already renders a riser across any build it plays in; only
+        # add one when the build has no fx lane to carry it.
+        fx_profile = _section_defaults(section).get("fxProfile") or {}
+        riser_present = "fx" in section_tracks and bool(fx_profile.get("riser"))
+        if not riser_present:
+            last_bar = section["startBar"] + section["bars"] - 1
+            riser_start = beat_to_seconds(bar_beat(last_bar))
+            fx_gain = float(TRACK_PLAN_BY_ID.get("fx", {}).get("gain", 0.72)) * 0.34
+            burst = noise_riser(4.0 * BEAT) * np.float32(fx_gain)
+            fx_stem = _track_buffer(ctx, "fx")
+            add_mono(fx_stem, riser_start, burst[:, 0], gain=1.0, pan=-0.4)
+            add_mono(fx_stem, riser_start, burst[:, 1], gain=1.0, pan=0.4)
+            applied.append(f"riser: white-noise riser on fx over bar {last_bar + 1}")
+
+    if "sidechain" in techniques:
+        onsets = [onset - section_start_seconds for onset in _kick_onsets_for_section(section)]
+        ducked: list[str] = []
+        for key, depth in SIDECHAIN_DEPTHS.items():
+            if key not in stems:
+                continue
+            _process_window(stems[key], start, end, lambda block, depth=depth: apply_sidechain(block, onsets, depth, SR, BPM))
+            ducked.append(f"{key} {depth:.2f}")
+        if ducked and onsets:
+            applied.append(f"sidechain: {len(onsets)} kick onsets ducking {', '.join(ducked)}")
+
+    if "delay" in techniques:
+        targets = [key for key in DELAY_TARGETS if key in stems]
+        for key in targets:
+            _process_window(stems[key], start, end, lambda block: apply_pingpong_delay(block, SR, BPM), tail_samples=tail)
+        if targets:
+            applied.append(f"delay: dotted-eighth ping-pong, feedback {DELAY_FEEDBACK}, wet {DELAY_WET} on {', '.join(targets)}")
+
+    if "reverb" in techniques:
+        targets = [key for key in REVERB_TARGETS if key in stems]
+        for key in targets:
+            _process_window(stems[key], start, end, lambda block: apply_reverb(block, SR), tail_samples=tail)
+        if targets:
+            applied.append(f"reverb: {REVERB_DECAY_SECONDS} s decay, wet {REVERB_WET}, HPF {REVERB_HIGHPASS_HZ:.0f} Hz on {', '.join(targets)}")
+
+    if "stereo" in techniques:
+        targets = [key for key in WIDEN_TARGETS if key in stems]
+        widen_tail = int(WIDEN_DELAY_MS / 1000.0 * SR) + 1
+        for key in targets:
+            _process_window(stems[key], start, end, lambda block: apply_haas_widener(block, SR), tail_samples=widen_tail)
+        if targets:
+            applied.append(f"stereo: Haas {WIDEN_DELAY_MS:.0f} ms at {WIDEN_LEVEL_DB:.0f} dB on {', '.join(targets)}")
+
+    return applied
+
+
+def apply_song_techniques(ctx: RenderContext) -> None:
+    """Run the technique pass for every section, in song order, and note what happened."""
+    for section in SECTION_PLAN:
+        techniques = [str(item).strip().lower() for item in (section.get("techniques") or [])]
+        if not techniques:
+            continue
+        applied = apply_section_techniques(ctx, section)
+        unhandled = [item for item in techniques if item not in HANDLED_TECHNIQUES]
+        label = f"{section['label']} bars {section['startBar'] + 1}-{section['startBar'] + section['bars']}"
+        if applied:
+            ctx.notes.append(f"  ~ {label} techniques applied:")
+            for line in applied:
+                ctx.notes.append(f"      {line}")
+        else:
+            ctx.notes.append(f"  ~ {label}: no listed technique had a lane to act on")
+        if unhandled:
+            ctx.notes.append(f"      not rendered (no implementation yet): {', '.join(unhandled)}")
+
+
 def _write_wav(path: Path, audio: np.ndarray) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     clipped = np.clip(audio, -1.0, 1.0)
@@ -2427,18 +3331,51 @@ def _write_wav(path: Path, audio: np.ndarray) -> None:
 
 
 def write_outputs(ctx: RenderContext) -> dict[str, str]:
+    """Write every stem and the full mix, balanced by the gain ladder.
+
+    Dividing the sum by the stem count left the melodic lanes tens of dB under
+    the drums, because each lane was rendered at whatever level its synth
+    happened to produce. The ladder sets every lane at its rubric offset from
+    the drums, then one master gain puts the mix's peak at MASTER_PEAK_DBFS.
+    The stems on disk get the same scales so they add up to the mix."""
     EXPORTS.mkdir(parents=True, exist_ok=True)
     outputs: dict[str, str] = {}
+    scales = gain_ladder_scales(ctx.stems)
     mix = stereo_buffer()
     for stem_id, audio in ctx.stems.items():
+        audio *= np.float32(scales.get(stem_id, 1.0))
+        mix += audio
+    master = master_peak_scale(mix, MASTER_PEAK_DBFS)
+    mix *= np.float32(master)
+    # The master: the balance pushed up into a peak limiter. The limiter's gain
+    # curve goes onto every stem too, so the stems still sum to the mix and the
+    # app (which plays the stems) is as loud as the file.
+    curve = limiter_gain_curve(mix, SR, MASTER_DRIVE_DB, MASTER_PEAK_DBFS).astype(np.float32)
+    ceiling = np.float32(db_to_gain(MASTER_PEAK_DBFS))
+    ladder_notes: list[str] = []
+    for stem_id, audio in ctx.stems.items():
+        audio *= np.float32(master)
+        audio *= curve[:, None]
+        np.clip(audio, -ceiling, ceiling, out=audio)
         stem_path = EXPORTS / f"{STEM_PREFIX}_{stem_id}.wav"
         _write_wav(stem_path, audio)
         outputs[stem_id] = str(stem_path)
-        mix += audio
-    mix /= max(1, len(ctx.stems))
+        ladder_notes.append(f"{stem_id} {GAIN_LADDER_DB.get(stem_id, GAIN_LADDER_DEFAULT_DB):+.0f} dB -> {stem_level_db(audio):.1f} dBFS")
     mix_path = EXPORTS / f"{STEM_PREFIX}_full_mix.wav"
-    _write_wav(mix_path, mix)
+    # The stems are the balance; the mix is the balance through a master. A
+    # peak-limited mix sits at a normal listening level without the stems
+    # losing the punch a producer would want to keep working with.
+    limited = np.clip(mix * curve[:, None], -ceiling, ceiling)
+    _write_wav(mix_path, limited)
     outputs["full_mix"] = str(mix_path)
+    ctx.notes.append(f"  = gain ladder (relative to drums), master peak {MASTER_PEAK_DBFS:.1f} dBFS:")
+    for line in ladder_notes:
+        ctx.notes.append(f"      {line}")
+    rms = float(np.sqrt(np.mean(limited.astype(np.float64) ** 2))) if limited.size else 0.0
+    peak = float(np.max(np.abs(limited))) if limited.size else 0.0
+    rms_db = 20.0 * math.log10(max(rms, 1e-9))
+    ctx.notes.append(f"  = master: +{MASTER_DRIVE_DB:.0f} dB into a peak limiter at {MASTER_PEAK_DBFS:.1f} dBFS -> "
+                     f"RMS {rms_db:.1f} dBFS, crest {20.0 * math.log10(max(peak, 1e-9)) - rms_db:.1f} dB")
     ctx.exports = outputs
     return outputs
 
@@ -2561,6 +3498,9 @@ def render_song() -> RenderContext:
     for fn in render_order:
         generated += f"    render_{fn}(ctx)\n"
     generated += '''
+    # Every lane is rendered; now make the sections sound the way the transcript
+    # said they should (sidechain, reverb, delay, sweeps, saturation, width, layers).
+    apply_song_techniques(ctx)
     return ctx
 
 
