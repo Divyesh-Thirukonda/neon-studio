@@ -33,7 +33,13 @@ public final class AppEnvironment {
         public static let pythonInterpreter = ToolPaths.interpreterDefaultsKey
         public static let confirmDestructiveEdits = "NeonStudioConfirmDestructiveEdits"
         public static let countInBars = "NeonStudioCountInBars"
+        public static let aiEnabled = "NeonStudioAIEnabled"
+        public static let aiModel = "NeonStudioAIModel"
     }
+
+    /// Posted after any AI setting changes (on/off, key, model), so status
+    /// surfaces can refresh without polling the Keychain.
+    public static let aiSettingsChanged = Notification.Name("NeonStudioAISettingsChanged")
 
     public static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -44,8 +50,99 @@ public final class AppEnvironment {
             Keys.explainMusicTerms: true,
             Keys.confirmDestructiveEdits: true,
             // One bar is enough to catch a downbeat without being a wait.
-            Keys.countInBars: 1
+            Keys.countInBars: 1,
+            // On by default: with no key the tools fall back to their rules
+            // and say so, so "on" costs nothing until a key is added.
+            Keys.aiEnabled: true
         ])
+    }
+
+    // MARK: AI assistance (docs/ai.md)
+
+    private static let aiKeychain = KeychainStore(service: "studio.neon.ai", account: "gemini")
+    /// Only a key found in the Keychain is remembered. The config file is
+    /// re-read on every call (one small read), so a key dropped into it,
+    /// edited, or removed while the app is running is seen by the very next
+    /// `toolEnvironment()` call, and "no key" is never cached.
+    private var cachedKeychainKey: String?
+
+    /// Whether the tools may ask a language model. Has no effect without a
+    /// key; every feature works from built-in rules either way.
+    public var aiEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Keys.aiEnabled) }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Keys.aiEnabled)
+            NotificationCenter.default.post(name: AppEnvironment.aiSettingsChanged, object: self)
+        }
+    }
+
+    /// Optional model override handed to the tools as `NEON_AI_MODEL`.
+    public var aiModel: String? {
+        get {
+            let value = UserDefaults.standard.string(forKey: Keys.aiModel)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return value.isEmpty ? nil : value
+        }
+        set {
+            let value = newValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if value.isEmpty {
+                UserDefaults.standard.removeObject(forKey: Keys.aiModel)
+            } else {
+                UserDefaults.standard.set(value, forKey: Keys.aiModel)
+            }
+            NotificationCenter.default.post(name: AppEnvironment.aiSettingsChanged, object: self)
+        }
+    }
+
+    /// The Gemini key: the Keychain first, then the CLI's config file so a key
+    /// placed there by hand works without the UI. Never logged, never written
+    /// anywhere but the Keychain.
+    public var geminiAPIKey: String? { resolveAIKey().value }
+
+    public var aiKeySource: AIKeySource { resolveAIKey().source }
+
+    public var hasAIKey: Bool { geminiAPIKey != nil }
+
+    /// On, and there is a key to use.
+    public var isAIAvailable: Bool { aiEnabled && hasAIKey }
+
+    /// Saves to the Keychain; an empty string removes the stored key (a key in
+    /// the config file, if any, then takes over again).
+    @discardableResult
+    public func setGeminiAPIKey(_ key: String) -> Bool {
+        let ok = AppEnvironment.aiKeychain.write(key)
+        cachedKeychainKey = nil
+        NotificationCenter.default.post(name: AppEnvironment.aiSettingsChanged, object: self)
+        return ok
+    }
+
+    /// Forces the next key read to hit the Keychain again. The file is read
+    /// fresh every time anyway; the app delegate calls this on activation so a
+    /// key added or removed in Keychain Access while the app was in the
+    /// background is picked up too.
+    public func invalidateAIKeyCache() {
+        cachedKeychainKey = nil
+    }
+
+    private func resolveAIKey() -> (value: String?, source: AIKeySource) {
+        if let cached = cachedKeychainKey { return (cached, .keychain) }
+        if let stored = AppEnvironment.aiKeychain.read() {
+            cachedKeychainKey = stored
+            return (stored, .keychain)
+        }
+        // Not cached, deliberately: the file is the CLI's, and people edit it
+        // by hand while the app is open.
+        if let fromFile = ToolEnvironment.readFallbackKey() {
+            return (fromFile, .file(ToolEnvironment.fallbackKeyFile))
+        }
+        return (nil, .none)
+    }
+
+    /// The environment every helper tool is launched with. `GEMINI_API_KEY`
+    /// only while AI is on; `NEON_AI=off` when it is off; `NEON_AI_MODEL` when
+    /// a model is chosen. Merged over the process environment by `ToolRunner`.
+    public func toolEnvironment() -> [String: String] {
+        ToolEnvironment.make(enabled: aiEnabled, apiKey: aiEnabled ? geminiAPIKey : nil, model: aiModel)
     }
 
     public var isFirstRun: Bool {

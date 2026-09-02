@@ -663,7 +663,7 @@ public final class ChangeRequestController: NSObject, NSPopoverDelegate, NSTextV
             applyStage()
             StatusCenter.shared.warning(
                 "Didn't understand “\(Self.shortened(request, limit: 40))”",
-                detail: "Nothing was changed. Try one of the suggested phrasings."
+                detail: AIProvenance.annotate("Nothing was changed. Try one of the suggested phrasings.", from: json)
             )
             focusField()
             return
@@ -695,7 +695,7 @@ public final class ChangeRequestController: NSObject, NSPopoverDelegate, NSTextV
         let count = edits.count
         StatusCenter.shared.success(
             "Done — \(understood)",
-            detail: "\(count) change\(count == 1 ? "" : "s"). ⌘Z undoes all of it."
+            detail: AIProvenance.annotate("\(count) change\(count == 1 ? "" : "s"). ⌘Z undoes all of it.", from: json)
         )
 
         if unresolved.isEmpty {

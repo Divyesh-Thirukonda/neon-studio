@@ -53,7 +53,8 @@ final class SettingsWindowController: NSWindowController, NSOpenSavePanelDelegat
         HelperTool(file: "vocal_autotune.py", purpose: "Tunes a recorded vocal", term: nil),
         HelperTool(file: "fill_in_blanks.py", purpose: "Fills gaps in a sketch", term: nil),
         HelperTool(file: "project_materializer.py", purpose: "Builds a project from a plan", term: "Recipe"),
-        HelperTool(file: "ingest_transcript.py", purpose: "Turns a transcript into a plan", term: "Transcript")
+        HelperTool(file: "ingest_transcript.py", purpose: "Turns a transcript into a plan", term: "Transcript"),
+        HelperTool(file: "llm.py", purpose: "Talks to the AI model, when one is on", term: nil)
     ]
 
     private enum InterpreterState {
@@ -109,6 +110,19 @@ final class SettingsWindowController: NSWindowController, NSOpenSavePanelDelegat
     private var verificationToken = 0
     private var runningCheck: ToolRunner.Handle?
 
+    // MARK: AI assistance tab
+
+    private var aiEnabledBox: NSButton!
+    private var aiKeyField: CommitSecureTextField!
+    private var aiKeyStatusLabel: NSTextField!
+    private var aiRemoveKeyButton: NSButton!
+    private var aiModelField: CommitTextField!
+    private var aiTestButton: NSButton!
+    private var aiTestIcon: NSImageView!
+    private var aiTestLabel: NSTextField!
+    private var pingToken = 0
+    private var runningPing: ToolRunner.Handle?
+
     // MARK: Building
 
     private func buildInterface() {
@@ -128,6 +142,12 @@ final class SettingsWindowController: NSWindowController, NSOpenSavePanelDelegat
         tools.toolTip = "The Python interpreter and helper tools Neon Studio needs to render and check audio."
         tools.view = tabContainer(scrollable(makeToolsContent()))
         tabs.addTabViewItem(tools)
+
+        let ai = NSTabViewItem(identifier: "ai")
+        ai.label = "AI assistance"
+        ai.toolTip = "An optional language model that reads descriptions and change requests. Never required."
+        ai.view = tabContainer(scrollable(makeAIContent()))
+        tabs.addTabViewItem(ai)
 
         let content = NSView()
         content.addSubview(tabs)
@@ -436,6 +456,258 @@ final class SettingsWindowController: NSWindowController, NSOpenSavePanelDelegat
         return column
     }
 
+    // MARK: AI assistance tab content
+
+    private func makeAIContent() -> NSView {
+        let column = makeColumn()
+
+        column.addArrangedSubview(makeSectionHeader("AI assistance"))
+        column.addArrangedSubview(
+            makeCaption(
+                "With a key, Neon Studio asks a language model (Gemini) to read song descriptions, understand change requests in your own words, "
+                + "pick questions for Listen With Me, and write the plain-English parts of reports. It is never required: with no key, or with this off, "
+                + "every feature works from built-in rules and says so. Measurements — levels, clipping, scores — never come from the model."
+            )
+        )
+
+        aiEnabledBox = makeCheckbox(
+            title: "Use AI assistance when a key is available",
+            help: "Lets the helper tools ask the model. Off means built-in rules only, even if a key is set.",
+            isOn: environment.aiEnabled
+        ) { [weak self] isOn in
+            AppEnvironment.shared.aiEnabled = isOn
+            StatusCenter.shared.info(
+                isOn
+                    ? "AI assistance is on. Tools will use the model when a key is available."
+                    : "AI assistance is off. Tools use built-in rules only."
+            )
+            self?.refreshAIStatus()
+        }
+        addSetting(
+            aiEnabledBox,
+            caption: "Off means the tools never contact a model, even with a key saved. Each result says which path produced it.",
+            to: column
+        )
+
+        addSeparator(to: column)
+        column.addArrangedSubview(makeSectionHeader("Gemini API key"))
+
+        aiKeyField = CommitSecureTextField(string: "")
+        aiKeyField.placeholderString = "Paste a key from Google AI Studio"
+        aiKeyField.font = Theme.Font.mono(12)
+        aiKeyField.toolTip = "Saved to your Keychain the moment you press Return or leave the field. It is never written to a project, a plan, or a log."
+        aiKeyField.setAccessibilityLabel("Gemini API key")
+        aiKeyField.setAccessibilityHelp("Saved to the Keychain when committed. Leave empty to keep the key you already have.")
+        aiKeyField.translatesAutoresizingMaskIntoConstraints = false
+        aiKeyField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        aiKeyField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        aiKeyField.commitHandler = { [weak self] value in
+            self?.saveAIKey(value)
+        }
+
+        aiRemoveKeyButton = Controls.button(
+            title: "Remove",
+            symbol: "trash",
+            help: "Deletes the key from your Keychain. A key in ~/.config/neon-studio/gemini_api_key, if any, is used instead.",
+            style: .quiet
+        ) { [weak self] in
+            self?.removeAIKey()
+        }
+
+        let keyRow = NSStackView(views: [aiKeyField, aiRemoveKeyButton])
+        keyRow.orientation = .horizontal
+        keyRow.alignment = .firstBaseline
+        keyRow.spacing = 8
+        keyRow.translatesAutoresizingMaskIntoConstraints = false
+        column.addArrangedSubview(keyRow)
+        NSLayoutConstraint.activate([
+            keyRow.widthAnchor.constraint(equalTo: column.widthAnchor),
+            aiKeyField.widthAnchor.constraint(greaterThanOrEqualToConstant: 200)
+        ])
+
+        aiKeyStatusLabel = makeCaption("")
+        aiKeyStatusLabel.setAccessibilityLabel("API key status")
+        column.addArrangedSubview(indented(aiKeyStatusLabel, by: 2))
+
+        addSeparator(to: column)
+        column.addArrangedSubview(makeSectionHeader("Model"))
+
+        aiModelField = CommitTextField(string: environment.aiModel ?? "")
+        aiModelField.placeholderString = "gemini-flash-latest (default)"
+        aiModelField.font = Theme.Font.mono(12)
+        aiModelField.toolTip = "Leave empty for the current Gemini Flash. Set a model name to use that one instead."
+        aiModelField.setAccessibilityLabel("Model name")
+        aiModelField.translatesAutoresizingMaskIntoConstraints = false
+        aiModelField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        aiModelField.commitHandler = { [weak self] value in
+            self?.applyAIModel(value)
+        }
+        column.addArrangedSubview(aiModelField)
+        aiModelField.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
+        column.setCustomSpacing(2, after: aiModelField)
+        column.addArrangedSubview(
+            indented(makeCaption("Empty means the current Gemini Flash. Answers are cached, so re-running a tool on the same song costs nothing."), by: 2)
+        )
+
+        addSeparator(to: column)
+        column.addArrangedSubview(makeSectionHeader("Check it works"))
+
+        aiTestButton = Controls.button(
+            title: "Test",
+            symbol: "bolt.horizontal",
+            help: "Makes one tiny call to the model with the same Python and settings the tools use, and says what came back.",
+            style: .primary
+        ) { [weak self] in
+            self?.runAIPing()
+        }
+        aiTestIcon = makeStatusIcon()
+        aiTestLabel = makeCaption("")
+        aiTestLabel.preferredMaxLayoutWidth = SettingsWindowController.contentWidth - 120
+        aiTestLabel.setAccessibilityLabel("AI test result")
+
+        let testRow = NSStackView(views: [aiTestButton, aiTestIcon, aiTestLabel])
+        testRow.orientation = .horizontal
+        testRow.alignment = .firstBaseline
+        testRow.spacing = 8
+        testRow.translatesAutoresizingMaskIntoConstraints = false
+        column.addArrangedSubview(testRow)
+        testRow.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
+
+        return column
+    }
+
+    private func saveAIKey(_ raw: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Leaving the field empty (a stray click, a tab through) must not wipe
+        // a key that is already saved; Remove is the explicit way to do that.
+        guard !trimmed.isEmpty else { return }
+        if environment.setGeminiAPIKey(trimmed) {
+            aiKeyField.stringValue = ""
+            StatusCenter.shared.success("Saved the Gemini key to your Keychain.")
+        } else {
+            StatusCenter.shared.warning(
+                "Couldn't save the key to your Keychain.",
+                detail: "As a fallback, put it in ~/.config/neon-studio/gemini_api_key."
+            )
+        }
+        refreshAIStatus()
+    }
+
+    private func removeAIKey() {
+        environment.setGeminiAPIKey("")
+        aiKeyField.stringValue = ""
+        StatusCenter.shared.info("Removed the Gemini key from your Keychain.")
+        refreshAIStatus()
+    }
+
+    private func applyAIModel(_ raw: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        environment.aiModel = trimmed.isEmpty ? nil : trimmed
+        aiModelField.stringValue = trimmed
+        refreshAIStatus()
+    }
+
+    /// One live call through the same interpreter and environment the tools
+    /// get, so a green tick here means the tools will actually use the model.
+    private func runAIPing() {
+        pingToken += 1
+        let token = pingToken
+        runningPing?.cancel()
+        runningPing = nil
+
+        guard environment.aiEnabled else {
+            setAITestStatus(.missing, message: "AI assistance is off. Turn it on above, then test.")
+            return
+        }
+        guard let python = environment.pythonExecutable else {
+            setAITestStatus(.missing, message: "No working Python — fix that under Audio & Tools first.")
+            return
+        }
+        let script = store.toolURL("llm.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            setAITestStatus(.missing, message: "llm.py is missing from the helper tools. Reinstall Neon Studio to put it back.")
+            return
+        }
+        setAITestStatus(.checking, message: "Asking the model…")
+        aiTestButton.isEnabled = false
+        runningPing = environment.toolRunner.run(
+            name: "AI test",
+            executable: python,
+            arguments: [script.path, "--ping"],
+            currentDirectory: environment.supportRoot,
+            environment: environment.toolEnvironment()
+        ) { [weak self] result in
+            guard let self, token == self.pingToken else { return }
+            self.runningPing = nil
+            self.aiTestButton.isEnabled = true
+            switch result {
+            case .success(let output):
+                self.showPing(output.lastJSONObject)
+            case .failure(let error):
+                self.setAITestStatus(.missing, message: "Couldn't run the test — \(error.localizedDescription)")
+            }
+        }
+        if runningPing == nil, token == pingToken, aiTestButton.isEnabled == false {
+            aiTestButton.isEnabled = true
+        }
+    }
+
+    private func showPing(_ json: [String: Any]) {
+        guard !json.isEmpty else {
+            setAITestStatus(.missing, message: "The test finished but said nothing. Check Window ▸ Activity.")
+            return
+        }
+        let ok = (json["ok"] as? Bool) ?? ((json["ok"] as? NSNumber)?.boolValue ?? false)
+        let model = (json["model"] as? String) ?? ""
+        let reason = (json["reason"] as? String) ?? ""
+        let seconds: String
+        if let number = json["seconds"] as? NSNumber {
+            seconds = String(format: "%.1f s", number.doubleValue)
+        } else {
+            seconds = ""
+        }
+        if ok {
+            let who = model.isEmpty ? "The model" : model
+            setAITestStatus(.working, message: "Working — \(who) answered\(seconds.isEmpty ? "" : " in \(seconds)").")
+        } else {
+            let why = reason.isEmpty ? "no answer came back" : reason
+            setAITestStatus(.missing, message: "Not working — \(why)")
+        }
+    }
+
+    private func setAITestStatus(_ state: InterpreterState, message: String) {
+        aiTestIcon.image = NSImage(systemSymbolName: state.symbol, accessibilityDescription: nil)
+        aiTestIcon.contentTintColor = state.color
+        aiTestLabel.stringValue = message
+        aiTestLabel.textColor = state.color
+        aiTestLabel.toolTip = message
+        aiTestLabel.setAccessibilityValue(message)
+    }
+
+    private func refreshAIStatus() {
+        guard let aiKeyStatusLabel else { return }
+        environment.invalidateAIKeyCache()
+        aiEnabledBox?.state = environment.aiEnabled ? .on : .off
+        let source = environment.aiKeySource
+        let message: String
+        switch source {
+        case .keychain:
+            message = "A key is \(source.description). Paste a new one to replace it."
+        case .file:
+            message = "A key is \(source.description). Paste one here to keep it in your Keychain instead."
+        case .none:
+            message = "No key yet. Everything works without one; add a key to let the tools use the model."
+        }
+        aiKeyStatusLabel.stringValue = message
+        aiKeyStatusLabel.textColor = source == .none ? Theme.muted : Theme.success
+        aiKeyStatusLabel.toolTip = message
+        aiKeyStatusLabel.setAccessibilityValue(message)
+        aiRemoveKeyButton?.isHidden = source != .keychain
+        if let aiModelField, aiModelField.currentEditor() == nil {
+            aiModelField.stringValue = environment.aiModel ?? ""
+        }
+    }
+
     // MARK: Interpreter
 
     private func applyInterpreterPath(_ raw: String) {
@@ -622,6 +894,8 @@ final class SettingsWindowController: NSWindowController, NSOpenSavePanelDelegat
             restoreButton.setAccessibilityLabel(title)
         }
 
+        refreshAIStatus()
+
         if let interpreterField {
             let configured = environment.configuredPythonPath ?? ""
             // Never yank the text out from under someone who is mid-edit.
@@ -801,4 +1075,37 @@ final class SettingsWindowController: NSWindowController, NSOpenSavePanelDelegat
 /// view opens on the first setting rather than the last.
 private final class FlippedContainer: NSView {
     override var isFlipped: Bool { true }
+}
+
+/// `CommitTextField` for secrets: the same commit-on-Return-or-blur contract,
+/// drawn as dots. Lives here because the API key field is the only one.
+private final class CommitSecureTextField: NSSecureTextField, NSTextFieldDelegate {
+    var commitHandler: ((String) -> Void)?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        commonInit()
+    }
+
+    convenience init(string: String) {
+        self.init(frame: .zero)
+        stringValue = string
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        commonInit()
+    }
+
+    private func commonInit() {
+        delegate = self
+        isBezeled = true
+        bezelStyle = .roundedBezel
+        isEditable = true
+        isSelectable = true
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        commitHandler?(stringValue)
+    }
 }

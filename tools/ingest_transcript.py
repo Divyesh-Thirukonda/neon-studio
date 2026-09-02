@@ -4,9 +4,16 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
+
+try:
+    import llm
+except ImportError:  # imported from another cwd without tools/ on sys.path
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import llm
 
 
 SECTION_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
@@ -22,20 +29,20 @@ SECTION_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 TRACK_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "lead": ("lead", "lead line", "drop lead", "square lead", "hook", "melody"),
-    "chords": ("chord", "chords", "progression", "supersaw"),
-    "bass": ("bass", "base", "mid bass", "drop bass", "fat bass"),
-    "sub": ("sub", "sub bass"),
+    "lead": ("lead", "leads", "lead line", "drop lead", "square lead", "hook", "melody", "melodies"),
+    "chords": ("chord", "chords", "progression", "supersaw", "supersaws", "stab", "stabs"),
+    "bass": ("bass", "base", "bassline", "basslines", "mid bass", "drop bass", "fat bass"),
+    "sub": ("sub", "sub bass", "808", "808s"),
     "drums": ("drums", "drum", "trap beat", "drum beat"),
-    "kick": ("kick", "kick drum"),
-    "snare": ("snare", "snare drum"),
+    "kick": ("kick", "kicks", "kick drum"),
+    "snare": ("snare", "snares", "snare drum"),
     "clap": ("clap", "claps", "clap stack"),
-    "hat": ("hi-hat", "hihat", "hat", "hats"),
+    "hat": ("hi-hat", "hi-hats", "hihat", "hihats", "hat", "hats", "shaker", "shakers"),
     "ride": ("ride",),
     "crash": ("crash", "crashes"),
-    "vocal": ("vocal", "vocals", "vocal chop", "tag"),
+    "vocal": ("vocal", "vocals", "vocal chop", "vocal chops", "tag"),
     "guitar": ("guitar", "guitar bass"),
-    "pluck": ("pluck", "plucks"),
+    "pluck": ("pluck", "plucks", "arp", "arps", "arpeggio"),
     "pad": ("pad", "pads"),
     "noise": ("white noise", "noise sweep", "noise up"),
     "riser": ("riser", "risers", "uplifter"),
@@ -74,16 +81,16 @@ PLUGIN_KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 
 TECHNIQUE_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "layering": ("layer", "layered", "double", "stack"),
-    "sidechain": ("side chain", "sidechain", "duck"),
-    "eq": ("eq", "low cut", "high pass", "highpass", "cut out", "boost"),
-    "compression": ("compress", "compression", "multiband", "ott"),
-    "reverb": ("reverb", "room", "tail"),
-    "delay": ("delay", "ping pong", "ping-pong", "bounce left and right"),
-    "distortion": ("distortion", "drive", "clipper", "saturator", "saturation"),
-    "filtering": ("filter", "lowpass", "highpass", "cutoff"),
-    "automation": ("automation", "automated", "macro", "sweep"),
-    "resampling": ("rendered out", "freeze", "flatten", "resample"),
+    "layering": ("layer", "layers", "layered", "layering", "double", "stack", "stacked"),
+    "sidechain": ("side chain", "sidechain", "sidechained", "duck", "ducking"),
+    "eq": ("eq", "eqs", "equalizer", "equaliser", "low cut", "high pass", "highpass", "cut out", "boost", "boosted"),
+    "compression": ("compress", "compressed", "compressor", "compression", "multiband", "ott"),
+    "reverb": ("reverb", "reverbs", "room", "tail"),
+    "delay": ("delay", "delays", "ping pong", "ping-pong", "bounce left and right"),
+    "distortion": ("distortion", "distorted", "drive", "overdrive", "clipper", "saturator", "saturation", "saturate", "saturated", "saturating"),
+    "filtering": ("filter", "filters", "filtered", "lowpass", "low pass", "highpass", "cutoff"),
+    "automation": ("automation", "automated", "automate", "macro", "macros", "sweep", "sweeps"),
+    "resampling": ("rendered out", "freeze", "flatten", "resample", "resampled", "resampling", "resampler"),
     "pitching": ("pitch", "pitched", "autotune"),
     "stereo": ("stereo", "mono", "spread", "left and right", "mid side", "midside"),
     "reverse": ("reverse", "reversed"),
@@ -200,11 +207,30 @@ def first_sentences(text: str, limit: int = 2) -> str:
     return summary[:280]
 
 
+_KEYWORD_PATTERNS: dict[str, "re.Pattern[str]"] = {}
+
+
+def keyword_pattern(keyword: str) -> "re.Pattern[str]":
+    """A whole-word match for a keyword table entry.
+
+    Plain substring containment tagged "hat" from "that" and "what", "air"
+    (crowd) from "fairly", "ride" from "pride" and "sub" from "subtle" - on a
+    real spoken transcript "hat" ended up in two thirds of the sections. Letters
+    and digits on either side now break the match; punctuation and spaces do not,
+    so "hi-hat," and "808s" still work.
+    """
+    pattern = _KEYWORD_PATTERNS.get(keyword)
+    if pattern is None:
+        pattern = re.compile(r"(?<![a-z0-9])" + re.escape(keyword) + r"(?![a-z0-9])")
+        _KEYWORD_PATTERNS[keyword] = pattern
+    return pattern
+
+
 def extract_matches(text: str, table: dict[str, tuple[str, ...]]) -> list[str]:
     lowered = text.lower()
     found: list[str] = []
     for canonical, keywords in table.items():
-        if any(keyword in lowered for keyword in keywords):
+        if any(keyword_pattern(keyword).search(lowered) for keyword in keywords):
             found.append(canonical)
     return sorted(found)
 
@@ -1255,44 +1281,58 @@ def fallback_segments(text: str) -> list[dict[str, Any]]:
     return segments
 
 
-def merge_sections(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def new_section_group(segment: dict[str, Any], section_id: str, label: str, explicit: bool) -> dict[str, Any]:
+    return {
+        "segmentIndex": segment["index"],
+        "sectionId": section_id,
+        "label": label,
+        "explicit": explicit,
+        "startSeconds": segment["startSeconds"],
+        "endSeconds": segment["startSeconds"],
+        "timecodes": [segment["timecode"]] if segment["timecode"] else [],
+        "texts": [segment["text"]],
+        "trackRoles": extract_matches(segment["text"], TRACK_KEYWORDS),
+        "plugins": extract_matches(segment["text"], PLUGIN_KEYWORDS),
+        "techniques": extract_matches(segment["text"], TECHNIQUE_KEYWORDS),
+    }
+
+
+def append_segment_to_group(group: dict[str, Any], segment: dict[str, Any]) -> None:
+    group["texts"].append(segment["text"])
+    group["trackRoles"] = sorted(set(group["trackRoles"] + extract_matches(segment["text"], TRACK_KEYWORDS)))
+    group["plugins"] = sorted(set(group["plugins"] + extract_matches(segment["text"], PLUGIN_KEYWORDS)))
+    group["techniques"] = sorted(set(group["techniques"] + extract_matches(segment["text"], TECHNIQUE_KEYWORDS)))
+    if segment["timecode"]:
+        group["timecodes"].append(segment["timecode"])
+    if segment["startSeconds"] is not None:
+        group["endSeconds"] = segment["startSeconds"]
+
+
+def heuristic_section_groups(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keyword segmentation: each segment takes the earliest section word it
+    contains, and adjacent segments of the same type merge when one of them
+    said the word. This is the path when the model is off."""
     merged: list[dict[str, Any]] = []
     for segment in segments:
         section_id, label, explicit = infer_section(segment["text"])
-        current = {
-            "segmentIndex": segment["index"],
-            "sectionId": section_id,
-            "label": label,
-            "explicit": explicit,
-            "startSeconds": segment["startSeconds"],
-            "endSeconds": segment["startSeconds"],
-            "timecodes": [segment["timecode"]] if segment["timecode"] else [],
-            "texts": [segment["text"]],
-            "trackRoles": extract_matches(segment["text"], TRACK_KEYWORDS),
-            "plugins": extract_matches(segment["text"], PLUGIN_KEYWORDS),
-            "techniques": extract_matches(segment["text"], TECHNIQUE_KEYWORDS),
-        }
+        current = new_section_group(segment, section_id, label, explicit)
         if (
             merged
             and merged[-1]["sectionId"] == current["sectionId"]
             and (current["explicit"] or merged[-1]["explicit"])
         ):
-            merged[-1]["texts"].append(segment["text"])
-            merged[-1]["trackRoles"] = sorted(set(merged[-1]["trackRoles"] + current["trackRoles"]))
-            merged[-1]["plugins"] = sorted(set(merged[-1]["plugins"] + current["plugins"]))
-            merged[-1]["techniques"] = sorted(set(merged[-1]["techniques"] + current["techniques"]))
-            if segment["timecode"]:
-                merged[-1]["timecodes"].append(segment["timecode"])
-            if segment["startSeconds"] is not None:
-                merged[-1]["endSeconds"] = segment["startSeconds"]
+            append_segment_to_group(merged[-1], segment)
         else:
             merged.append(current)
+    return merged
 
+
+def normalize_section_groups(merged: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for index, item in enumerate(merged, start=1):
         start = item["startSeconds"]
         end = item["endSeconds"]
-        normalized.append({
+        section = {
             "id": f"section-{index:02d}",
             "type": item["sectionId"],
             "label": item["label"],
@@ -1307,12 +1347,20 @@ def merge_sections(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "trackRoles": item["trackRoles"],
             "plugins": item["plugins"],
             "techniques": item["techniques"],
-        })
+        }
+        if item.get("source"):
+            section["source"] = item["source"]
+            section["reason"] = item.get("reason", "")
+        normalized.append(section)
     counters: defaultdict[str, int] = defaultdict(int)
     for section in normalized:
         counters[section["type"]] += 1
         section["ordinalWithinType"] = counters[section["type"]]
     return normalized
+
+
+def merge_sections(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return normalize_section_groups(heuristic_section_groups(segments))
 
 
 def collect_lines_by_keywords(segments: list[dict[str, Any]], keywords: tuple[str, ...], limit: int = 8) -> list[str]:
@@ -1372,7 +1420,8 @@ def _trim_title(raw: str) -> str:
     return " ".join(kept).strip(" -")
 
 
-def infer_title_hint(text: str, project_id: str) -> str | None:
+def title_from_patterns(text: str) -> str | None:
+    """The title as spoken in one of the phrasings the regexes know, or None."""
     patterns = (
         r"song(?:\s+is\s+going\s+to\s+be|\s+is\s+called|\s+called)\s+([a-z0-9][a-z0-9' !?-]{2,60})",
         r"how i made my song\s+([a-z0-9][a-z0-9' !?-]{2,60})",
@@ -1385,6 +1434,13 @@ def infer_title_hint(text: str, project_id: str) -> str | None:
             trimmed = _trim_title(match.group(1))
             if len(trimmed) >= 3:
                 return _title_case(trimmed)
+    return None
+
+
+def infer_title_hint(text: str, project_id: str) -> str | None:
+    title = title_from_patterns(text)
+    if title:
+        return title
     if project_id:
         return " ".join(part.capitalize() for part in project_id.split("-"))
     return None
@@ -1401,13 +1457,905 @@ def infer_prompt_from_transcript(spec: dict[str, Any]) -> str:
     )
 
 
-def analyze_transcript(text: str, project_id: str, prompt: str | None = None) -> dict[str, Any]:
+# ---------------------------------------------------------------------------
+# The model-backed path.
+#
+# Everything above this line is the deterministic reading of a transcript. The
+# functions below ask a language model the questions a regex cannot answer -
+# where one song section ends and the next begins, whether "hat" is a hi-hat or
+# the word "that", what "the same melody as before" refers to - and validate
+# every answer against what the transcript and the tables actually contain.
+# Each of them returns nothing (and says why) when the model is off, unreachable
+# or wrong, and the caller keeps the heuristic result it already had.
+# ---------------------------------------------------------------------------
+
+SECTION_TYPES: tuple[str, ...] = tuple(rule[0] for rule in SECTION_RULES) + ("production_notes",)
+SECTION_LABELS: dict[str, str] = {rule[0]: rule[1] for rule in SECTION_RULES}
+SECTION_LABELS["production_notes"] = "Production Notes"
+DRUM_LANES: tuple[str, ...] = ("kick", "snare", "clap", "hat", "ride", "crash")
+TRANSFORM_LANES: tuple[str, ...] = ("lead", "chords", "bass", "drums")
+TEXT_CHUNK_CHARS = 24000
+SECTION_BATCH = 25
+MIN_CONFIDENCE = 0.5
+# Spoken tempos. A quote counts as stating a number only when its words add up
+# to one: "one forty", "one hundred and forty", "a hundred and twenty", "ninety".
+# "one", "two", "half" or "double" on their own do not ("double the tempo").
+_UNITS = r"(?:one|two|three|four|five|six|seven|eight|nine)"
+_TEENS = r"(?:ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)"
+_TENS = r"(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)"
+_UNDER_HUNDRED = rf"(?:{_TEENS}|{_TENS}(?:\s+{_UNITS})?|{_UNITS})"
+TEMPO_NUMBER_PATTERN = re.compile(
+    r"\b(?:"
+    rf"(?:a|one|two)\s+hundred(?:\s+and)?(?:\s+{_UNDER_HUNDRED})?"        # a hundred and twenty, one hundred forty
+    rf"|hundred(?:\s+and)?\s+{_UNDER_HUNDRED}"                             # hundred and twenty
+    rf"|(?:one|two)\s+(?:oh\s+{_UNITS}|{_TEENS}|{_TENS}(?:\s+{_UNITS})?)"  # one forty two, one ten, one oh five, two twenty
+    rf"|(?:sixty|seventy|eighty|ninety)(?:\s+{_UNITS})?"                    # ninety, eighty five
+    r")\b"
+)
+
+
+def evidence_states_number(quote: Any) -> bool:
+    """Rule 3 of docs/ai.md for tempos: the quote has to carry a real number,
+    as digits or as number words that make one (see TEMPO_NUMBER_PATTERN)."""
+    if not isinstance(quote, str):
+        return False
+    words = re.sub(r"[-\u2013]", " ", _plain(quote))
+    return bool(re.search(r"\d", words) or TEMPO_NUMBER_PATTERN.search(words))
+
+INGEST_ROLE = (
+    "You read transcripts of music-production walkthroughs (a producer talking through how a song was made, "
+    "often auto-transcribed speech with no punctuation) and turn them into structured notes for a DAW. "
+    "You only report what the speaker actually says. When unsure, leave a field null or a list empty rather than guessing. "
+    "Every quote you return must be copied verbatim from the transcript text you were given."
+)
+
+
+# What the adapter says when it has stopped asking a model for a while: it
+# honoured the short "retry in N s" waits itself and tripped its breaker on a
+# long one. Nothing here sleeps; the remaining questions are simply not asked.
+QUOTA_EXHAUSTED_MARKERS = ("over its quota", "not asking again")
+
+
+def quota_exhausted(note: str) -> bool:
+    """True when the adapter's note means the model is over its quota for the
+    rest of this run (its breaker tripped), so later questions should be
+    skipped. A 404 for a retired model or a non-JSON reply is not that."""
+    lowered = (note or "").lower()
+    return any(marker in lowered for marker in QUOTA_EXHAUSTED_MARKERS)
+
+
+class IngestAssist:
+    """The tool's bookkeeping around llm.Assist: which questions were asked,
+    what was dropped in validation, and which decisions the model made."""
+
+    def __init__(self, assist: "llm.Assist") -> None:
+        self.assist = assist
+        self.questions = 0
+        self.notes: list[str] = []
+        self.decisions: list[dict[str, Any]] = []
+        self.exhausted = False
+
+    @property
+    def available(self) -> bool:
+        return self.assist.available and not self.exhausted
+
+    def ask(self, question: str, task: str, *, schema: dict[str, Any], max_tokens: int = 8192) -> dict[str, Any] | None:
+        if not self.available:
+            return None
+        self.questions += 1
+        prompt = f"# question: {question}\n\n{task}"
+        answer = self.assist.ask(prompt, system=INGEST_ROLE, schema=schema, max_tokens=max_tokens, expect=dict)
+        if answer is not None:
+            return answer
+        reason = self.assist.note or "no usable answer"
+        self.note(f"{question}: {reason}; heuristic result kept")
+        if quota_exhausted(reason):
+            # The adapter already waited out the short "retry in" replies and
+            # tripped its breaker on a long one: stop asking so the ingest
+            # finishes with the heuristics instead of waiting an hour.
+            self.exhausted = True
+            self.note("model over its quota for this key; the remaining questions were not asked")
+        return None
+
+    def note(self, message: str) -> None:
+        message = normalize_space(message.splitlines()[0] if message else "")[:240]
+        if message and message not in self.notes:
+            self.notes.append(message)
+
+    def decide(self, field: str, value: Any, *, reason: str, evidence: str = "", section_id: str | None = None,
+               confidence: float | None = None) -> None:
+        entry: dict[str, Any] = {"field": field, "value": deep_copy_jsonish(value), "source": "model", "reason": reason}
+        if evidence:
+            entry["evidence"] = evidence
+        if section_id:
+            entry["sectionId"] = section_id
+        if confidence is not None:
+            entry["confidence"] = round(float(confidence), 2)
+        self.decisions.append(entry)
+
+    def report(self) -> dict[str, Any]:
+        report = self.assist.report()
+        report["questions"] = self.questions
+        report["modelCalls"] = self.assist.client.calls if self.assist.client else 0
+        report["notes"] = list(self.notes)
+        report["decisions"] = deep_copy_jsonish(self.decisions)
+        return report
+
+
+def _plain(text: str) -> str:
+    """Lowercased, whitespace-collapsed, straight-quoted text for quote matching."""
+    return normalize_space(
+        str(text).lower().replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
+    )
+
+
+def quote_in_text(quote: Any, text: str) -> bool:
+    """Rule 3 of docs/ai.md: a tag exists only if its quote is in the text."""
+    if not isinstance(quote, str):
+        return False
+    needle = _plain(quote).strip(" .,;:!?\"'…")
+    return len(needle) >= 3 and needle in _plain(text)
+
+
+def _confidence(value: Any) -> float:
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        return MIN_CONFIDENCE
+
+
+def _as_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(round(value))
+    if isinstance(value, str) and re.fullmatch(r"\s*-?\d+(?:\.\d+)?\s*", value):
+        return int(round(float(value)))
+    return None
+
+
+def _as_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str) and re.fullmatch(r"\s*-?\d+(?:\.\d+)?\s*", value):
+        return float(value)
+    return None
+
+
+def _clean_string(value: Any, limit: int) -> str:
+    return normalize_space(str(value))[:limit] if isinstance(value, str) else ""
+
+
+def chunk_by_chars(items: list[Any], size_of: Any, limit: int = TEXT_CHUNK_CHARS, max_items: int | None = None) -> list[list[Any]]:
+    """Greedy chunks of items whose summed size stays under `limit` (a single
+    oversized item still gets its own chunk)."""
+    chunks: list[list[Any]] = []
+    current: list[Any] = []
+    current_size = 0
+    for item in items:
+        size = int(size_of(item))
+        too_big = current and (current_size + size > limit or (max_items is not None and len(current) >= max_items))
+        if too_big:
+            chunks.append(current)
+            current, current_size = [], 0
+        current.append(item)
+        current_size += size
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def chunk_text(text: str, limit: int = TEXT_CHUNK_CHARS) -> list[str]:
+    if len(text) <= limit:
+        return [text]
+    pieces: list[str] = []
+    rest = text
+    while len(rest) > limit:
+        cut = rest.rfind(" ", int(limit * 0.6), limit)
+        if cut <= 0:
+            cut = limit
+        pieces.append(rest[:cut])
+        rest = rest[cut:].lstrip()
+    if rest:
+        pieces.append(rest)
+    return pieces
+
+
+def normalize_key_hint(value: Any) -> str | None:
+    """'F sharp minor', 'F#m', 'f# min', 'Gb Major', 'D' -> the 'F# minor' form
+    the rest of the pipeline reads (materializer capitalises it, fidelity's
+    normalize_key lowercases it; both accept this)."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip().lower().replace("♯", "#").replace("♭", "b")
+    text = re.sub(r"\s*sharp\b", "#", text)
+    text = re.sub(r"\s*flat\b", "b", text)
+    text = re.sub(r"^(?:the\s+)?key\s+(?:of\s+|centre\s+|center\s+)?", "", text)
+    match = re.match(r"^([a-g])\s*(#|b)?\s*[-_ ]?\s*(major|minor|maj|min|m|)\s*$", text)
+    if not match:
+        return None
+    root, accidental, mode = match.groups()
+    note = root.upper() + (accidental or "")
+    if note not in NOTE_TO_SEMITONE:
+        return None
+    mode = mode.strip()
+    return f"{note} {'minor' if mode in ('minor', 'min', 'm') else 'major'}"
+
+
+# -- (1) segmentation ---------------------------------------------------------
+
+SEGMENT_SCHEMA = {
+    "sections": [
+        {
+            "type": "one of: " + "|".join(SECTION_TYPES),
+            "label": "short label such as Intro, Build 1, Drop 1, Second Drop, Production Notes",
+            "ordinalWithinType": 1,
+            "segmentIndices": [1, 2, 3],
+            "summary": "one sentence on what the speaker builds or changes here",
+            "confidence": 0.0,
+        }
+    ]
+}
+
+
+def ai_section_groups(segments: list[dict[str, Any]], ai: IngestAssist) -> list[dict[str, Any]] | None:
+    """Ask the model where the song sections are. Returns section groups in the
+    shape heuristic_section_groups makes, or None when nothing validated."""
+    if not ai.available or not segments:
+        return None
+    chunks = chunk_by_chars(segments, lambda segment: len(segment["text"]) + 24)
+    groups: list[dict[str, Any]] = []
+    answered = 0
+    for chunk in chunks:
+        by_index = {int(segment["index"]): segment for segment in chunk}
+        payload = [{"i": segment["index"], "t": segment.get("timecode"), "text": segment["text"]} for segment in chunk]
+        task = (
+            "Below are consecutive segments of one transcript, each with its index `i` and timecode `t`. "
+            "Group them, in order, into the song sections the speaker is working on. A section is a span of the "
+            "song (intro, build, drop, break ...) that the speaker builds, plays or explains; consecutive segments "
+            "about the same part belong to the same section even when the section word is not repeated. Segments "
+            "that are general talk (greetings, plugin recommendations, sample packs, mixing tips not tied to one "
+            "part of the song) go into `production_notes` sections. Do not start a section just because a word "
+            "like 'drop' or 'build' is mentioned in passing. Use `second_drop` for the final/second drop when the "
+            "speaker distinguishes it from the first. Every segment index must appear in exactly one section; "
+            "keep the sections in transcript order. Give each section a short label and a one-sentence summary.\n\n"
+            + json.dumps(payload, ensure_ascii=False)
+        )
+        answer = ai.ask("segmentation", task, schema=SEGMENT_SCHEMA)
+        chunk_groups = validate_section_groups(answer, chunk, by_index, ai) if answer else None
+        if chunk_groups:
+            answered += 1
+        else:
+            if answer:
+                ai.note("segmentation: no valid sections in the model's answer for one chunk; heuristic sections used there")
+            chunk_groups = heuristic_section_groups(chunk)
+        if groups and chunk_groups:
+            chunk_groups[0]["chunkStart"] = True
+        groups.extend(chunk_groups)
+    if not answered:
+        return None
+    return merge_groups_across_chunks(groups)
+
+
+def validate_section_groups(answer: dict[str, Any], chunk: list[dict[str, Any]], by_index: dict[int, dict[str, Any]],
+                            ai: IngestAssist) -> list[dict[str, Any]]:
+    raw_sections = answer.get("sections")
+    if not isinstance(raw_sections, list):
+        return []
+    seen: set[int] = set()
+    accepted: list[dict[str, Any]] = []
+    dropped_types = 0
+    dropped_indices = 0
+    for raw in raw_sections:
+        if not isinstance(raw, dict):
+            continue
+        section_type = str(raw.get("type") or "").strip().lower().replace("-", "_").replace(" ", "_")
+        if section_type not in SECTION_TYPES:
+            dropped_types += 1
+            continue
+        indices: list[int] = []
+        for item in raw.get("segmentIndices") or []:
+            index = _as_int(item)
+            if index is None or index not in by_index or index in seen:
+                dropped_indices += 1
+                continue
+            indices.append(index)
+            seen.add(index)
+        if not indices:
+            continue
+        indices.sort()
+        label = _clean_string(raw.get("label"), 40) or SECTION_LABELS[section_type]
+        summary = _clean_string(raw.get("summary"), 240)
+        accepted.append({
+            "type": section_type,
+            "label": label,
+            "indices": indices,
+            "summary": summary,
+            "confidence": _confidence(raw.get("confidence")),
+            "ordinal": _as_int(raw.get("ordinalWithinType")),
+        })
+    if dropped_types:
+        ai.note(f"segmentation: dropped {dropped_types} section(s) whose type is not one of {', '.join(SECTION_TYPES)}")
+    if dropped_indices:
+        ai.note(f"segmentation: ignored {dropped_indices} segment index/indices that were out of range or used twice")
+    if not accepted:
+        return []
+    # A section is one unbroken run of segments, and sections follow the
+    # transcript. Interleaved indices (intro=[1,3], build=[2]) would make
+    # sections whose time ranges overlap: keep the longest run of a broken
+    # section (its other segments re-attach below, like any segment the model
+    # left out) and put the sections in order of their first segment.
+    broken = 0
+    for spec in accepted:
+        runs = contiguous_runs(spec["indices"])
+        if len(runs) > 1:
+            broken += 1
+            spec["indices"] = max(runs, key=len)
+    if broken:
+        ai.note(f"segmentation: {broken} section(s) were not one unbroken run of segments; kept the longest run of each")
+    first_indices = [spec["indices"][0] for spec in accepted]
+    if first_indices != sorted(first_indices):
+        ai.note("segmentation: the model's sections were not in transcript order; reordered by first segment")
+        accepted.sort(key=lambda spec: spec["indices"][0])
+    assigned: dict[int, int] = {index: slot for slot, spec in enumerate(accepted) for index in spec["indices"]}
+    # Rebuild in transcript order, attaching any segment the model forgot to the
+    # section before it (or to a leading production_notes group).
+    groups: list[dict[str, Any]] = []
+    group_by_slot: dict[int, dict[str, Any]] = {}
+    orphans = 0
+    current: dict[str, Any] | None = None
+    for segment in chunk:
+        index = int(segment["index"])
+        slot = assigned.get(index)
+        if slot is None:
+            orphans += 1
+            if current is None:
+                current = new_section_group(segment, "production_notes", SECTION_LABELS["production_notes"], False)
+                current["source"] = "model"
+                current["reason"] = "segments before the first section the model named"
+                groups.append(current)
+            else:
+                append_segment_to_group(current, segment)
+            continue
+        group = group_by_slot.get(slot)
+        if group is None:
+            spec = accepted[slot]
+            group = new_section_group(segment, spec["type"], spec["label"], spec["type"] != "production_notes")
+            group["source"] = "model"
+            group["reason"] = spec["summary"] or f"model grouped segments {spec['indices'][0]}-{spec['indices'][-1]} as {spec['label']}"
+            group["confidence"] = spec["confidence"]
+            group["modelOrdinal"] = spec["ordinal"]
+            group_by_slot[slot] = group
+            groups.append(group)
+        else:
+            append_segment_to_group(group, segment)
+        current = group
+    if orphans:
+        ai.note(f"segmentation: {orphans} segment(s) the model left out were attached to the section before them")
+    return groups
+
+
+def contiguous_runs(indices: list[int]) -> list[list[int]]:
+    """Sorted, de-duplicated indices split into runs of consecutive integers."""
+    runs: list[list[int]] = []
+    for index in sorted(set(indices)):
+        if runs and index == runs[-1][-1] + 1:
+            runs[-1].append(index)
+        else:
+            runs.append([index])
+    return runs
+
+
+def _label_ordinal(label: str) -> int | None:
+    match = re.search(r"(\d+)\s*$", label)
+    if match:
+        return int(match.group(1))
+    words = label.lower().split()
+    return ORDINAL_WORDS.get(words[0]) if words and words[0] in ("first", "second", "third", "fourth") else None
+
+
+def merge_groups_across_chunks(groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A section split by a chunk boundary comes back as two groups of the same
+    type ("Drop" at the end of one chunk, "Drop 1" at the start of the next);
+    fold the second into the first unless their labels name different ordinals."""
+    merged: list[dict[str, Any]] = []
+    for group in groups:
+        previous = merged[-1] if merged else None
+        previous_ordinal = _label_ordinal(previous["label"]) if previous else None
+        group_ordinal = _label_ordinal(group["label"])
+        if (
+            previous is not None
+            and group.pop("chunkStart", False)
+            and previous.get("source") == "model" and group.get("source") == "model"
+            and previous["sectionId"] == group["sectionId"]
+            and previous["sectionId"] != "production_notes"
+            and (previous_ordinal is None or group_ordinal is None or previous_ordinal == group_ordinal)
+        ):
+            previous["texts"].extend(group["texts"])
+            previous["timecodes"].extend(group["timecodes"])
+            if group["endSeconds"] is not None:
+                previous["endSeconds"] = group["endSeconds"]
+            for key in ("trackRoles", "plugins", "techniques"):
+                previous[key] = sorted(set(previous[key] + group[key]))
+            continue
+        merged.append(group)
+    return merged
+
+
+# -- (2) tagging --------------------------------------------------------------
+
+TAG_SCHEMA = {
+    "sections": [
+        {
+            "id": "section-01",
+            "trackRoles": [{"name": "hat", "quote": "verbatim words from this section"}],
+            "plugins": [{"name": "Serum", "quote": "verbatim words from this section"}],
+            "techniques": [{"name": "sidechain", "quote": "verbatim words from this section"}],
+        }
+    ]
+}
+
+
+def canonical_plugin_name(name: str) -> str | None:
+    lowered = _plain(name)
+    if not lowered:
+        return None
+    for canonical, keywords in PLUGIN_KEYWORDS.items():
+        if lowered == canonical.lower() or any(keyword_pattern(keyword).search(lowered) for keyword in keywords):
+            return canonical
+    return None
+
+
+def ai_tag_sections(sections: list[dict[str, Any]], ai: IngestAssist) -> None:
+    """Replace the keyword tags with the model's, per section, when every tag
+    comes with a quote that is really in that section's text."""
+    if not ai.available or not sections:
+        return
+    by_id = {section["id"]: section for section in sections}
+    chunks = chunk_by_chars(sections, lambda section: len(section["transcriptText"]) + 40, max_items=SECTION_BATCH)
+    tagged = 0
+    dropped_quotes = 0
+    dropped_names = 0
+    for chunk in chunks:
+        payload = [{"id": section["id"], "text": section["transcriptText"]} for section in chunk]
+        task = (
+            "For each section below, list the track roles the speaker is working on or describes, the plugins "
+            "named, and the production techniques applied. Track roles must be chosen from: "
+            + ", ".join(TRACK_KEYWORDS) + ". Techniques must be chosen from: " + ", ".join(TECHNIQUE_KEYWORDS)
+            + ". Plugins are named as the speaker says them (known ones: " + ", ".join(PLUGIN_KEYWORDS) + "). "
+            "Each tag needs a short verbatim quote (3-12 words) from that section's text that shows it; a role is "
+            "only tagged when the speaker means the instrument (the word 'that' is not a hi-hat, 'dropped the ball' "
+            "is not a drop). Return an entry for every section id, with empty lists where nothing applies.\n\n"
+            + json.dumps(payload, ensure_ascii=False)
+        )
+        answer = ai.ask("tags", task, schema=TAG_SCHEMA, max_tokens=12000)
+        if not answer or not isinstance(answer.get("sections"), list):
+            continue
+        for raw in answer["sections"]:
+            if not isinstance(raw, dict):
+                continue
+            section = by_id.get(str(raw.get("id") or ""))
+            if section is None or not any(candidate is section for candidate in chunk):
+                continue
+            text = section["transcriptText"]
+            evidence: dict[str, str] = {}
+            result: dict[str, list[str]] = {"trackRoles": [], "plugins": [], "techniques": []}
+            for field, allowed in (("trackRoles", TRACK_KEYWORDS), ("techniques", TECHNIQUE_KEYWORDS), ("plugins", None)):
+                for tag in raw.get(field) or []:
+                    if not isinstance(tag, dict):
+                        continue
+                    name = _clean_string(tag.get("name"), 60)
+                    quote = tag.get("quote")
+                    if not name:
+                        continue
+                    if allowed is not None:
+                        name = name.lower().replace(" ", "_").replace("-", "_")
+                        if name not in allowed:
+                            dropped_names += 1
+                            continue
+                    else:
+                        canonical = canonical_plugin_name(name)
+                        if canonical:
+                            name = canonical
+                        elif not (isinstance(quote, str) and _plain(name) in _plain(quote)):
+                            dropped_names += 1
+                            continue
+                    if not quote_in_text(quote, text):
+                        dropped_quotes += 1
+                        continue
+                    if name not in result[field]:
+                        result[field].append(name)
+                        evidence[name] = normalize_space(str(quote))
+            section["trackRoles"] = sorted(result["trackRoles"])
+            section["plugins"] = sorted(result["plugins"])
+            section["techniques"] = sorted(result["techniques"])
+            section["tagSource"] = "model"
+            section["evidence"] = evidence
+            tagged += 1
+    if tagged:
+        ai.decide("tags", {"sectionsTagged": tagged}, reason="roles, plugins and techniques tagged from quotes in each section's text")
+    if dropped_quotes:
+        ai.note(f"tags: dropped {dropped_quotes} tag(s) whose quote was not in the section text")
+    if dropped_names:
+        ai.note(f"tags: dropped {dropped_names} tag(s) outside the known role/technique lists or unnamed in their quote")
+    if tagged < len(sections):
+        ai.note(f"tags: {len(sections) - tagged} section(s) kept their keyword tags")
+
+
+# -- (3) tempo, key, title, artist, genre ------------------------------------
+
+GLOBALS_SCHEMA = {
+    "tempoBpm": 140,
+    "tempoEvidence": "verbatim words stating the tempo, or null",
+    "tempoConfidence": 0.0,
+    "timeSignature": "4/4",
+    "key": "F# minor, or null",
+    "keyEvidence": "verbatim words stating the key, or null",
+    "keyConfidence": 0.0,
+    "title": "the song title as the speaker says it, or null",
+    "titleEvidence": "verbatim words naming it",
+    "titleConfidence": 0.0,
+    "artist": "the artist or producer of the song, or null",
+    "artistEvidence": "verbatim words",
+    "genre": "a short genre / style description, or null",
+    "genreEvidence": "verbatim words that show the style",
+}
+
+
+def ai_extract_globals(cleaned: str, ai: IngestAssist, *, need_tempo: bool, need_key: bool) -> dict[str, Any]:
+    """One extraction question over the transcript (chunked; later chunks are
+    read only while tempo or key are still missing). Returns validated fields."""
+    found: dict[str, dict[str, Any]] = {}
+    if not ai.available or not cleaned:
+        return {}
+    for position, piece in enumerate(chunk_text(cleaned)):
+        if position and not ((need_tempo and "tempo" not in found) or (need_key and "key" not in found)):
+            break
+        task = (
+            "From this transcript, extract the song's tempo in BPM, its key, its title, the artist and the genre. "
+            "Only report a value the speaker states or clearly implies ('it's at one forty' is 140 BPM; 'F sharp minor' "
+            "is a key), with the exact words as evidence and a confidence from 0 to 1. Use null when it is not "
+            "stated.\n\n" + piece
+        )
+        answer = ai.ask("globals", task, schema=GLOBALS_SCHEMA, max_tokens=1024)
+        if not answer:
+            continue
+        for field in ("tempo", "key", "title", "artist", "genre"):
+            if field in found:
+                continue
+            value = answer.get("tempoBpm" if field == "tempo" else field)
+            evidence = answer.get(f"{field}Evidence")
+            confidence = _confidence(answer.get(f"{field}Confidence", MIN_CONFIDENCE))
+            if value is None or value == "":
+                continue
+            if not quote_in_text(evidence, piece):
+                ai.note(f"globals: dropped {field} {value!r} because its evidence is not in the transcript")
+                continue
+            if confidence < MIN_CONFIDENCE:
+                ai.note(f"globals: dropped {field} {value!r} at confidence {confidence:.2f}")
+                continue
+            if field == "tempo":
+                tempo = _as_int(value)
+                if tempo is None or not evidence_states_number(evidence):
+                    ai.note(f"globals: dropped tempo {value!r} because the evidence does not state a number")
+                    continue
+                clamped = max(60, min(220, tempo))
+                if clamped != tempo:
+                    ai.note(f"globals: tempo {tempo} clamped to {clamped}")
+                found["tempo"] = {"value": clamped, "evidence": normalize_space(str(evidence)), "confidence": confidence}
+            elif field == "key":
+                key = normalize_key_hint(value)
+                if key is None:
+                    ai.note(f"globals: dropped key {value!r} (not a note name plus major/minor)")
+                    continue
+                found["key"] = {"value": key, "evidence": normalize_space(str(evidence)), "confidence": confidence}
+            else:
+                limit = 8 if field == "title" else 6
+                text_value = _clean_string(value, 80)
+                if not text_value or len(text_value.split()) > limit:
+                    ai.note(f"globals: dropped {field} {value!r} (empty or longer than {limit} words)")
+                    continue
+                if field in ("title", "artist") and _plain(text_value).strip("'\"") not in _plain(evidence):
+                    ai.note(f"globals: dropped {field} {text_value!r} because the evidence does not name it")
+                    continue
+                if field == "title":
+                    text_value = _title_case(text_value)
+                found[field] = {"value": text_value, "evidence": normalize_space(str(evidence)), "confidence": confidence}
+    return found
+
+
+# -- (4) cross-section reuse and spoken drum patterns -------------------------
+
+LANE_SCHEMA = {
+    "sections": [
+        {
+            "id": "section-05",
+            "laneTransforms": {
+                "lead": {"copyFromSectionId": "section-02", "transform": "fill_in or null", "transposeSemitones": 0, "quote": "verbatim"},
+                "chords": {"copyFromSectionId": "section-02", "quote": "verbatim"},
+                "bass": {"copyFromSectionId": "section-02", "mode": "same_notes or null", "followChords": False, "omitBeats": [4], "quote": "verbatim"},
+                "drums": {"copyFromSectionId": "section-03", "hatSpacing": 0.25, "ride": True, "quote": "verbatim"},
+            },
+            "drumPatterns": {
+                "kick": {"beats": [1, 3], "quote": "verbatim"},
+                "snare": {"beats": [2, 4], "quote": "verbatim"},
+                "clap": {"beats": [2, 4], "quote": "verbatim"},
+                "hat": {"beats": [1.5, 2.5, 3.5, 4.5], "spacingBeats": 0.5, "open": False, "quote": "verbatim"},
+                "ride": {"beats": [1], "quote": "verbatim"},
+                "crash": {"beats": [1], "quote": "verbatim"},
+            },
+        }
+    ]
+}
+HAT_SPACINGS = (0.25, round(1.0 / 3.0, 3), 0.5, 1.0)
+
+
+def _copy_from_payload(raw_id: Any, earlier: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for section in earlier:
+        if section["id"] == raw_id:
+            payload = {"sectionId": section["id"], "sectionType": section["type"]}
+            if section.get("ordinalWithinType"):
+                payload["ordinal"] = section["ordinalWithinType"]
+            return payload
+    return None
+
+
+def _model_beats(values: Any) -> list[float]:
+    """1-based beats from the model ('1' is the downbeat, '1.5' its 'and') to the
+    0-based beats the lane payloads use; anything outside the bar is dropped."""
+    beats: list[float] = []
+    for item in values if isinstance(values, list) else []:
+        beat = _as_float(item)
+        if beat is None or beat < 1.0 or beat >= 5.0:
+            continue
+        beat = round(beat - 1.0, 2)
+        if beat not in beats:
+            beats.append(beat)
+    return sorted(beats)
+
+
+def validate_lane_transforms(raw: Any, text: str, earlier: list[dict[str, Any]], ai: IngestAssist, section_id: str) -> dict[str, Any]:
+    transforms: dict[str, Any] = {}
+    if not isinstance(raw, dict):
+        return transforms
+    for lane in TRANSFORM_LANES:
+        item = raw.get(lane)
+        if not isinstance(item, dict):
+            continue
+        quote = item.get("quote")
+        if not quote_in_text(quote, text):
+            ai.note(f"lanes: dropped {lane} transform in {section_id} because its quote is not in the section")
+            continue
+        payload: dict[str, Any] = {}
+        copy_from = _copy_from_payload(item.get("copyFromSectionId"), earlier)
+        if copy_from:
+            payload["copyFrom"] = copy_from
+        elif item.get("copyFromSectionId"):
+            ai.note(f"lanes: {section_id} {lane} refers to {item.get('copyFromSectionId')!r}, which is not an earlier section")
+        if lane == "lead":
+            if item.get("transform") == "fill_in":
+                payload["transform"] = "fill_in"
+            semitones = _as_int(item.get("transposeSemitones"))
+            if semitones and -24 <= semitones <= 24:
+                payload["transposeSemitones"] = semitones
+        elif lane == "bass":
+            if item.get("mode") == "same_notes":
+                payload["mode"] = "same_notes"
+            if item.get("followChords") is True:
+                payload["followChords"] = True
+            omit = _model_beats(item.get("omitBeats"))
+            if omit:
+                payload["omitBeats"] = omit
+        elif lane == "drums":
+            overrides: dict[str, Any] = {}
+            spacing = _as_float(item.get("hatSpacing"))
+            if spacing is not None and 0.125 <= spacing <= 2.0:
+                overrides["hatSpacing"] = min(HAT_SPACINGS, key=lambda known: abs(known - spacing))
+            if item.get("ride") is True:
+                overrides["ride"] = True
+            if overrides:
+                payload["overrides"] = overrides
+        if not payload:
+            continue
+        payload["source"] = "model"
+        payload["reason"] = f"stated in the transcript: \"{normalize_space(str(quote))}\""
+        transforms[lane] = payload
+    return transforms
+
+
+def validate_drum_patterns(raw: Any, text: str, ai: IngestAssist, section_id: str) -> dict[str, Any]:
+    lanes: dict[str, Any] = {}
+    if not isinstance(raw, dict):
+        return lanes
+    for lane in DRUM_LANES:
+        item = raw.get(lane)
+        if not isinstance(item, dict):
+            continue
+        quote = item.get("quote")
+        if not quote_in_text(quote, text):
+            ai.note(f"lanes: dropped {lane} pattern in {section_id} because its quote is not in the section")
+            continue
+        beats = _model_beats(item.get("beats"))
+        spacing = _as_float(item.get("spacingBeats")) if lane == "hat" else None
+        if spacing is not None and not (0.125 <= spacing <= 2.0):
+            spacing = None
+        if not beats and spacing is not None:
+            beats = [round(step * spacing, 2) for step in range(int(round(4.0 / spacing)))]
+        if not beats:
+            continue
+        payload: dict[str, Any] = {
+            "kind": "beatPattern",
+            "events": [{"beat": beat} for beat in beats],
+            "source": "model",
+            "reason": f"stated in the transcript: \"{normalize_space(str(quote))}\"",
+        }
+        if lane == "hat":
+            inferred = spacing if spacing is not None else infer_spacing_from_beats(beats)
+            if inferred is not None:
+                payload["spacingBeats"] = inferred
+            if item.get("open") is True:
+                for event in payload["events"]:
+                    event["open"] = True
+        lanes[lane] = payload
+    return lanes
+
+
+def ai_lane_directives(sections: list[dict[str, Any]], ai: IngestAssist) -> None:
+    """Fill laneTransforms / laneEvents from prose. The regex results already on
+    each section win on conflict; the model only adds what they missed."""
+    if not ai.available or not sections:
+        return
+    by_id = {section["id"]: section for section in sections}
+    position_by_id = {section["id"]: position for position, section in enumerate(sections)}
+    outline = [
+        {"id": section["id"], "type": section["type"], "label": section["label"], "ordinal": section["ordinalWithinType"]}
+        for section in sections
+    ]
+    chunks = chunk_by_chars(sections, lambda section: len(section["transcriptText"]) + 40, max_items=SECTION_BATCH)
+    applied = 0
+    for chunk in chunks:
+        payload = [{"id": section["id"], "text": section["transcriptText"]} for section in chunk]
+        task = (
+            "The song's sections, in order, are:\n" + json.dumps(outline, ensure_ascii=False) + "\n\n"
+            "For each section below, report only what the speaker explicitly says about (a) reusing material from an "
+            "EARLIER section - the same melody, chords, bass notes or drums as an earlier section, filled in, transposed "
+            "(semitones; an octave is 12), double-time or half-time hats (hatSpacing in beats: 0.25 = sixteenths, "
+            "0.5 = eighths, 1 = quarters), a ride added, bass following the chords or skipping beats - and (b) drum "
+            "patterns stated in words: kick/snare/clap/hat/ride/crash on which beats of a 4/4 bar, counted from 1 "
+            "(1 = downbeat, 1.5 = the 'and' of 1, offbeat hats = 1.5, 2.5, 3.5, 4.5). copyFromSectionId must be one "
+            "of the section ids listed above that comes before the section. Every lane you fill needs a verbatim "
+            "quote from that section. Omit lanes and sections with nothing explicit; do not infer defaults.\n\n"
+            + json.dumps(payload, ensure_ascii=False)
+        )
+        answer = ai.ask("lanes", task, schema=LANE_SCHEMA, max_tokens=12000)
+        if not answer or not isinstance(answer.get("sections"), list):
+            continue
+        for raw in answer["sections"]:
+            if not isinstance(raw, dict):
+                continue
+            section = by_id.get(str(raw.get("id") or ""))
+            if section is None or not any(candidate is section for candidate in chunk):
+                continue
+            earlier = sections[: position_by_id[section["id"]]]
+            text = section["transcriptText"]
+            transforms = validate_lane_transforms(raw.get("laneTransforms"), text, earlier, ai, section["id"])
+            if transforms:
+                existing = section.get("laneTransforms") or {}
+                merged = merge_nested_payload(transforms, existing)
+                for lane, payload in transforms.items():
+                    if lane in existing:
+                        # the regex already read this lane; the model only added to it
+                        merged[lane]["source"] = "natural_language+model"
+                    else:
+                        applied += 1
+                        ai.decide(f"laneTransforms.{lane}", {k: v for k, v in payload.items() if k not in ("source", "reason")},
+                                  reason=payload["reason"], section_id=section["id"])
+                section["laneTransforms"] = merged
+            patterns = validate_drum_patterns(raw.get("drumPatterns"), text, ai, section["id"])
+            if patterns:
+                lane_events = section.get("laneEvents") or {}
+                for lane, payload in patterns.items():
+                    if lane_events.get(lane):
+                        ai.note(f"lanes: {section['id']} {lane} already had a pattern from the transcript's own notation; model pattern ignored")
+                        continue
+                    lane_events[lane] = payload
+                    applied += 1
+                    ai.decide(f"laneEvents.{lane}", [event["beat"] for event in payload["events"]],
+                              reason=payload["reason"], section_id=section["id"])
+                if lane_events:
+                    section["laneEvents"] = lane_events
+    if not applied:
+        ai.note("lanes: the model found no explicit reuse or drum pattern statements beyond the regex results")
+
+
+# -- (5) notes and the derived prompt ----------------------------------------
+
+NOTES_SCHEMA = {
+    "arrangementNotes": ["short paraphrased bullet"],
+    "mixNotes": ["short paraphrased bullet"],
+    "automationNotes": ["short paraphrased bullet"],
+    "derivedPrompt": "2-3 sentences: genre, tempo feel, key colour, arrangement shape, signature techniques",
+    "styleLane": "a few words",
+    "mood": ["word"],
+}
+
+
+def ai_notes(cleaned: str, header: dict[str, Any], ai: IngestAssist) -> dict[str, Any]:
+    if not ai.available or not cleaned:
+        return {}
+    limits = {"arrangementNotes": 10, "mixNotes": 10, "automationNotes": 8}
+    result: dict[str, Any] = {key: [] for key in limits}
+    answered = False
+    for piece in chunk_text(cleaned):
+        task = (
+            "Known so far: " + json.dumps(header, ensure_ascii=False) + "\n\n"
+            "From the transcript below, write short paraphrased bullets (your own words, no verbatim quotes, no lyrics) "
+            "about the arrangement (what happens in which section, what returns or changes), the mix (EQ, compression, "
+            "reverb, delay, stereo, low end, sidechain) and automation/transitions (filters, risers, sweeps, macro moves). "
+            "Then write a 2-3 sentence brief that would let a producer rebuild an original song in this style: genre, "
+            "tempo feel, key colour, arrangement shape and the signature techniques. Name the style lane in a few "
+            "words and give 2-4 mood words.\n\n" + piece
+        )
+        answer = ai.ask("notes", task, schema=NOTES_SCHEMA, max_tokens=3000)
+        if not answer:
+            continue
+        answered = True
+        for key, limit in limits.items():
+            for item in answer.get(key) if isinstance(answer.get(key), list) else []:
+                line = _clean_string(item, 300)
+                if line and line not in result[key] and len(result[key]) < limit:
+                    result[key].append(line)
+        prompt = _clean_string(answer.get("derivedPrompt"), 900)
+        if len(prompt) >= 40 and "derivedPrompt" not in result:
+            result["derivedPrompt"] = prompt
+        style = _clean_string(answer.get("styleLane"), 60)
+        if style and "styleLane" not in result:
+            result["styleLane"] = style
+        moods = [_clean_string(item, 24) for item in (answer.get("mood") or []) if isinstance(item, str)]
+        if moods and "mood" not in result:
+            result["mood"] = [mood for mood in moods if mood][:4]
+    return result if answered else {}
+
+
+def analyze_transcript(text: str, project_id: str, prompt: str | None = None, assist: "llm.Assist | None" = None) -> dict[str, Any]:
+    """Read a transcript into the spec the rest of the pipeline consumes.
+
+    `assist` is the model handle (see docs/ai.md). When it is None one is
+    created from the environment; with no key, `NEON_AI=off` or `--ai off`
+    every step below is the deterministic reading, and the `ai` block says so.
+    """
+    if assist is None:
+        assist = llm.Assist()
+    ai = IngestAssist(assist)
     cleaned = normalize_space(text.replace("\r", "\n"))
     segments = extract_timecoded_segments(cleaned)
     timecoded = bool(segments)
     if not segments:
         segments = fallback_segments(cleaned)
-    sections = merge_sections(segments)
+
+    # (1) sections: the model groups the deterministic segments; the keyword
+    # grouping is the fallback.
+    groups = ai_section_groups(segments, ai)
+    if groups:
+        sections = normalize_section_groups(groups)
+        ordinal_mismatch = sum(
+            1 for group, section in zip(groups, sections)
+            if group.get("modelOrdinal") not in (None, 0) and group["modelOrdinal"] != section["ordinalWithinType"]
+        )
+        if ordinal_mismatch:
+            ai.note(f"segmentation: recomputed ordinalWithinType locally for {ordinal_mismatch} section(s) (model's ordinal disagreed)")
+        ai.decide("sections", [{"id": s["id"], "type": s["type"], "label": s["label"]} for s in sections],
+                  reason="segments grouped into sections by the model; indices validated, ordinals recomputed in order")
+    else:
+        sections = merge_sections(segments)
+
+    # (2) tags: the model's quoted tags replace the keyword tags per section.
+    ai_tag_sections(sections, ai)
+
+    # (4) lane directives: regexes and the compact DSL first, then the model
+    # adds transforms/patterns for what they missed.
     prior_sections: list[dict[str, Any]] = []
     for section in sections:
         lane_events, lane_transforms = extract_lane_directives(section.get("transcriptText", section["summary"]), prior_sections)
@@ -1416,6 +2364,7 @@ def analyze_transcript(text: str, project_id: str, prompt: str | None = None) ->
         if lane_transforms:
             section["laneTransforms"] = lane_transforms
         prior_sections.append(section)
+    ai_lane_directives(sections, ai)
 
     track_counter: Counter[str] = Counter()
     plugin_counter: Counter[str] = Counter()
@@ -1432,9 +2381,37 @@ def analyze_transcript(text: str, project_id: str, prompt: str | None = None) ->
         for technique in section["techniques"]:
             technique_counter[technique] += 1
 
+    # (3) tempo, key, title: the regexes are deterministic and win when they
+    # hit; the model fills in what they could not read.
     bpm_match = re.search(r"\b([6-9]\d|1\d\d|2[0-2]\d)\s*bpm\b", cleaned, flags=re.IGNORECASE)
     key_matches = sorted(set(match.strip() for match in re.findall(r"\b([A-G][#b]?\s*(?:major|minor))\b", cleaned, flags=re.IGNORECASE)))
-    title_hint = infer_title_hint(cleaned, project_id)
+    tempo_hint = int(bpm_match.group(1)) if bpm_match else None
+    pattern_title = title_from_patterns(cleaned)
+    title_hint = pattern_title or infer_title_hint(cleaned, project_id)
+    artist_hint: str | None = None
+    genre_hint: str | None = None
+    need_title = not pattern_title or len(pattern_title.split()) < 2
+    found = ai_extract_globals(cleaned, ai, need_tempo=tempo_hint is None, need_key=not key_matches)
+    if tempo_hint is None and found.get("tempo"):
+        tempo_hint = int(found["tempo"]["value"])
+        ai.decide("tempoHint", tempo_hint, reason="tempo read from the transcript by the model",
+                  evidence=found["tempo"]["evidence"], confidence=found["tempo"]["confidence"])
+    if not key_matches and found.get("key"):
+        key_matches = [found["key"]["value"]]
+        ai.decide("keyHints", key_matches, reason="key read from the transcript by the model",
+                  evidence=found["key"]["evidence"], confidence=found["key"]["confidence"])
+    if need_title and found.get("title"):
+        title_hint = found["title"]["value"]
+        ai.decide("titleHint", title_hint, reason="title read from the transcript by the model",
+                  evidence=found["title"]["evidence"], confidence=found["title"]["confidence"])
+    if found.get("artist"):
+        artist_hint = found["artist"]["value"]
+        ai.decide("artistHint", artist_hint, reason="artist named in the transcript",
+                  evidence=found["artist"]["evidence"], confidence=found["artist"]["confidence"])
+    if found.get("genre"):
+        genre_hint = found["genre"]["value"]
+        ai.decide("genreHint", genre_hint, reason="genre described in the transcript",
+                  evidence=found["genre"]["evidence"], confidence=found["genre"]["confidence"])
 
     coverage = [f"{section['label']}: {', '.join(section['trackRoles'][:6]) or 'no concrete track roles detected'}" for section in sections[:10]]
     if track_counter:
@@ -1452,8 +2429,10 @@ def analyze_transcript(text: str, project_id: str, prompt: str | None = None) ->
         "segmentCount": len(segments),
         "sectionCount": len(sections),
         "durationHintSeconds": max((segment["startSeconds"] or 0) for segment in segments) if timecoded else None,
-        "tempoHint": int(bpm_match.group(1)) if bpm_match else None,
+        "tempoHint": tempo_hint,
         "keyHints": key_matches,
+        "artistHint": artist_hint,
+        "genreHint": genre_hint,
         "sections": sections,
         "globalTracks": [
             {"name": track, "mentions": count, "sections": section_track_refs[track]}
@@ -1474,7 +2453,7 @@ def analyze_transcript(text: str, project_id: str, prompt: str | None = None) ->
         "openQuestions": [
             item
             for item in (
-                None if bpm_match else "Transcript does not explicitly state a BPM.",
+                None if tempo_hint else "Transcript does not explicitly state a BPM.",
                 None if key_matches else "Transcript does not clearly state the key.",
                 None if sections else "Could not recover chronological sections from the transcript.",
             )
@@ -1483,6 +2462,25 @@ def analyze_transcript(text: str, project_id: str, prompt: str | None = None) ->
         "derivedPrompt": None,  # filled by caller for transparency
     }
     spec["derivedPrompt"] = infer_prompt_from_transcript(spec)
+
+    # (5) notes and the brief, written from the whole transcript.
+    notes = ai_notes(cleaned, {
+        "title": title_hint, "artist": artist_hint, "genre": genre_hint, "tempoBpm": tempo_hint, "key": key_matches,
+        "sections": [section["label"] for section in sections if section["type"] != "production_notes"][:16],
+    }, ai)
+    for key in ("arrangementNotes", "mixNotes", "automationNotes"):
+        if notes.get(key):
+            spec[key] = notes[key]
+            ai.decide(key, len(notes[key]), reason="paraphrased from the transcript by the model")
+    if notes.get("derivedPrompt"):
+        spec["derivedPrompt"] = notes["derivedPrompt"]
+        ai.decide("derivedPrompt", notes["derivedPrompt"], reason="brief written from the transcript by the model")
+    if notes.get("styleLane"):
+        ai.decide("styleLane", notes["styleLane"], reason="style lane named by the model (advisory; fill_in_blanks decides)")
+    if notes.get("mood"):
+        ai.decide("mood", notes["mood"], reason="mood words from the model")
+
+    spec["ai"] = ai.report()
     return spec
 
 
@@ -1503,6 +2501,11 @@ def render_markdown(spec: dict[str, Any]) -> str:
     lines.append(f"- Sections: `{spec['sectionCount']}`")
     lines.append(f"- Tempo hint: `{spec['tempoHint'] or 'unset'}`")
     lines.append(f"- Key hints: `{', '.join(spec['keyHints']) if spec['keyHints'] else 'unset'}`")
+    ai_block = spec.get("ai") or {}
+    if ai_block.get("used"):
+        lines.append(f"- AI: `via {ai_block.get('provider')} ({ai_block.get('model')})`, {len(ai_block.get('decisions') or [])} decision(s)")
+    else:
+        lines.append(f"- AI: `offline rules` ({ai_block.get('note') or 'not used'})")
     lines.append("")
     lines.append("## Derived Prompt")
     lines.append("")
@@ -1597,6 +2600,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--transcript-stdin", action="store_true", help="Read transcript text from stdin.")
     parser.add_argument("--output-json", help="Optional output JSON file path.")
     parser.add_argument("--output-md", help="Optional output markdown file path.")
+    llm.add_ai_argument(parser)
     return parser
 
 
@@ -1604,7 +2608,7 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     text = read_transcript(args)
-    spec = analyze_transcript(text, project_id=slugify(args.project_id), prompt=args.prompt)
+    spec = analyze_transcript(text, project_id=slugify(args.project_id), prompt=args.prompt, assist=llm.assist_from_args(args))
     if args.output_json:
         Path(args.output_json).write_text(json.dumps(spec, indent=2) + "\n", encoding="utf-8")
     if args.output_md:

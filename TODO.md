@@ -49,6 +49,28 @@ the commit, or the session artifacts.
     normal listening level, and the sound check no longer flags the mix as
     quiet or crowded.
 
+- `[x]` Put a model where the code guessed from tables, and close the loop.
+  - Why: the transcript parser tagged "hat" in 123 of 193 sections because
+    "that" contains it, every song defaulted to 142 BPM, "the drop feels empty"
+    was unparseable, and nothing chose the next step after a sound check.
+  - Shape: one adapter (`tools/llm.py`, contract `docs/ai.md`), the heuristic
+    kept as the offline fallback in every tool, evidence quotes for every tag,
+    validation of every id and number, an `ai` block in every output, Settings ▸
+    AI assistance in the app with the key in the Keychain, `--ai` on every tool
+    and MCP call, and `songlab.py iterate --ai` as the agentic loop.
+  - Verified on the Just Can't Stop transcript, model off vs on: the same
+    8-section arrangement either way (a walkthrough's timecodes are now read as
+    talk time, not song time - the first model run made a 928-bar drop); with
+    the model on, "the drop feels empty and the lead is buried, fix it" becomes
+    two edits (the grammar alone: 0 edits, 3 unresolved), listening questions
+    name the song's own parts ("Anything muddy or harsh in the heavy bass?"),
+    the fidelity report writes real next actions ("Transpose the lead -12
+    semitones in Drop 2"), 41 of 51 fill decisions carry a model reason, and
+    the sound check reads 86/100 both ways. Build from a transcript takes 39 s
+    with the model (12 calls) and 1 s without. 408 Python tests pass with the
+    model off, with no key visible, and with the real key present (no network:
+    6 s); MCP self-test 10/10, 16 tools; 58/58 Swift tests, bundle built.
+
 - `[ ]` Grow the production rubric as blind spots show up.
   - `tools/production_rubric.py` has 34 requirements. When a generated song comes
     out wrong for a reason nothing in the rubric predicted, that is the signal to

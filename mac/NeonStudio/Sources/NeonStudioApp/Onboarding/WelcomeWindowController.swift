@@ -411,6 +411,10 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
             (
                 "You cannot break anything",
                 "Every change can be undone with Command-Z, and the Edit menu names the step it will undo — “Undo Move Clip”, not a bare “Undo”."
+            ),
+            (
+                "AI assistance is optional",
+                "Add a Gemini key under Settings ▸ AI assistance and Neon Studio reads descriptions and change requests with a language model; without one, everything still works from built-in rules and says so."
             )
         ]
 
