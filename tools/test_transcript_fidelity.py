@@ -11,6 +11,7 @@ checker runs, and no test depends on a rendered file that may not exist.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -22,6 +23,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import llm  # noqa: E402
 import transcript_fidelity as tf  # noqa: E402
 
 SR = tf.SR
@@ -188,7 +190,24 @@ def claim_matching(report: dict, needle: str) -> dict:
     raise AssertionError(f"no claim mentions {needle!r}: {[c['claim'] for c in report['claims']]}")
 
 
-class SidechainAudioTests(unittest.TestCase):
+class PinnedEnvironment(unittest.TestCase):
+    """Model off for every test and every CLI subprocess it starts: no key
+    file, no key variables. Pinned in setUp and restored in tearDown - never at
+    import time - so this module can never change what another module sees.
+    NEON_AI is left alone: other suites set or clear it and check the note."""
+
+    def setUp(self) -> None:
+        self._saved_environ = dict(os.environ)
+        os.environ["NEON_CONFIG_DIR"] = "/nonexistent"
+        for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "NEON_AI_MODEL"):
+            os.environ.pop(key, None)
+
+    def tearDown(self) -> None:
+        os.environ.clear()
+        os.environ.update(self._saved_environ)
+
+
+class SidechainAudioTests(PinnedEnvironment):
     """The core promise: audio evidence wins over an effect entry that says 'Sidechain'."""
 
     def test_ducked_bass_matches_from_audio(self) -> None:
@@ -224,7 +243,7 @@ class SidechainAudioTests(unittest.TestCase):
         self.assertEqual(claim_matching(report, "drums part")["status"], "matched")
 
 
-class MetadataClaimTests(unittest.TestCase):
+class MetadataClaimTests(PinnedEnvironment):
     def test_tempo_mismatch_is_contradicted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             report = Fixture(tmp, project=base_project(bpm=128)).report()
@@ -299,7 +318,7 @@ class MetadataClaimTests(unittest.TestCase):
         self.assertFalse(any("reverb" in c["claim"].lower() for c in report["claims"]))
 
 
-class ExplicitNumberTests(unittest.TestCase):
+class ExplicitNumberTests(PinnedEnvironment):
     def test_unmatched_hz_is_unverifiable_with_quote(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             report = Fixture(tmp).report()
@@ -335,7 +354,7 @@ class ExplicitNumberTests(unittest.TestCase):
         self.assertEqual(by_claim["chords.filter moves 0.2 -> 0.8 over bars 1-4."]["status"], "contradicted")
 
 
-class ScoringAndOutputTests(unittest.TestCase):
+class ScoringAndOutputTests(PinnedEnvironment):
     def test_score_counts_only_checkable_claims(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             report = Fixture(tmp).report()
@@ -343,6 +362,10 @@ class ScoringAndOutputTests(unittest.TestCase):
         checkable = sum(1 for c in report["claims"] if c["status"] != "unverifiable")
         self.assertEqual(report["score"], int(round(100.0 * matched / checkable)))
         self.assertIn(f"{matched} of {checkable}", report["summary"])
+        # With no model there is nothing to leave out: both scores are the same number.
+        self.assertEqual(report["scoreWithoutModelClaims"], report["score"])
+        self.assertEqual(report["modelClaimCount"], 0)
+        self.assertNotIn("model", report["summary"])
         for claim in report["claims"]:
             self.assertIn(claim["status"], ("matched", "missing", "contradicted", "unverifiable"))
             self.assertIn(claim["verifiedBy"], ("audio", "project", "spec"))
@@ -385,7 +408,7 @@ class ScoringAndOutputTests(unittest.TestCase):
             self.assertIn("error", payload)
 
 
-class HelperTests(unittest.TestCase):
+class HelperTests(PinnedEnvironment):
     def test_parse_section_label(self) -> None:
         self.assertEqual(tf.parse_section_label("Drop 2 drums"), ("drop", 2))
         self.assertEqual(tf.parse_section_label("Second Drop"), ("drop", 2))
@@ -414,7 +437,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class NewMeasurementTests(unittest.TestCase):
+class NewMeasurementTests(PinnedEnvironment):
     """Section ordinals, the reverb residual, brightness, and the eq /
     compression / reverse witnesses."""
 
@@ -539,3 +562,206 @@ class NewMeasurementTests(unittest.TestCase):
             checker, span = self.checker_with(tmp, {"drums": self.drum_hits([0.0, -9.0, -3.0, -6.0] * 4)})
             status, evidence = checker.measure_compression(span)
             self.assertEqual(status, "missing", evidence)
+
+
+def fake_gemini(claims_reply: dict = None, fix_reply: dict = None, calls: list = None):
+    """A transport that answers the claim-extraction call with `claims_reply`
+    and the fix/summary call with `fix_reply`, recording every prompt."""
+    def transport(url, headers, body, timeout):
+        system = (body.get("systemInstruction") or {}).get("parts", [{}])[0].get("text", "")
+        prompt = body["contents"][0]["parts"][0]["text"]
+        if calls is not None:
+            calls.append((system, prompt))
+        if system == tf.CLAIM_ROLE:
+            reply = claims_reply if claims_reply is not None else {"claims": []}
+        elif system == tf.FIX_ROLE:
+            reply = fix_reply if fix_reply is not None else {"summary": "", "fixes": []}
+        else:
+            reply = {}
+        return 200, json.dumps({"candidates": [{"content": {"parts": [{"text": json.dumps(reply)}]}}]})
+    return transport
+
+
+def fake_assist(claims_reply: dict = None, fix_reply: dict = None, calls: list = None) -> llm.Assist:
+    client = llm.Client("gemini", api_key="k", transport=fake_gemini(claims_reply, fix_reply, calls),
+                        use_cache=False, env={"NEON_CONFIG_DIR": "/nonexistent"})
+    return llm.Assist(client=client)
+
+
+class ModelClaimTests(PinnedEnvironment):
+    """With a fake model: claims it reads are measured by the same code, only
+    quoted ones with real names survive, and the score arithmetic is unchanged."""
+
+    def test_off_report_carries_ai_block_and_is_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Fixture(tmp)
+            plain = fixture.report()
+            off = tf.build_report(fixture.root, fixture.project_path, fixture.spec_path, None, llm.Assist(enabled=False))
+        self.assertEqual(plain["ai"], {"used": False, "provider": None, "model": None, "note": "AI off for this run"})
+        self.assertEqual(json.dumps(plain, sort_keys=True), json.dumps(off, sort_keys=True))
+        self.assertEqual(plain["summarySource"], "heuristic")
+        self.assertTrue(all(d["source"] == "heuristic" for d in plain["nextActionDetails"]))
+
+    def test_model_claims_are_validated_then_measured(self) -> None:
+        reply = {"claims": [
+            # Real sentence, known section, measurable technique: measured (no reverb effect -> missing).
+            {"kind": "technique", "section": "Drop", "technique": "reverb", "quote": "sidechain the bass to the kick."},
+            # Duplicate of the spec's own sidechain claim: deduplicated, heuristic version kept.
+            {"kind": "technique", "section": "Drop", "technique": "sidechain", "quote": "sidechain the bass to the kick."},
+            # Quote not in the transcript: dropped.
+            {"kind": "technique", "section": "Drop", "technique": "delay", "quote": "put a huge delay on the lead"},
+            # Unknown technique / unknown section: dropped.
+            {"kind": "technique", "section": "Drop", "technique": "vocoder", "quote": "filtered pad only."},
+            {"kind": "technique", "section": "Bridge", "technique": "reverb", "quote": "filtered pad only."},
+            # A role the spec did not carry: measured against the project (no guitar track -> missing).
+            {"kind": "role", "section": "Drop", "role": "guitar", "quote": "Add a guitar in the drop."},
+            # A role whose sentence never mentions it: dropped.
+            {"kind": "role", "section": "Drop", "role": "vocal", "quote": "Cut the pad at 474 Hz."},
+            # Tempo when the spec already has a tempoHint: not duplicated.
+            {"kind": "tempo", "bpm": 120, "quote": "Section 1 Intro bars 1-4"},
+            # Automation with sane numbers, no lane in the project -> missing.
+            {"kind": "automation", "track": "chords", "parameter": "filter", "from": 0.2, "to": 0.8,
+             "firstBar": 1, "lastBar": 4, "quote": "Open the chords filter from 0.2 to 0.8 across the intro."},
+            # Automation outside 0-1, on an unknown track, or filed under a track its sentence never names: dropped.
+            {"kind": "automation", "track": "chords", "parameter": "filter", "from": 2, "to": 9,
+             "firstBar": 1, "lastBar": 4, "quote": "Open the chords filter from 0.2 to 0.8 across the intro."},
+            {"kind": "automation", "track": "lead", "parameter": "filter", "from": 0.1, "to": 0.9,
+             "firstBar": 1, "lastBar": 4, "quote": "filtered pad only."},
+            {"kind": "automation", "track": "drums", "parameter": "filter", "from": 0.2, "to": 0.8,
+             "firstBar": 1, "lastBar": 4, "quote": "Open the chords filter from 0.2 to 0.8 across the intro."},
+        ]}
+        calls: list = []
+        extra = "Open the chords filter from 0.2 to 0.8 across the intro. Add a guitar in the drop.\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Fixture(tmp, ducked=False, transcript=TRANSCRIPT + extra)
+            baseline = fixture.report()
+            report = tf.build_report(fixture.root, fixture.project_path, fixture.spec_path, None,
+                                     fake_assist(reply, calls=calls))
+        self.assertTrue(report["ai"]["used"])
+        self.assertEqual(sum(1 for system, _ in calls if system == tf.CLAIM_ROLE), 1)
+        model_claims = [c for c in report["claims"] if c["source"] == "model"]
+        texts = sorted(c["claim"] for c in model_claims)
+        self.assertEqual(texts, ["A guitar part plays in Drop.", "Drop uses reverb.",
+                                 "chords.filter moves 0.2 -> 0.8 over bars 1-4."])
+        for claim in model_claims:
+            self.assertIn(claim["quote"], (TRANSCRIPT + extra).replace("\n", " "))
+            self.assertIn(claim["status"], ("missing", "matched", "contradicted", "unverifiable"))
+        self.assertEqual(claim_matching(report, "uses reverb")["status"], "missing")
+        self.assertEqual(claim_matching(report, "uses reverb")["verifiedBy"], "project")
+        # The spec's sidechain claim is still the heuristic one, and measured from audio as before.
+        sidechain = [c for c in report["claims"] if "uses sidechain" in c["claim"]]
+        self.assertEqual(len(sidechain), 1)
+        self.assertEqual(sidechain[0]["source"], "s-drop")
+        self.assertEqual(sidechain[0]["status"], "missing")
+        self.assertEqual(sum(1 for c in report["claims"] if c["area"] == "tempo"), 1)
+        # Every heuristic claim is unchanged, in the same order, and the score is the same arithmetic.
+        heuristic = [c for c in report["claims"] if c["source"] != "model"]
+        self.assertEqual([c["claim"] for c in heuristic], [c["claim"] for c in baseline["claims"]])
+        self.assertEqual([c["status"] for c in heuristic], [c["status"] for c in baseline["claims"]])
+        matched = sum(1 for c in report["claims"] if c["status"] == "matched")
+        checkable = sum(1 for c in report["claims"] if c["status"] != "unverifiable")
+        self.assertEqual(report["score"], int(round(100.0 * matched / checkable)))
+        # The model's claims widened the denominator; the --ai off number is kept beside it and the summary says so.
+        self.assertEqual(report["modelClaimCount"], 3)
+        self.assertEqual(report["scoreWithoutModelClaims"], baseline["score"])
+        self.assertNotEqual(report["score"], baseline["score"])
+        self.assertIn("3 claims came from the model", report["summary"])
+        self.assertIn(f"score {baseline['score']}", report["summary"])
+        self.assertIn(f"Score without the model's claims:** {baseline['score']}/100", tf.render_markdown(report))
+        dropped = " ".join(report["ai"]["dropped"])
+        self.assertIn("quote is not in the transcript", dropped)
+        self.assertIn("vocoder", dropped)
+        self.assertIn("Bridge", dropped)
+        self.assertIn("unknown track 'lead'", dropped)
+        self.assertIn("outside 0-1", dropped)
+        self.assertIn("filed under 'drums' but its quote does not name that track", dropped)
+        self.assertIn("role 'vocal' is not named in its quote", dropped)
+
+    def test_model_fixes_name_real_tracks_and_effects(self) -> None:
+        def fixes_for(report_off: dict) -> dict:
+            missing = [c for c in report_off["claims"] if c["status"] in ("missing", "contradicted")]
+            matched = [c for c in report_off["claims"] if c["status"] == "matched"]
+            sidechain = next(c for c in missing if "sidechain" in c["claim"])
+            return {
+                "summary": "The bass ignores the kick in the Drop, so the tutorial's pump is missing.",
+                "fixes": [
+                    {"claimId": sidechain["id"], "action": "Turn the Sidechain on the bass up until it ducks 4 dB at every kick in the Drop.",
+                     "track": "bass", "effect": "sidechain", "section": "Drop", "why": "the bass RMS barely dips at the kicks"},
+                    {"claimId": sidechain["id"], "action": "duplicate", "track": "bass", "effect": None, "section": None, "why": ""},
+                    {"claimId": matched[0]["id"], "action": "Fix something that is not broken.", "track": None, "effect": None, "section": None, "why": ""},
+                    {"claimId": sidechain["id"], "action": "Add a Vocoder to the lead.", "track": "lead", "effect": None, "section": None, "why": ""},
+                    {"claimId": sidechain["id"], "action": "Push the Plate Reverb on the bass.", "track": "bass", "effect": "Plate Reverb", "section": None, "why": ""},
+                    {"claimId": sidechain["id"], "action": "Raise the bass 37 dB.", "track": "bass", "effect": None, "section": None, "why": ""},
+                ],
+            }
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Fixture(tmp, ducked=False)
+            off = fixture.report()
+            report = tf.build_report(fixture.root, fixture.project_path, fixture.spec_path, None,
+                                     fake_assist({"claims": []}, fixes_for(off)))
+        self.assertEqual(report["score"], off["score"])
+        self.assertEqual(report["scoreWithoutModelClaims"], off["score"])
+        self.assertEqual(report["modelClaimCount"], 0)
+        self.assertEqual([c["status"] for c in report["claims"]], [c["status"] for c in off["claims"]])
+        self.assertTrue(report["summary"].startswith(off["summary"] + ". The bass ignores the kick"))
+        self.assertIn(f"{report['matched']} of {report['checkable']}", report["summary"])
+        self.assertEqual(report["summarySource"], "model")
+        self.assertEqual(len(report["nextActions"]), 1)
+        self.assertIn("Sidechain on the bass", report["nextActions"][0])
+        detail = report["nextActionDetails"][0]
+        self.assertEqual((detail["track"], detail["effect"], detail["section"], detail["source"]),
+                         ("bass", "Sidechain", "Drop", "model"))
+        fixed = claim_matching(report, "uses sidechain")
+        self.assertEqual(fixed["fix"]["claimId"], fixed["id"])
+        note = report["ai"]["note"]
+        self.assertIn("not a missed claim", note)
+        self.assertIn("unknown track 'lead'", note)
+        self.assertIn("unknown effect 'Plate Reverb'", note)
+        self.assertIn("ungrounded number", note)
+
+    def test_bare_list_of_claims_is_accepted(self) -> None:
+        bare = [{"kind": "technique", "section": "Drop", "technique": "reverb", "quote": "sidechain the bass to the kick."}]
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Fixture(tmp)
+            report = tf.build_report(fixture.root, fixture.project_path, fixture.spec_path, None, fake_assist(bare))
+        self.assertEqual(claim_matching(report, "uses reverb")["source"], "model")
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Fixture(tmp)
+            report = tf.build_report(fixture.root, fixture.project_path, fixture.spec_path, None,
+                                     fake_assist({"claims": "none"}))
+        self.assertFalse(any(c["source"] == "model" for c in report["claims"]))
+        self.assertIn("not a list of claims", " ".join(report["ai"]["dropped"]))
+
+    def test_model_failure_leaves_the_measured_report_alone(self) -> None:
+        def broken(url, headers, body, timeout):
+            return 400, json.dumps({"error": {"message": "bad request"}})
+        client = llm.Client("gemini", api_key="k", transport=broken, use_cache=False, env={"NEON_CONFIG_DIR": "/nonexistent"})
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Fixture(tmp)
+            off = fixture.report()
+            report = tf.build_report(fixture.root, fixture.project_path, fixture.spec_path, None, llm.Assist(client=client))
+        self.assertFalse(report["ai"]["used"])
+        self.assertIn("gemini 400", report["ai"]["note"])
+        for key in ("score", "scoreWithoutModelClaims", "modelClaimCount", "summary", "claims", "nextActions",
+                    "matched", "checkable", "unverifiable"):
+            self.assertEqual(report[key], off[key], key)
+
+    def test_long_transcripts_go_out_in_chunks(self) -> None:
+        sentence = "The drop uses sidechain on the bass. "
+        long_text = TRANSCRIPT + sentence * 40
+        pieces = tf.chunk_text(long_text, 400)
+        self.assertGreater(len(pieces), 1)
+        self.assertTrue(all(len(piece) <= 400 for piece in pieces))
+        self.assertEqual(tf.collapse_ws(" ".join(pieces)), tf.collapse_ws(long_text))
+        calls: list = []
+        original = tf.CHUNK_CHARS
+        tf.CHUNK_CHARS = 400
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                fixture = Fixture(tmp, transcript=long_text)
+                tf.build_report(fixture.root, fixture.project_path, fixture.spec_path, None, fake_assist(calls=calls))
+        finally:
+            tf.CHUNK_CHARS = original
+        self.assertEqual(sum(1 for system, _ in calls if system == tf.CLAIM_ROLE), len(pieces))
+        self.assertTrue(all("Transcript chunk" in prompt for system, prompt in calls if system == tf.CLAIM_ROLE))
+

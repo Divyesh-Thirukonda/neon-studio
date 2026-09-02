@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Deterministic DAW-inspired agent for Neon Studio projects."""
+"""DAW-inspired agent for Neon Studio projects.
+
+Applying a tactic is deterministic: every applier writes the same clip, lane,
+effect, or note ids for the same project, so re-running is idempotent. What a
+model may do (see docs/ai.md) is choose *which* tactics fit the project and the
+feedback, in what order and why, label each track with a role, propose the
+numbers each tactic uses within the schema the appliers already emit, and write
+the summary. Every one of those answers is validated against the catalog, the
+project's track ids, and the numeric ranges below; anything else is dropped and
+the keyword retrieval / literal defaults run instead.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +22,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import llm  # noqa: E402
 
 
 DEFAULT_QUERY = "improve the project with automation clips, randomizer humanize drums, groove velocity, riff variation, transition energy, macro controls, and mix staging"
@@ -451,6 +465,231 @@ def find_track(project: dict[str, Any], roles: tuple[str, ...]) -> dict[str, Any
     return tracks[0]
 
 
+def track_by_id(project: dict[str, Any], track_id: Any) -> dict[str, Any] | None:
+    wanted = str(track_id or "")
+    if not wanted:
+        return None
+    return next((track for track in project_tracks(project) if str(track.get("id", "")) == wanted), None)
+
+
+def pick_track(
+    project: dict[str, Any],
+    roles: tuple[str, ...],
+    params: dict[str, Any] | None = None,
+    role_map: dict[str, list[str]] | None = None,
+) -> dict[str, Any] | None:
+    """The track a tactic edits: the caller's explicit choice, else a track the
+    model labelled with one of the wanted roles, else the keyword scan."""
+    explicit = track_by_id(project, (params or {}).get("trackId"))
+    if explicit is not None:
+        return explicit
+    if role_map:
+        for role in roles:
+            if role == "selected":
+                selected = selected_track(project)
+                if selected is not None:
+                    return selected
+                continue
+            for track in project_tracks(project):
+                if role in (role_map.get(str(track.get("id", ""))) or []):
+                    return track
+    return find_track(project, roles)
+
+
+# ---------------------------------------------------------------------------
+# Tactic parameters. Each applier has literal defaults; a caller (or the model)
+# may pass a dict shaped like the entry below, and `validate_params` clamps it
+# to the ranges the appliers already use. Anything unknown is dropped.
+# ---------------------------------------------------------------------------
+
+CURVES = ("linear", "ease-in", "ease-out", "sine")
+LANE_PARAMETERS = ("filter", "macro", "width", "pan", "gain", "cutoff", "resonance", "send")
+MODULATOR_PARAMETERS = ("width", "pan")
+MIDI_NOTE_RANGE = (36, 96)
+MAX_POINTS = 8
+MAX_NOTES = 16
+
+PARAM_SCHEMA: dict[str, dict[str, Any]] = {
+    "fl-automation-clips": {
+        "trackId": "a track id from the project",
+        "parameter": "one of " + "|".join(LANE_PARAMETERS),
+        "points": [{"bar": "bar inside the song", "value": "0-1", "curve": "one of " + "|".join(CURVES)}],
+    },
+    "fl-randomizer-groove": {"trackId": "a drum/percussion track id", "humanizeAmount": "0-1", "swingFloor": "0-30", "ghostBars": "1-8"},
+    "fl-riff-machine-variation": {
+        "trackId": "a melodic track id",
+        "startBar": "bar inside the song",
+        "notes": [{"beat": "0-16, beats after startBar", "note": "MIDI 36-96", "duration": "0.1-4 beats", "velocity": "0-1"}],
+    },
+    "fl-gross-beat-transition": {"trackId": "a track id", "amount": "0-1", "bars": "1-4", "endBar": "bar the transition lands on"},
+    "fl-patcher-macro-chain": {
+        "trackId": "a track id",
+        "eqAmount": "0-1",
+        "duckAmount": "0-1",
+        "points": [{"bar": "bar inside the song", "value": "0-1", "curve": "one of " + "|".join(CURVES)}],
+    },
+    "ableton-capture-midi": {"trackId": "a track id", "startBar": "bar inside the song", "endBar": "bar inside the song, after startBar"},
+    "logic-drummer-fill": {"trackId": "a drum track id", "bars": "1-2", "beforeBar": "the section boundary the fill leads into"},
+    "bitwig-modulator-lane": {
+        "trackId": "a track id",
+        "parameter": "one of " + "|".join(MODULATOR_PARAMETERS),
+        "points": [{"bar": "bar inside the song", "value": "0-1", "curve": "one of " + "|".join(CURVES)}],
+    },
+}
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _clamped(value: Any, low: float, high: float) -> float | None:
+    number = _number(value)
+    if number is None:
+        return None
+    return max(low, min(high, number))
+
+
+def clean_points(points: Any, bars: float, notes: list[str], label: str) -> list[dict[str, Any]]:
+    """Automation points inside the song, values 0-1, known curves, sorted by bar.
+    Fewer than two usable points means the applier keeps its own shape."""
+    if not isinstance(points, list):
+        if points is not None:
+            notes.append(f"{label}: points must be a list")
+        return []
+    cleaned: list[dict[str, Any]] = []
+    for point in points[:MAX_POINTS]:
+        if not isinstance(point, dict):
+            continue
+        bar = _clamped(point.get("bar"), 0.0, bars)
+        value = _clamped(point.get("value"), 0.0, 1.0)
+        if bar is None or value is None:
+            notes.append(f"{label}: dropped a point without a numeric bar and value")
+            continue
+        curve = str(point.get("curve") or "linear").strip().lower()
+        if curve not in CURVES:
+            curve = "linear"
+        cleaned.append({"bar": round(bar, 2), "value": round(value, 3), "curve": curve})
+    cleaned.sort(key=lambda item: item["bar"])
+    if len(cleaned) < 2:
+        if cleaned:
+            notes.append(f"{label}: fewer than two usable points, keeping the default shape")
+        return []
+    return cleaned
+
+
+def validate_params(feature_id: str, params: Any, project: dict[str, Any] | None) -> tuple[dict[str, Any], list[str]]:
+    """Clamp a tactic's parameters to the appliers' own ranges. Returns
+    (clean params, notes about what was dropped or clamped)."""
+    notes: list[str] = []
+    if feature_id not in PARAM_SCHEMA:
+        return {}, [f"unknown tactic {feature_id}"]
+    if not isinstance(params, dict):
+        if params not in (None, {}, []):
+            notes.append(f"{feature_id}: params must be an object")
+        return {}, notes
+    bars = total_bars(project) if project else 64.0
+    clean: dict[str, Any] = {}
+    track_id = params.get("trackId")
+    if track_id is not None:
+        if project is not None and track_by_id(project, track_id) is not None:
+            clean["trackId"] = str(track_id)
+        else:
+            notes.append(f"{feature_id}: track {track_id!r} is not in the project")
+
+    def take(key: str, low: float, high: float, integer: bool = False) -> None:
+        if key not in params:
+            return
+        value = _clamped(params.get(key), low, high)
+        if value is None:
+            notes.append(f"{feature_id}: {key} is not a number")
+            return
+        clean[key] = int(round(value)) if integer else round(value, 3)
+
+    if feature_id == "fl-automation-clips":
+        parameter = str(params.get("parameter") or "").strip().lower()
+        if parameter:
+            if parameter in LANE_PARAMETERS:
+                clean["parameter"] = parameter
+            else:
+                notes.append(f"{feature_id}: parameter {parameter!r} is not one of {', '.join(LANE_PARAMETERS)}")
+        points = clean_points(params.get("points"), bars, notes, feature_id)
+        if points:
+            clean["points"] = points
+    elif feature_id == "fl-randomizer-groove":
+        take("humanizeAmount", 0.0, 1.0)
+        take("swingFloor", 0.0, 30.0, integer=True)
+        take("ghostBars", 1.0, 8.0, integer=True)
+    elif feature_id == "fl-riff-machine-variation":
+        take("startBar", 0.0, max(0.0, bars - 1.0))
+        raw_notes = params.get("notes")
+        if isinstance(raw_notes, list):
+            kept: list[dict[str, Any]] = []
+            for note in raw_notes[:MAX_NOTES]:
+                if not isinstance(note, dict):
+                    continue
+                beat = _clamped(note.get("beat"), 0.0, 16.0)
+                pitch = _clamped(note.get("note"), MIDI_NOTE_RANGE[0], MIDI_NOTE_RANGE[1])
+                if beat is None or pitch is None:
+                    notes.append(f"{feature_id}: dropped a note without a numeric beat and MIDI note")
+                    continue
+                duration = _clamped(note.get("duration"), 0.1, 4.0)
+                velocity = _clamped(note.get("velocity"), 0.0, 1.0)
+                kept.append({
+                    "beat": round(beat, 2),
+                    "note": int(round(pitch)),
+                    "duration": round(duration if duration is not None else 0.5, 2),
+                    "velocity": round(velocity if velocity is not None else 0.75, 2),
+                })
+            if kept:
+                kept.sort(key=lambda item: item["beat"])
+                clean["notes"] = kept
+            else:
+                notes.append(f"{feature_id}: no usable notes, keeping the default motif")
+        elif raw_notes is not None:
+            notes.append(f"{feature_id}: notes must be a list")
+    elif feature_id == "fl-gross-beat-transition":
+        take("amount", 0.0, 1.0)
+        take("bars", 1.0, 4.0, integer=True)
+        take("endBar", 1.0, bars)
+    elif feature_id == "fl-patcher-macro-chain":
+        take("eqAmount", 0.0, 1.0)
+        take("duckAmount", 0.0, 1.0)
+        points = clean_points(params.get("points"), bars, notes, feature_id)
+        if points:
+            clean["points"] = points
+    elif feature_id == "ableton-capture-midi":
+        take("startBar", 0.0, max(0.0, bars - 1.0))
+        take("endBar", 1.0, bars)
+        if "startBar" in clean and "endBar" in clean and clean["endBar"] <= clean["startBar"]:
+            notes.append(f"{feature_id}: endBar must come after startBar, keeping the loop window")
+            clean.pop("startBar")
+            clean.pop("endBar")
+    elif feature_id == "logic-drummer-fill":
+        take("bars", 1.0, 2.0, integer=True)
+        take("beforeBar", 1.0, bars)
+    elif feature_id == "bitwig-modulator-lane":
+        parameter = str(params.get("parameter") or "").strip().lower()
+        if parameter:
+            if parameter in MODULATOR_PARAMETERS:
+                clean["parameter"] = parameter
+            else:
+                notes.append(f"{feature_id}: parameter {parameter!r} is not one of {', '.join(MODULATOR_PARAMETERS)}")
+        points = clean_points(params.get("points"), bars, notes, feature_id)
+        if points:
+            clean["points"] = points
+    for key in params:
+        if key not in clean and key not in PARAM_SCHEMA[feature_id] and key != "trackId":
+            notes.append(f"{feature_id}: ignored unknown parameter {key!r}")
+    return clean, notes
+
+
 def ensure_effect(track: dict[str, Any], effect_id: str, name: str, amount: float) -> tuple[bool, str]:
     effects = track.setdefault("effects", [])
     for effect in effects:
@@ -550,35 +789,40 @@ def agent_recipe_item(feature: DawFeature, detail: str, track_ids: list[str]) ->
     }
 
 
-def apply_automation_clips(project: dict[str, Any], feature: DawFeature) -> list[str]:
-    track = find_track(project, ("lead", "bass", "fx", "chords"))
+def apply_automation_clips(project: dict[str, Any], feature: DawFeature, params: dict[str, Any] | None = None, role_map: dict[str, list[str]] | None = None) -> list[str]:
+    params = params or {}
+    track = pick_track(project, ("lead", "bass", "fx", "chords"), params, role_map)
     if not track:
         return ["no track available for automation clip"]
     start, end = loop_window(project)
     mid = start + (end - start) * 0.62
     track_id = str(track.get("id", "track"))
+    parameter = str(params.get("parameter") or "filter")
+    points = params.get("points") or [
+        {"bar": round(start, 2), "value": 0.16, "curve": "ease-in"},
+        {"bar": round(mid, 2), "value": 0.48, "curve": "ease-in"},
+        {"bar": round(end, 2), "value": 0.9, "curve": "linear"},
+    ]
     lane = {
         "id": f"agent-filter-rise-{safe_id(track_id)}",
         "trackId": track_id,
-        "parameter": "filter",
-        "label": "Agent filter rise",
+        "parameter": parameter,
+        "label": f"Agent {parameter} rise",
         "color": track.get("color", "#f8d66d"),
         "enabled": True,
         "curve": "ease-in",
-        "points": [
-            {"bar": round(start, 2), "value": 0.16, "curve": "ease-in"},
-            {"bar": round(mid, 2), "value": 0.48, "curve": "ease-in"},
-            {"bar": round(end, 2), "value": 0.9, "curve": "linear"},
-        ],
+        "points": [dict(point) for point in points],
     }
     changed, lane_message = ensure_lane(project, lane)
-    detail = f"visible filter-ramp lane from bar {start:g} to {end:g} for build/drop tension"
+    first_bar, last_bar = points[0]["bar"], points[-1]["bar"]
+    detail = f"visible {parameter}-ramp lane from bar {first_bar:g} to {last_bar:g} for build/drop tension"
     _, recipe_message = ensure_recipe(project, agent_recipe_item(feature, detail, [track_id]))
     return [lane_message, recipe_message, "automation applied" if changed else "automation already present"]
 
 
-def apply_randomizer_groove(project: dict[str, Any], feature: DawFeature) -> list[str]:
-    track = find_track(project, ("drums", "hat", "percussion"))
+def apply_randomizer_groove(project: dict[str, Any], feature: DawFeature, params: dict[str, Any] | None = None, role_map: dict[str, list[str]] | None = None) -> list[str]:
+    params = params or {}
+    track = pick_track(project, ("drums", "hat", "percussion"), params, role_map)
     if not track:
         return ["no drum or percussion track available for groove humanization"]
     snap = snapshot(project)
@@ -589,17 +833,18 @@ def apply_randomizer_groove(project: dict[str, Any], feature: DawFeature) -> lis
         "id": f"agent-groove-ghosts-{safe_id(track_id)}",
         "name": "Agent groove ghosts",
         "startBar": round(start, 2),
-        "bars": 4,
+        "bars": int(params.get("ghostBars") or 4),
         "lane": track_id,
         "color": track.get("color", "#ff8d5c"),
         "type": "pattern",
     }
     _, clip_message = ensure_clip(track, clip)
-    _, effect_message = ensure_effect(track, "agent-humanize", "Humanize Velocity", 0.42)
+    _, effect_message = ensure_effect(track, "agent-humanize", "Humanize Velocity", float(params.get("humanizeAmount", 0.42)))
+    swing_floor = int(params.get("swingFloor", 8))
     current_swing = float(snap.get("swing", 0) or 0)
-    if current_swing < 8:
-        snap["swing"] = 8
-        swing_message = "raised swing floor to 8"
+    if current_swing < swing_floor:
+        snap["swing"] = swing_floor
+        swing_message = f"raised swing floor to {swing_floor}"
     else:
         swing_message = f"kept existing swing {current_swing:g}"
     detail = "randomizer-style ghost notes and velocity intent without destructive drum rewrites"
@@ -607,11 +852,14 @@ def apply_randomizer_groove(project: dict[str, Any], feature: DawFeature) -> lis
     return [clip_message, effect_message, swing_message, recipe_message]
 
 
-def apply_riff_variation(project: dict[str, Any], feature: DawFeature) -> list[str]:
-    track = find_track(project, ("lead", "melody", "chords", "synth"))
+def apply_riff_variation(project: dict[str, Any], feature: DawFeature, params: dict[str, Any] | None = None, role_map: dict[str, list[str]] | None = None) -> list[str]:
+    params = params or {}
+    track = pick_track(project, ("lead", "melody", "chords", "synth"), params, role_map)
     if not track:
         return ["no melodic track available for riff variation"]
     start, _ = loop_window(project)
+    if "startBar" in params:
+        start = float(params["startBar"])
     track_id = str(track.get("id", "lead"))
     clip = {
         "id": f"agent-riff-variation-{safe_id(track_id)}",
@@ -625,26 +873,28 @@ def apply_riff_variation(project: dict[str, Any], feature: DawFeature) -> list[s
     _, clip_message = ensure_clip(track, clip)
     root = key_root_midi(project)
     motif = [
-        (0.0, root + 12, 0.74),
-        (0.5, root + 15, 0.68),
-        (1.25, root + 19, 0.82),
-        (2.0, root + 22, 0.76),
-        (2.75, root + 19, 0.7),
-        (3.5, root + 15, 0.66),
+        {"beat": 0.0, "note": root + 12, "velocity": 0.74, "duration": 0.7},
+        {"beat": 0.5, "note": root + 15, "velocity": 0.68, "duration": 0.45},
+        {"beat": 1.25, "note": root + 19, "velocity": 0.82, "duration": 0.45},
+        {"beat": 2.0, "note": root + 22, "velocity": 0.76, "duration": 0.7},
+        {"beat": 2.75, "note": root + 19, "velocity": 0.7, "duration": 0.45},
+        {"beat": 3.5, "note": root + 15, "velocity": 0.66, "duration": 0.45},
     ]
+    if params.get("notes"):
+        motif = list(params["notes"])
     notes = [
         {
             "id": f"agent-riff-{index + 1}",
-            "beat": round(start * 4 + offset, 2),
-            "duration": 0.45 if offset % 1 else 0.7,
-            "note": note,
-            "velocity": velocity,
+            "beat": round(start * 4 + float(event["beat"]), 2),
+            "duration": float(event.get("duration", 0.5)),
+            "note": int(event["note"]),
+            "velocity": float(event.get("velocity", 0.75)),
             "color": track.get("color", "#60c8f8"),
             # Notes belong to a track from schema v4 on. Without this the app
             # falls back to whichever track happens to be selected.
             "trackId": track_id,
         }
-        for index, (offset, note, velocity) in enumerate(motif)
+        for index, event in enumerate(motif)
     ]
     _, note_message = ensure_notes(project, notes)
     detail = "riff-machine-style motif seed in the loop window for later manual or agent iteration"
@@ -652,37 +902,47 @@ def apply_riff_variation(project: dict[str, Any], feature: DawFeature) -> list[s
     return [clip_message, note_message, recipe_message]
 
 
-def apply_gross_beat_transition(project: dict[str, Any], feature: DawFeature) -> list[str]:
-    track = find_track(project, ("fx", "lead", "vocal", "drums"))
+def apply_gross_beat_transition(project: dict[str, Any], feature: DawFeature, params: dict[str, Any] | None = None, role_map: dict[str, list[str]] | None = None) -> list[str]:
+    params = params or {}
+    track = pick_track(project, ("fx", "lead", "vocal", "drums"), params, role_map)
     if not track:
         return ["no FX, lead, vocal, or drum track available for transition cue"]
     _, end = loop_window(project)
-    start = max(0.0, end - 2.0)
+    if "endBar" in params:
+        end = float(params["endBar"])
+    bars = int(params.get("bars") or 2)
+    start = max(0.0, end - bars)
     track_id = str(track.get("id", "fx"))
-    _, effect_message = ensure_effect(track, "agent-gate-tapestop", "Gate / Tape Stop", 0.58)
+    _, effect_message = ensure_effect(track, "agent-gate-tapestop", "Gate / Tape Stop", float(params.get("amount", 0.58)))
     clip = {
         "id": f"agent-gate-tail-{safe_id(track_id)}",
         "name": "Agent gated tail",
         "startBar": round(start, 2),
-        "bars": 2,
+        "bars": bars,
         "lane": track_id,
         "color": track.get("color", "#f59fcb"),
         "type": "automation",
     }
     _, clip_message = ensure_clip(track, clip)
-    detail = f"gated/tape-stop cue over the final 2 bars before bar {end:g}"
+    detail = f"gated/tape-stop cue over the final {bars} bars before bar {end:g}"
     _, recipe_message = ensure_recipe(project, agent_recipe_item(feature, detail, [track_id]))
     return [effect_message, clip_message, recipe_message]
 
 
-def apply_patcher_macro(project: dict[str, Any], feature: DawFeature) -> list[str]:
-    track = find_track(project, ("selected", "lead", "bass", "fx"))
+def apply_patcher_macro(project: dict[str, Any], feature: DawFeature, params: dict[str, Any] | None = None, role_map: dict[str, list[str]] | None = None) -> list[str]:
+    params = params or {}
+    track = pick_track(project, ("selected", "lead", "bass", "fx"), params, role_map)
     if not track:
         return ["no selected or primary track available for macro chain"]
     start, end = loop_window(project)
     track_id = str(track.get("id", "track"))
-    _, eq_message = ensure_effect(track, "agent-macro-eq", "Macro EQ", 0.45)
-    _, duck_message = ensure_effect(track, "agent-macro-duck", "Macro Duck", 0.36)
+    _, eq_message = ensure_effect(track, "agent-macro-eq", "Macro EQ", float(params.get("eqAmount", 0.45)))
+    _, duck_message = ensure_effect(track, "agent-macro-duck", "Macro Duck", float(params.get("duckAmount", 0.36)))
+    points = params.get("points") or [
+        {"bar": round(start, 2), "value": 0.25, "curve": "linear"},
+        {"bar": round((start + end) / 2, 2), "value": 0.65, "curve": "linear"},
+        {"bar": round(end, 2), "value": 0.42, "curve": "linear"},
+    ]
     lane = {
         "id": f"agent-macro-{safe_id(track_id)}",
         "trackId": track_id,
@@ -691,11 +951,7 @@ def apply_patcher_macro(project: dict[str, Any], feature: DawFeature) -> list[st
         "color": track.get("color", "#9ef0c0"),
         "enabled": True,
         "curve": "linear",
-        "points": [
-            {"bar": round(start, 2), "value": 0.25, "curve": "linear"},
-            {"bar": round((start + end) / 2, 2), "value": 0.65, "curve": "linear"},
-            {"bar": round(end, 2), "value": 0.42, "curve": "linear"},
-        ],
+        "points": [dict(point) for point in points],
     }
     _, lane_message = ensure_lane(project, lane)
     detail = "patcher-style macro chain with EQ and ducking targets ready for binding"
@@ -703,10 +959,13 @@ def apply_patcher_macro(project: dict[str, Any], feature: DawFeature) -> list[st
     return [eq_message, duck_message, lane_message, recipe_message]
 
 
-def apply_capture_midi(project: dict[str, Any], feature: DawFeature) -> list[str]:
+def apply_capture_midi(project: dict[str, Any], feature: DawFeature, params: dict[str, Any] | None = None, role_map: dict[str, list[str]] | None = None) -> list[str]:
+    params = params or {}
     snap = snapshot(project)
     start, end = loop_window(project)
-    track = find_track(project, ("lead", "chords", "bass"))
+    if "startBar" in params and "endBar" in params:
+        start, end = float(params["startBar"]), float(params["endBar"])
+    track = pick_track(project, ("lead", "chords", "bass"), params, role_map)
     track_ids = [str(track.get("id"))] if track else []
     snap["loopEnabled"] = True
     snap["loopStartBar"] = round(start, 2)
@@ -716,51 +975,58 @@ def apply_capture_midi(project: dict[str, Any], feature: DawFeature) -> list[str
     return [recipe_message, "loop checkpoint enabled"]
 
 
-def apply_logic_drummer_fill(project: dict[str, Any], feature: DawFeature) -> list[str]:
-    track = find_track(project, ("drums", "percussion"))
+def apply_logic_drummer_fill(project: dict[str, Any], feature: DawFeature, params: dict[str, Any] | None = None, role_map: dict[str, list[str]] | None = None) -> list[str]:
+    params = params or {}
+    track = pick_track(project, ("drums", "percussion"), params, role_map)
     if not track:
         return ["no drum track available for fill cue"]
     _, end = loop_window(project)
-    start = max(0.0, end - 1.0)
+    if "beforeBar" in params:
+        end = float(params["beforeBar"])
+    bars = int(params.get("bars") or 1)
+    start = max(0.0, end - bars)
     track_id = str(track.get("id", "drums"))
     clip = {
         "id": f"agent-drum-fill-{safe_id(track_id)}",
         "name": "Agent pre-drop fill",
         "startBar": round(start, 2),
-        "bars": 1,
+        "bars": bars,
         "lane": track_id,
         "color": track.get("color", "#ff8d5c"),
         "type": "pattern",
     }
     _, clip_message = ensure_clip(track, clip)
-    detail = f"section-aware one-bar fill cue before bar {end:g}"
+    detail = f"section-aware {bars}-bar fill cue before bar {end:g}"
     _, recipe_message = ensure_recipe(project, agent_recipe_item(feature, detail, [track_id]))
     return [clip_message, recipe_message]
 
 
-def apply_bitwig_modulator(project: dict[str, Any], feature: DawFeature) -> list[str]:
-    track = find_track(project, ("lead", "chords", "fx"))
+def apply_bitwig_modulator(project: dict[str, Any], feature: DawFeature, params: dict[str, Any] | None = None, role_map: dict[str, list[str]] | None = None) -> list[str]:
+    params = params or {}
+    track = pick_track(project, ("lead", "chords", "fx"), params, role_map)
     if not track:
         return ["no melodic or FX track available for modulation lane"]
     start, end = loop_window(project)
     track_id = str(track.get("id", "track"))
+    parameter = str(params.get("parameter") or "width")
+    points = params.get("points") or [
+        {"bar": round(start, 2), "value": 0.46, "curve": "sine"},
+        {"bar": round(start + (end - start) * 0.33, 2), "value": 0.7, "curve": "sine"},
+        {"bar": round(start + (end - start) * 0.66, 2), "value": 0.38, "curve": "sine"},
+        {"bar": round(end, 2), "value": 0.58, "curve": "sine"},
+    ]
     lane = {
         "id": f"agent-width-motion-{safe_id(track_id)}",
         "trackId": track_id,
-        "parameter": "width",
-        "label": "Agent width motion",
+        "parameter": parameter,
+        "label": f"Agent {parameter} motion",
         "color": track.get("color", "#a7f3d0"),
         "enabled": True,
         "curve": "sine",
-        "points": [
-            {"bar": round(start, 2), "value": 0.46, "curve": "sine"},
-            {"bar": round(start + (end - start) * 0.33, 2), "value": 0.7, "curve": "sine"},
-            {"bar": round(start + (end - start) * 0.66, 2), "value": 0.38, "curve": "sine"},
-            {"bar": round(end, 2), "value": 0.58, "curve": "sine"},
-        ],
+        "points": [dict(point) for point in points],
     }
     _, lane_message = ensure_lane(project, lane)
-    detail = "modulator-style width motion lane for movement without rewriting notes"
+    detail = f"modulator-style {parameter} motion lane for movement without rewriting notes"
     _, recipe_message = ensure_recipe(project, agent_recipe_item(feature, detail, [track_id]))
     return [lane_message, recipe_message]
 
@@ -777,7 +1043,12 @@ APPLIERS = {
 }
 
 
-def apply_features(project: dict[str, Any], ranked: list[dict[str, Any]], max_actions: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def apply_features(
+    project: dict[str, Any],
+    ranked: list[dict[str, Any]],
+    max_actions: int,
+    role_map: dict[str, list[str]] | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     feature_by_id = {feature.id: feature for feature in CATALOG}
     updated = deep_copy_jsonish(project)
     ensure_controls(updated)
@@ -786,40 +1057,375 @@ def apply_features(project: dict[str, Any], ranked: list[dict[str, Any]], max_ac
         feature = feature_by_id[candidate["id"]]
         applier = APPLIERS[feature.id]
         before = project_metrics(updated)
-        messages = applier(updated, feature)
+        messages = applier(updated, feature, params=candidate.get("params") or None, role_map=role_map)
         ensure_controls(updated)
         after = project_metrics(updated)
         changed = any(after[key] != before[key] for key in after)
-        actions.append(
-            {
-                "featureId": feature.id,
-                "source": feature.source,
-                "title": feature.title,
-                "changed": changed,
-                "messages": messages,
-                "metricsBefore": before,
-                "metricsAfter": after,
-            }
-        )
+        action = {
+            "featureId": feature.id,
+            "source": feature.source,
+            "title": feature.title,
+            "changed": changed,
+            "messages": messages,
+            "metricsBefore": before,
+            "metricsAfter": after,
+        }
+        if candidate.get("decision"):
+            action["decision"] = dict(candidate["decision"])
+        if candidate.get("params"):
+            action["params"] = dict(candidate["params"])
+        actions.append(action)
     updated["updatedAt"] = now_iso()
     return updated, actions
 
 
-def run_agent(project: dict[str, Any], query: str | None, max_actions: int = 4) -> dict[str, Any]:
+# ---------------------------------------------------------------------------
+# Choosing tactics. `retrieve_features` is the keyword ranking and always
+# works; `select_features` asks the model for the same list (plus per-track
+# roles and per-tactic parameters) and falls back to the ranking when the
+# answer is missing or does not validate.
+# ---------------------------------------------------------------------------
+
+SELECT_ROLE = (
+    "You plan which DAW-style tactics an automated agent should apply to a Neon Studio project. "
+    "You are given the project's tracks, its metrics, the caller's request or sound-check feedback, "
+    "and a catalog of tactics with the parameters each accepts. Choose only tactics from the catalog, "
+    "order them by how much they would help this project, and give a one-sentence reason each in plain words "
+    "a producer would use. Name the track each tactic should edit by its id. Only propose parameters that "
+    "fit the stated ranges; leave a tactic's parameters empty to use its defaults. Also label every track with "
+    "roles from the allowed list. Never invent tracks, tactics, or numbers outside the ranges."
+)
+
+SELECT_SCHEMA = {
+    "trackRoles": {"<track id>": ["role from the allowed list"]},
+    "selectedFeatures": [
+        {
+            "id": "tactic id from the catalog",
+            "reason": "one sentence: why this tactic, for this project and feedback",
+            "trackId": "track id to edit, or null",
+            "params": {"...": "parameters from the tactic's schema, or an empty object"},
+        }
+    ],
+}
+
+NARRATE_ROLE = (
+    "You write the short report for an automated DAW agent that just edited a Neon Studio project. "
+    "Only describe actions whose `changed` flag is true; say plainly when nothing changed. "
+    "Use the track names given. Do not invent measurements or effects that are not in the action messages."
+)
+
+NARRATE_SCHEMA = {
+    "summary": "one or two sentences: what changed in the project and why it should help",
+    "actions": [{"featureId": "tactic id", "why": "one sentence, in the producer's words"}],
+}
+
+
+def track_summaries(project: dict[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for track in project_tracks(project):
+        lowered = track_text(track).lower()
+        roles = sorted(
+            role for role, keywords in ROLE_KEYWORDS.items()
+            if role != "selected" and any(keyword in lowered for keyword in keywords)
+        )
+        out.append({
+            "id": str(track.get("id", "")),
+            "name": str(track.get("name", "")),
+            "kind": str(track.get("kind", "")),
+            "instrument": str(track.get("instrument", "")),
+            "gain": track.get("gain"),
+            "effects": [str(effect.get("name", "")) for effect in (track.get("effects") or []) if isinstance(effect, dict)][:6],
+            "clips": [str(clip.get("name", "")) for clip in (track.get("clips") or []) if isinstance(clip, dict)][:6],
+            "keywordRoles": roles,
+        })
+    return out
+
+
+def feedback_summary(feedback: Any) -> Any:
+    """A compact view of sound-check feedback for the model."""
+    if feedback is None:
+        return None
+    if isinstance(feedback, str):
+        return feedback[:2000]
+    if isinstance(feedback, dict):
+        verdict = feedback.get("verdict") if isinstance(feedback.get("verdict"), dict) else {}
+        return {
+            "verdict": {key: verdict.get(key) for key in ("score", "answer", "summary") if key in verdict},
+            "issues": [
+                {key: issue.get(key) for key in ("severity", "area", "detail", "requirementIds") if key in issue}
+                for issue in (feedback.get("issues") or [])[:8] if isinstance(issue, dict)
+            ],
+            "nextActions": [str(item) for item in (feedback.get("nextActions") or [])[:6]],
+            "metrics": feedback.get("metrics") if isinstance(feedback.get("metrics"), dict) else None,
+        }
+    return str(feedback)[:2000]
+
+
+def catalog_summary() -> list[dict[str, Any]]:
+    return [
+        {
+            "id": feature.id,
+            "title": feature.title,
+            "summary": feature.summary,
+            "roles": list(feature.roles),
+            "actions": list(feature.actions),
+            "params": PARAM_SCHEMA.get(feature.id, {}),
+        }
+        for feature in CATALOG
+    ]
+
+
+def feature_record(feature: DawFeature, score: float, reasons: list[str], decision: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": feature.id,
+        "source": feature.source,
+        "title": feature.title,
+        "summary": feature.summary,
+        "score": round(score, 3),
+        "reasons": reasons,
+        "actions": list(feature.actions),
+        "decision": decision,
+    }
+
+
+def validate_selection(answer: Any, project: dict[str, Any] | None, limit: int) -> tuple[list[dict[str, Any]], dict[str, list[str]], list[str]]:
+    """Keep only catalog ids, project track ids, allowed roles and in-range
+    parameters from the model's answer. Returns (ranked, trackRoles, notes)."""
+    notes: list[str] = []
+    ranked: list[dict[str, Any]] = []
+    role_map: dict[str, list[str]] = {}
+    if not isinstance(answer, dict):
+        return ranked, role_map, ["model answer was not an object"]
+    feature_by_id = {feature.id: feature for feature in CATALOG}
+    known_roles = set(ROLE_KEYWORDS) - {"selected"}
+    known_tracks = {str(track.get("id", "")) for track in project_tracks(project)} if project else set()
+
+    raw_roles = answer.get("trackRoles")
+    if isinstance(raw_roles, dict):
+        for track_id, roles in raw_roles.items():
+            if str(track_id) not in known_tracks:
+                notes.append(f"dropped roles for unknown track {track_id!r}")
+                continue
+            if isinstance(roles, str):
+                roles = [roles]
+            if not isinstance(roles, list):
+                continue
+            kept = [str(role).strip().lower() for role in roles if str(role).strip().lower() in known_roles]
+            dropped = [str(role) for role in roles if str(role).strip().lower() not in known_roles]
+            if dropped:
+                notes.append(f"dropped unknown roles {dropped} on track {track_id}")
+            if kept:
+                role_map[str(track_id)] = kept
+
+    seen: set[str] = set()
+    for position, item in enumerate(answer.get("selectedFeatures") or []):
+        if not isinstance(item, dict):
+            continue
+        feature_id = str(item.get("id") or "").strip()
+        feature = feature_by_id.get(feature_id)
+        if feature is None:
+            notes.append(f"dropped unknown tactic {feature_id!r}")
+            continue
+        if feature_id in seen:
+            notes.append(f"dropped repeated tactic {feature_id}")
+            continue
+        seen.add(feature_id)
+        params_in = item.get("params") if isinstance(item.get("params"), dict) else {}
+        params_in = dict(params_in)
+        if item.get("trackId"):
+            params_in["trackId"] = item.get("trackId")
+        params, param_notes = validate_params(feature_id, params_in, project)
+        notes.extend(param_notes)
+        reason = str(item.get("reason") or "").strip()[:300] or "chosen by the model"
+        score = max(0.0, 1.0 - position * (1.0 / max(1, limit)))
+        record = feature_record(feature, score, [reason], {"source": "model", "reason": reason})
+        if params:
+            record["params"] = params
+        ranked.append(record)
+        if len(ranked) >= limit:
+            break
+    return ranked, role_map, notes
+
+
+def select_features(
+    query: str | None,
+    project: dict[str, Any] | None,
+    *,
+    assist: llm.Assist | None = None,
+    feedback: Any = None,
+    limit: int = 5,
+) -> dict[str, Any]:
+    """The tactics to apply, in order. Returns {"ranked", "trackRoles", "notes", "source"}."""
+    heuristic = retrieve_features(query, project=project, limit=limit)
+    for item in heuristic:
+        item["decision"] = {"source": "heuristic", "reason": "keyword overlap: " + ", ".join(item["reasons"])}
+    fallback = {"ranked": heuristic, "trackRoles": {}, "notes": [], "source": "heuristic"}
+    if assist is None or not assist.available or project is None:
+        return fallback
+    task = json.dumps(
+        {
+            "request": (query or "").strip() or None,
+            "feedback": feedback_summary(feedback),
+            "project": {
+                "id": project.get("id"),
+                "name": project.get("name"),
+                "description": str(project.get("description") or "")[:600],
+                "keyCenter": project.get("keyCenter"),
+                "bpm": snapshot(project).get("bpm"),
+                "loop": [snapshot(project).get("loopStartBar"), snapshot(project).get("loopEndBar")],
+                "bars": total_bars(project),
+                "metrics": project_metrics(project),
+                "tracks": track_summaries(project),
+                "automationLanes": [
+                    {"trackId": lane.get("trackId"), "parameter": lane.get("parameter")}
+                    for lane in (snapshot(project).get("automationLanes") or []) if isinstance(lane, dict)
+                ][:12],
+            },
+            "allowedRoles": sorted(set(ROLE_KEYWORDS) - {"selected"}),
+            "catalog": catalog_summary(),
+            "howMany": limit,
+        },
+        indent=1,
+    )[:24000]
+    answer = assist.ask(task, system=SELECT_ROLE, schema=SELECT_SCHEMA, expect=dict)
+    if answer is None:
+        fallback["notes"] = [f"model unavailable ({assist.note}); keyword retrieval used"]
+        return fallback
+    ranked, role_map, notes = validate_selection(answer, project, limit)
+    if not ranked:
+        assist.note = "model chose no known tactic; keyword retrieval used"
+        fallback["notes"] = notes + [assist.note]
+        return fallback
+    return {"ranked": ranked, "trackRoles": role_map, "notes": notes, "source": "model"}
+
+
+def narrate_actions(
+    actions: list[dict[str, Any]],
+    before: dict[str, Any],
+    after: dict[str, Any],
+    project: dict[str, Any],
+    assist: llm.Assist | None,
+) -> dict[str, Any] | None:
+    """The model's summary and per-action why. None when the model is off or
+    answers something that does not fit the actions that ran."""
+    if assist is None or not assist.available or not actions:
+        return None
+    names = {str(track.get("id", "")): str(track.get("name", "")) for track in project_tracks(project)}
+    task = json.dumps(
+        {
+            "project": {"id": project.get("id"), "name": project.get("name"), "trackNames": names},
+            "actions": [
+                {
+                    "featureId": action["featureId"],
+                    "title": action["title"],
+                    "changed": action["changed"],
+                    "messages": action["messages"],
+                    "reason": (action.get("decision") or {}).get("reason"),
+                }
+                for action in actions
+            ],
+            "metricsBefore": before,
+            "metricsAfter": after,
+        },
+        indent=1,
+    )[:24000]
+    answer = assist.ask(task, system=NARRATE_ROLE, schema=NARRATE_SCHEMA, expect=dict)
+    if not isinstance(answer, dict):
+        return None
+    summary = str(answer.get("summary") or "").strip()
+    known = {action["featureId"] for action in actions}
+    whys: dict[str, str] = {}
+    for item in answer.get("actions") or []:
+        if isinstance(item, dict) and str(item.get("featureId")) in known and str(item.get("why") or "").strip():
+            whys[str(item["featureId"])] = str(item["why"]).strip()[:300]
+    if not summary and not whys:
+        return None
+    return {"summary": summary[:600], "whys": whys}
+
+
+def ai_block(assist: llm.Assist, plan: dict[str, Any]) -> dict[str, Any]:
+    """The `ai` block, kept consistent with `selectionSource`: `used` is true
+    only when the model's selection is the one applied. A fall back to keyword
+    retrieval - model over quota, unreachable, or choosing nothing known - is
+    not a use even though a call went out, and neither is a caller's own list."""
+    block = assist.report()
+    if plan["source"] != "model":
+        block["used"] = False
+        if plan["source"] == "caller" and assist.available and not block["note"]:
+            block["note"] = "tactics named by the caller; the model was not asked"
+    return block
+
+
+def run_agent(
+    project: dict[str, Any],
+    query: str | None,
+    max_actions: int = 4,
+    *,
+    assist: llm.Assist | None = None,
+    feedback: Any = None,
+    features: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Choose and apply tactics. `features` (ranked records from
+    `explicit_features`) bypasses selection entirely, for callers that already
+    decided what to apply. The model narrates only the tactics it chose: when
+    selection fell back to keyword retrieval the summary stays the measured
+    one, so `selectionSource` and the `ai` block always agree."""
+    if assist is None:
+        assist = llm.Assist(enabled=False)
     before = project_metrics(project)
-    ranked = retrieve_features(query, project=project, limit=max(8, max_actions))
-    updated, actions = apply_features(project, ranked, max_actions=max_actions)
+    if features is not None:
+        plan = {"ranked": features, "trackRoles": {}, "notes": [], "source": "caller"}
+    else:
+        plan = select_features(query, project, assist=assist, feedback=feedback, limit=max(8, max_actions))
+    ranked = plan["ranked"]
+    updated, actions = apply_features(project, ranked, max_actions=max_actions, role_map=plan.get("trackRoles") or None)
     after = project_metrics(updated)
+    metrics_summary = summarize_actions(actions, before, after)
+    summary = metrics_summary
+    narration = narrate_actions(actions, before, after, project, assist) if plan["source"] == "model" else None
+    if narration:
+        if narration["summary"]:
+            summary = narration["summary"]
+        for action in actions:
+            why = narration["whys"].get(action["featureId"])
+            if why:
+                action["why"] = why
+                action["messages"] = list(action["messages"]) + [f"why: {why}"]
     return {
         "project": {"id": updated.get("id"), "name": updated.get("name")},
         "query": query or DEFAULT_QUERY,
         "selectedFeatures": ranked[:max_actions],
+        "selectionSource": plan["source"],
+        "trackRoles": plan.get("trackRoles") or {},
+        "selectionNotes": plan.get("notes") or [],
         "actions": actions,
         "metricsBefore": before,
         "metricsAfter": after,
-        "summary": summarize_actions(actions, before, after),
+        "summary": summary,
+        "metricsSummary": metrics_summary,
+        "ai": ai_block(assist, plan),
         "updatedProject": updated,
     }
+
+
+def explicit_features(feature_ids: list[str], params_by_id: dict[str, Any] | None, project: dict[str, Any] | None) -> tuple[list[dict[str, Any]], list[str]]:
+    """Ranked records for tactics a caller named directly (`--feature`)."""
+    feature_by_id = {feature.id: feature for feature in CATALOG}
+    ranked: list[dict[str, Any]] = []
+    notes: list[str] = []
+    for position, raw in enumerate(feature_ids):
+        feature_id = str(raw).strip()
+        feature = feature_by_id.get(feature_id)
+        if feature is None:
+            notes.append(f"unknown tactic {feature_id!r}")
+            continue
+        params, param_notes = validate_params(feature_id, (params_by_id or {}).get(feature_id), project)
+        notes.extend(param_notes)
+        record = feature_record(feature, 1.0 - position * 0.05, ["requested"], {"source": "caller", "reason": "requested by name"})
+        if params:
+            record["params"] = params
+        ranked.append(record)
+    return ranked, notes
 
 
 def summarize_actions(actions: list[dict[str, Any]], before: dict[str, Any], after: dict[str, Any]) -> str:
@@ -1043,6 +1649,7 @@ def strip_project_from_report(report: dict[str, Any]) -> dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Apply deterministic DAW-inspired agent tactics to Neon Studio projects.")
     parser.add_argument("--root", default=".", help="Repository or app-support root containing data/projects and factory/projects.")
+    llm.add_ai_argument(parser)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     def add_project_args(subparser: argparse.ArgumentParser) -> None:
@@ -1052,6 +1659,8 @@ def build_parser() -> argparse.ArgumentParser:
         subparser.add_argument("--feedback-json", help="Sound-check JSON file to fold into retrieval.")
         subparser.add_argument("--feedback-text", help="Sound-check text to fold into retrieval.")
         subparser.add_argument("--max-actions", type=int, default=4, help="Number of tactics to apply or preview.")
+        subparser.add_argument("--feature", action="append", default=None, help="Apply this tactic id (repeatable, in order) instead of choosing; see `catalog`.")
+        subparser.add_argument("--params-json", help="JSON file mapping tactic id -> parameters, used with --feature.")
         subparser.add_argument("--format", choices=("json", "markdown"), default="json")
 
     suggest = subparsers.add_parser("suggest", help="Retrieve DAW tactics for a project without writing changes.")
@@ -1131,15 +1740,33 @@ def main(argv: list[str] | None = None) -> int:
 
         path = resolve_project_path(root, args.project_id, args.project)
         project = read_json(path)
+        feedback = read_feedback(Path(args.feedback_json).expanduser() if args.feedback_json else None, args.feedback_text)
         query = effective_query(args.query, args.feedback_json, args.feedback_text)
+        assist = llm.assist_from_args(args)
+        explicit = None
+        explicit_notes: list[str] = []
+        if args.feature:
+            params_by_id = None
+            if args.params_json:
+                params_by_id = json.loads(Path(args.params_json).expanduser().read_text(encoding="utf-8"))
+            explicit, explicit_notes = explicit_features(args.feature, params_by_id, project)
+            if not explicit:
+                raise ValueError("no known tactic in --feature: " + "; ".join(explicit_notes))
 
         if args.command == "suggest":
-            ranked = retrieve_features(query, project=project, limit=max(1, args.max_actions))
+            if explicit is not None:
+                plan = {"ranked": explicit, "trackRoles": {}, "notes": explicit_notes, "source": "caller"}
+            else:
+                plan = select_features(query, project, assist=assist, feedback=feedback, limit=max(1, args.max_actions))
             report = {
                 "project": {"id": project.get("id"), "name": project.get("name")},
                 "query": query or DEFAULT_QUERY,
                 "metrics": project_metrics(project),
-                "selectedFeatures": ranked,
+                "selectedFeatures": plan["ranked"],
+                "selectionSource": plan["source"],
+                "trackRoles": plan["trackRoles"],
+                "selectionNotes": plan["notes"],
+                "ai": ai_block(assist, plan),
             }
             emit(report, args.format)
             return 0
@@ -1147,7 +1774,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "apply":
             if not args.output and not args.in_place:
                 raise ValueError("apply requires --output or --in-place")
-            report = run_agent(project, query=query, max_actions=max(1, args.max_actions))
+            report = run_agent(
+                project, query=query, max_actions=max(1, args.max_actions),
+                assist=assist, feedback=feedback, features=explicit,
+            )
+            if explicit_notes:
+                report["selectionNotes"] = list(report.get("selectionNotes") or []) + explicit_notes
             output_path = path if args.in_place else Path(args.output).expanduser()
             if not output_path.is_absolute():
                 output_path = root / output_path

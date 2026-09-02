@@ -46,7 +46,45 @@ python3 tools/mcp_server.py --self-test
 ```
 
 That exercises the handshake, the tool list, an unknown-tool error, and a real
-tool call without needing a client attached.
+tool call without needing a client attached. `python3 -m unittest
+tools/test_mcp_server.py` covers the AI plumbing with no network.
+
+### Optional: let the tools use a language model
+
+Nothing needs a model. With one, the tools read descriptions and change
+requests with it and write the prose in their reports; every measurement stays
+deterministic (see [`docs/ai.md`](ai.md)). Every script the server launches
+inherits the server's own environment, whole - nothing is filtered or forwarded
+by name - and `tools/llm.py` reads `GEMINI_API_KEY`, `NEON_AI`, `NEON_AI_MODEL`
+and `NEON_CONFIG_DIR` from there. So put them in the client's `env` block:
+
+```json
+{
+  "mcpServers": {
+    "songlab": {
+      "command": "/usr/bin/python3",
+      "args": ["/absolute/path/to/summer/tools/mcp_server.py"],
+      "env": {
+        "GEMINI_API_KEY": "...",
+        "NEON_AI_MODEL": "gemini-flash-latest"
+      }
+    }
+  }
+}
+```
+
+A key in `~/.config/neon-studio/gemini_api_key` works too, with no `env`
+block. `NEON_AI=off` in the `env` block turns the model off for every call.
+
+Per call, every model-capable tool takes an optional `ai` boolean (default
+`true`); `ai=false` forces the built-in rules for that one call — the only
+thing the server changes is to set `NEON_AI=off` in that one script's
+environment; it never edits the command line, so scripts with subcommands
+behave the same. Every result, whichever way it went, ends with a line taken
+from the tool's own `ai` block saying which path answered — `(via
+gemini-flash-latest)` or `(offline rules - no API key …)` — so an agent can
+tell the user why a fallback happened, including a silent one (no key, quota)
+with `ai=true`. `songlab_ai_status` says what the next call would do.
 
 ## The tools
 
@@ -67,6 +105,13 @@ tool call without needing a client attached.
 | `songlab_describe_change` | "Make the drop hit harder" → concrete edits. Honest when it doesn't understand. |
 | `songlab_listening_questions` | The human sound check, part one: plain questions per section, with the bars to play. |
 | `songlab_listening_apply` | Part two: the user's answers become production steps marked as human evidence. |
+| `songlab_ai_status` | Whether the tools would use a language model right now (provider, model), or why not. No network call. |
+
+Tools that take `ai` (default `true`): `songlab_build_song`, `songlab_sound_check`,
+`songlab_apply_sound_check`, `songlab_suggest_improvements`, `songlab_fidelity`,
+`songlab_describe_change`, `songlab_listening_questions`, `songlab_listening_apply`.
+Rendering, humming, and alternatives are measurement and synthesis; they never
+touch a model and take no `ai` parameter.
 
 ## The loop it is designed for
 
@@ -120,7 +165,10 @@ renderer against that step rather than guessing.
 
 - **Long calls.** Building and rendering are synchronous and can take a minute.
   The tool descriptions say so, so a client can warn rather than appear hung.
-- **Everything is local.** No network, no API keys. The server runs local Python
-  against local files.
+- **Everything is local by default.** The server runs local Python against
+  local files and makes no network call of its own. The one exception is opt-in:
+  with a Gemini key in the client's `env` block (or in
+  `~/.config/neon-studio/gemini_api_key`), the tools may ask the model; without
+  one they never do, and say so in every result.
 - **`project_id` is a slug.** It becomes the filename, so it is normalised to
   lowercase alphanumerics and dashes.

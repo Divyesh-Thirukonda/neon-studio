@@ -35,6 +35,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vocal_autotune import SR, estimate_f0, freq_to_midi  # noqa: E402
 
 try:
+    import llm  # noqa: E402
+except ImportError:  # pragma: no cover - keeps the checker usable standalone
+    llm = None  # type: ignore[assignment]
+
+try:
     from project_materializer import ROLE_TO_TRACKS  # noqa: E402
 except ImportError:  # pragma: no cover - keeps the checker usable standalone
     # A copy of the materializer's table so a broken import does not turn every
@@ -109,6 +114,66 @@ NUMBER_UNIT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(khz|hz|bpm|db|ms)\b", re.IGNORE
 TRANSPOSE_RE = re.compile(r"transpose\s*([+-]?\s*\d+)", re.IGNORECASE)
 OCTAVE_DIRECTION_RE = re.compile(r"\boctave\s+(down|up|lower|higher|below|above)\b", re.IGNORECASE)
 DROP_TWO_RE = re.compile(r"\b(second drop|drop\s*2|drop two|final drop|last drop)\b", re.IGNORECASE)
+NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
+# A number followed by one of these is a reading, not a count or a name.
+UNIT_AFTER_NUMBER_RE = re.compile(r"\s*(?:%|(?:dBFS|dB|kHz|Hz|ms|s|bars?|BPM|st|semitones?)\b)", re.IGNORECASE)
+
+# ---------------------------------------------------------------------------
+# What the model is allowed to do here
+#
+# Two jobs, both language: read the raw transcript for claims the regexes
+# missed, in exactly the shapes the Checker already measures; and, once every
+# claim is measured, write the fix for each missed one in terms of the
+# project's real tracks and effects, plus the summary. Every claim it adds
+# must quote the sentence it read it in, and every name it uses must exist.
+# It never touches a measurement or the score.
+# ---------------------------------------------------------------------------
+
+KNOWN_TECHNIQUES: tuple[str, ...] = tuple(TECHNIQUE_STEMS) + UNMEASURABLE_TECHNIQUES
+CHUNK_CHARS = 24000
+MIN_QUOTE_CHARS = 8
+
+CLAIM_ROLE = (
+    "You read a music-production transcript and list the concrete, checkable things the author says "
+    "the finished track does. You only report what is stated; you never infer, and you never report a "
+    "technique, section, role, or number that is not in the text. Every claim carries the exact "
+    "sentence (verbatim, copied from the text) you read it in. Use only the section names, technique "
+    "names, and role names you are given; skip anything that does not fit them."
+)
+CLAIM_SCHEMA = {
+    "claims": [
+        {"kind": "technique", "section": "a section name from the list, or 'whole track'", "technique": "a technique from the list", "quote": "the verbatim sentence"},
+        {"kind": "role", "section": "a section name from the list", "role": "a role from the list", "quote": "the verbatim sentence"},
+        {"kind": "tempo", "bpm": 120, "quote": "the verbatim sentence"},
+        {"kind": "key", "key": "e.g. D major, F# minor", "quote": "the verbatim sentence"},
+        {"kind": "automation", "track": "track id from the list, or master", "parameter": "e.g. filter, volume, width", "from": 0.2, "to": 0.8, "firstBar": 1, "lastBar": 8, "quote": "the verbatim sentence"},
+        {"kind": "transpose", "section": "a section name from the list", "reference": "the section it is copied from, or null", "semitones": 12, "quote": "the verbatim sentence"},
+        {"kind": "octaveDouble", "section": "a section name from the list", "quote": "the verbatim sentence"},
+    ]
+}
+
+FIX_ROLE = (
+    "You are a producer's engineer reading a fidelity report: each claim is something the tutorial said "
+    "the track does, with a measured status and the evidence. The statuses, evidence, and score are "
+    "measured and final - do not dispute or restate them as if you had listened. For every claim that is "
+    "missing or contradicted, write the one edit that would make it true, naming the real track (by its "
+    "id from the track list) and, where one exists on that track, the real effect to touch. Rank the fixes "
+    "by how much of the tutorial's intent they recover. Every number you write must come from the report. "
+    "Write plainly, in the second person."
+)
+FIX_SCHEMA = {
+    "summary": "two to four sentences on how faithful the project is to the transcript and what the biggest gaps are",
+    "fixes": [
+        {
+            "claimId": "the claim id, e.g. claim-03",
+            "action": "one concrete instruction naming the track and, if any, the effect and section",
+            "track": "track id from the track list, or null",
+            "effect": "the name of an effect on that track, or null",
+            "section": "a section name from the list, or null",
+            "why": "one sentence tying the edit to the measured evidence",
+        }
+    ],
+}
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +227,69 @@ def sentence_spans(text: str) -> list[tuple[int, str]]:
             out.append((index, part.strip()))
         position = index + len(part)
     return out
+
+
+def chunk_text(text: str, limit: int = CHUNK_CHARS) -> list[str]:
+    """Pieces of at most `limit` characters, split at sentence boundaries."""
+    if len(text) <= limit:
+        return [text] if text.strip() else []
+    chunks: list[str] = []
+    current = ""
+    for _, sentence in sentence_spans(text):
+        if current and len(current) + len(sentence) + 1 > limit:
+            chunks.append(current)
+            current = ""
+        while len(sentence) > limit:      # one monstrous run-on: hard split
+            chunks.append(sentence[:limit])
+            sentence = sentence[limit:]
+        current = (current + " " + sentence).strip()
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def collapse_ws(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "")).strip()
+
+
+def quote_in_text(quote: str, text: str) -> bool:
+    """The evidence rule: the quote must appear in the transcript (whitespace
+    collapsed; case is forgiven because models like to fix capitalisation)."""
+    needle = collapse_ws(quote)
+    if len(needle) < MIN_QUOTE_CHARS:
+        return False
+    haystack = collapse_ws(text)
+    return needle in haystack or needle.lower() in haystack.lower()
+
+
+def numbers_in(text: str) -> list[float]:
+    out: list[float] = []
+    for token in NUMBER_RE.findall(text or ""):
+        try:
+            out.append(float(token))
+        except ValueError:
+            continue
+    return out
+
+
+def numbers_are_grounded(text: str, facts: str) -> bool:
+    """Every number the model wrote must be one it was given (within rounding).
+    A small integer with no unit passes: 'Drop 2', '2 of' and 'beat 3' are not
+    readings. One with a unit ('cut 3 dB', '2 bars') is a reading and must be
+    in the facts like any other."""
+    allowed = numbers_in(facts)
+    text = text or ""
+    for match in NUMBER_RE.finditer(text):
+        try:
+            value = float(match.group())
+        except ValueError:
+            continue
+        unit_bearing = UNIT_AFTER_NUMBER_RE.match(text, match.end()) is not None
+        if 0 <= value <= 4 and value.is_integer() and not unit_bearing:
+            continue
+        if not any(abs(value - fact) <= max(0.05, abs(fact) * 0.01) for fact in allowed):
+            return False
+    return True
 
 
 def parse_section_label(label: str) -> Optional[tuple[str, Optional[int]]]:
@@ -723,11 +851,17 @@ def median_f0_hz(x: np.ndarray) -> Optional[float]:
 
 
 class Checker:
-    def __init__(self, root: Path, project: dict[str, Any], spec: dict[str, Any], transcript: str) -> None:
+    def __init__(self, root: Path, project: dict[str, Any], spec: dict[str, Any], transcript: str,
+                 assist: Any = None) -> None:
         self.root = root
         self.project = project
         self.spec = spec
         self.transcript = transcript or ""
+        # An llm.Assist, or None for "the model is off": the report is then
+        # exactly the regex-and-measurement one.
+        self.assist = assist
+        self._model_context: Optional[dict[str, Any]] = None
+        self.model_dropped: list[str] = []
         self.snapshot = project.get("snapshot", {}) or {}
         self.bpm = float(self.snapshot.get("bpm") or 120.0) or 120.0
         self.bar_s = 240.0 / self.bpm
@@ -808,6 +942,12 @@ class Checker:
             "evidence": evidence,
             "verifiedBy": verified_by,
         }
+        if self._model_context:
+            # A claim the model read out of the transcript: say so, and keep
+            # the sentence it read it in next to the measurement.
+            record["source"] = "model"
+            record["quote"] = self._model_context.get("quote", "")
+            record["reason"] = self._model_context.get("reason", "")
         self.claims.append(record)
         if action and status in ("missing", "contradicted") and action not in self.actions:
             self.actions.append(action)
@@ -1484,11 +1624,11 @@ class Checker:
             self.add("pitch", claim, source, "missing", "lead-double track has no clip in that section", "project",
                      f"Place a lead-double clip in {self.label(key)}.")
 
-    def check_transpose(self, sentence: str, key: tuple[str, int], semis: int) -> None:
+    def check_transpose(self, sentence: str, key: tuple[str, int], semis: int,
+                        reference: Optional[tuple[str, int]] = None) -> None:
         # "copy intro lead ... transpose +12": the reference is the section the
         # sentence names; failing that, the section before this one.
-        reference: Optional[tuple[str, int]] = None
-        for match in SECTION_LABEL_RE.finditer(sentence):
+        for match in SECTION_LABEL_RE.finditer(sentence) if reference is None else ():
             parsed = parse_section_label(match.group(0))
             if parsed and (parsed[0], parsed[1] or 1) != key:
                 reference = (parsed[0], parsed[1] or 1)
@@ -1517,7 +1657,6 @@ class Checker:
     # -- explicit numbers ----------------------------------------------------
 
     def check_automation_statements(self) -> None:
-        lanes = [lane for lane in self.snapshot.get("automationLanes", []) or [] if isinstance(lane, dict)]
         seen: set[str] = set()
         moves: list[tuple[str, str, str, str, str, str]] = []
         ranges = list(AUTOMATION_RANGE_RE.finditer(self.transcript))
@@ -1540,36 +1679,43 @@ class Checker:
                 start_value, end_value = float(start_v), float(end_v)
             except ValueError:
                 continue
-            first_bar, last_bar = int(first) - 1, int(last)   # to 0-indexed [start, end)
-            claim = f"{track}.{parameter} moves {start_value:g} -> {end_value:g} over bars {first}-{last}."
-            action = f"Add an automation lane {track}.{parameter} {start_value:g}->{end_value:g} over bars {first}-{last}."
-            matching = [lane for lane in lanes if self.lane_matches(lane, track, parameter)]
-            if not matching:
-                self.add("automation", claim, "transcript", "missing", f"no {track}.{parameter} automation lane in the project",
-                         "project", action)
+            self.check_automation_move(first, last, track, parameter, start_value, end_value)
+
+    def check_automation_move(self, first: str, last: str, track: str, parameter: str,
+                              start_value: float, end_value: float) -> None:
+        """One stated move 'track.parameter a->b over bars first-last' against
+        the project's automation lanes. Shared by the regex and model paths."""
+        lanes = [lane for lane in self.snapshot.get("automationLanes", []) or [] if isinstance(lane, dict)]
+        first_bar, last_bar = int(first) - 1, int(last)   # to 0-indexed [start, end)
+        claim = f"{track}.{parameter} moves {start_value:g} -> {end_value:g} over bars {first}-{last}."
+        action = f"Add an automation lane {track}.{parameter} {start_value:g}->{end_value:g} over bars {first}-{last}."
+        matching = [lane for lane in lanes if self.lane_matches(lane, track, parameter)]
+        if not matching:
+            self.add("automation", claim, "transcript", "missing", f"no {track}.{parameter} automation lane in the project",
+                     "project", action)
+            return
+        best = None
+        for lane in matching:
+            points = sorted((p for p in (lane.get("points") or []) if isinstance(p, dict)), key=lambda p: float(p.get("bar", 0)))
+            inside = [p for p in points if first_bar <= float(p.get("bar", -1)) <= last_bar]
+            if len(points) < 2 or not inside:
                 continue
-            best = None
-            for lane in matching:
-                points = sorted((p for p in (lane.get("points") or []) if isinstance(p, dict)), key=lambda p: float(p.get("bar", 0)))
-                inside = [p for p in points if first_bar <= float(p.get("bar", -1)) <= last_bar]
-                if len(points) < 2 or not inside:
-                    continue
-                bars = [float(p.get("bar", 0)) for p in points]
-                values = [float(p.get("value", 0)) for p in points]
-                v0 = float(np.interp(first_bar, bars, values))
-                v1 = float(np.interp(last_bar, bars, values))
-                best = (lane, v0, v1)
-                break
-            if best is None:
-                self.add("automation", claim, "transcript", "missing",
-                         f"lane {track}.{parameter} exists but has no points inside bars {first}-{last}", "project", action)
-                continue
-            lane, v0, v1 = best
-            evidence = f"lane {lane.get('trackId')}.{lane.get('parameter')} reads {v0:.2f} -> {v1:.2f} across bars {first}-{last}"
-            same_direction = (v1 - v0) * (end_value - start_value) > 0 or abs(end_value - start_value) < 1e-6
-            close = abs(v0 - start_value) <= 0.15 and abs(v1 - end_value) <= 0.15
-            status = "matched" if same_direction and close else "contradicted"
-            self.add("automation", claim, "transcript", status, evidence, "project", action)
+            bars = [float(p.get("bar", 0)) for p in points]
+            values = [float(p.get("value", 0)) for p in points]
+            v0 = float(np.interp(first_bar, bars, values))
+            v1 = float(np.interp(last_bar, bars, values))
+            best = (lane, v0, v1)
+            break
+        if best is None:
+            self.add("automation", claim, "transcript", "missing",
+                     f"lane {track}.{parameter} exists but has no points inside bars {first}-{last}", "project", action)
+            return
+        lane, v0, v1 = best
+        evidence = f"lane {lane.get('trackId')}.{lane.get('parameter')} reads {v0:.2f} -> {v1:.2f} across bars {first}-{last}"
+        same_direction = (v1 - v0) * (end_value - start_value) > 0 or abs(end_value - start_value) < 1e-6
+        close = abs(v0 - start_value) <= 0.15 and abs(v1 - end_value) <= 0.15
+        status = "matched" if same_direction and close else "contradicted"
+        self.add("automation", claim, "transcript", status, evidence, "project", action)
 
     @staticmethod
     def lane_matches(lane: dict[str, Any], track: str, parameter: str) -> bool:
@@ -1624,6 +1770,373 @@ class Checker:
 
     # -- driver ------------------------------------------------------------
 
+    # -- the model: claims the regexes missed ------------------------------
+
+    @property
+    def model_available(self) -> bool:
+        return bool(self.assist is not None and getattr(self.assist, "available", False))
+
+    def known_section_keys(self) -> list[tuple[str, int]]:
+        keys: list[tuple[str, int]] = []
+        for key, _ in self.statements:
+            if key not in keys:
+                keys.append(key)
+        for key in self.order:
+            if key not in keys:
+                keys.append(key)
+        for key in sorted(self.spans, key=lambda k: self.spans[k][0]):
+            if key not in keys:
+                keys.append(key)
+        for section in self.musical_sections():
+            key = self.section_key(section)
+            if key is not None and key not in keys:
+                keys.append(key)
+        return keys
+
+    def resolve_section(self, name: Any, keys: list[tuple[str, int]]) -> Optional[tuple[str, int]]:
+        """A section name the model wrote back -> one of the keys it was given."""
+        if not isinstance(name, str) or not name.strip():
+            return None
+        wanted = collapse_ws(name).lower()
+        for key in keys:
+            if self.label(key).lower() == wanted:
+                return key
+        parsed = parse_section_label(name)
+        if parsed:
+            key = (parsed[0], parsed[1] or 1)
+            if key in keys:
+                return key
+        return None
+
+    def extract_model_claims(self) -> list[dict[str, Any]]:
+        """Ask the model for claims in the transcript, one call per ~24k-char
+        chunk, and keep only the ones that validate: a quote that appears in
+        the text, and names that exist (sections, techniques, roles, tracks)."""
+        if not self.model_available or not self.transcript.strip():
+            return []
+        keys = self.known_section_keys()
+        section_names = [self.label(key) for key in keys]
+        track_ids = sorted(tracks_by_id(self.project))
+        roles = sorted(ROLE_TO_TRACKS)
+        kept: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for index, chunk in enumerate(chunk_text(self.transcript, CHUNK_CHARS)):
+            task = (
+                "Transcript chunk {n}. List every checkable claim the author makes about the finished track.\n"
+                "Sections you may name: {sections}\n"
+                "Techniques you may name: {techniques}\n"
+                "Roles you may name: {roles}\n"
+                "Track ids you may name (for automation): {tracks}\n"
+                "Rules: quote the exact sentence for every claim; skip anything whose section, technique, "
+                "role, or track is not in the lists; do not infer, do not add production advice of your own; "
+                "a 'whole track' technique is one the author states for the mix as a whole.\n\nTEXT:\n{text}"
+            ).format(n=index + 1, sections=", ".join(section_names) or "(none known)",
+                     techniques=", ".join(KNOWN_TECHNIQUES), roles=", ".join(roles),
+                     tracks=", ".join(track_ids) or "(none)", text=chunk)
+            answer = self.assist.ask(task, system=CLAIM_ROLE, schema=CLAIM_SCHEMA)
+            # Models answer this one as {"claims": [...]} or as the bare list.
+            raw_claims = answer.get("claims") if isinstance(answer, dict) else answer
+            if not isinstance(raw_claims, list):
+                self.model_dropped.append(f"chunk {index + 1}: answer was not a list of claims")
+                continue
+            for raw in raw_claims:
+                valid = self.validate_model_claim(raw, keys, track_ids)
+                if valid is None:
+                    continue
+                signature = json.dumps({k: v for k, v in valid.items() if k != "quote"}, sort_keys=True)
+                if signature in seen:
+                    continue
+                seen.add(signature)
+                kept.append(valid)
+        return kept
+
+    def validate_model_claim(self, raw: Any, keys: list[tuple[str, int]], track_ids: list[str]) -> Optional[dict[str, Any]]:
+        if not isinstance(raw, dict):
+            self.model_dropped.append("claim that was not an object")
+            return None
+        kind = str(raw.get("kind") or "")
+        quote = raw.get("quote")
+        if not isinstance(quote, str) or not quote_in_text(quote, self.transcript):
+            self.model_dropped.append(f"{kind or 'claim'} whose quote is not in the transcript")
+            return None
+        quote = collapse_ws(quote)
+        out: dict[str, Any] = {"kind": kind, "quote": quote}
+        if kind == "technique":
+            technique = str(raw.get("technique") or "").strip().lower().replace(" ", "_")
+            if technique not in KNOWN_TECHNIQUES:
+                self.model_dropped.append(f"technique '{raw.get('technique')}' is not one the checker measures")
+                return None
+            name = raw.get("section")
+            if isinstance(name, str) and collapse_ws(name).lower() in ("whole track", "the whole track", "mix", "master", "global"):
+                out.update({"technique": technique, "section": None})
+                return out
+            key = self.resolve_section(name, keys)
+            if key is None:
+                self.model_dropped.append(f"technique '{technique}' in unknown section '{name}'")
+                return None
+            out.update({"technique": technique, "section": key})
+            return out
+        if kind == "role":
+            role = str(raw.get("role") or "").strip().lower()
+            if role not in ROLE_TO_TRACKS:
+                self.model_dropped.append(f"role '{raw.get('role')}' has no track mapping")
+                return None
+            if role not in quote.lower():
+                self.model_dropped.append(f"role '{role}' is not named in its quote")
+                return None
+            key = self.resolve_section(raw.get("section"), keys)
+            if key is None:
+                self.model_dropped.append(f"role '{role}' in unknown section '{raw.get('section')}'")
+                return None
+            out.update({"role": role, "section": key})
+            return out
+        if kind == "tempo":
+            bpm = raw.get("bpm")
+            if not isinstance(bpm, (int, float)) or isinstance(bpm, bool) or not 40 <= float(bpm) <= 300:
+                self.model_dropped.append(f"tempo '{bpm}' out of range")
+                return None
+            out.update({"bpm": float(bpm)})
+            return out
+        if kind == "key":
+            if normalize_key(raw.get("key")) is None:
+                self.model_dropped.append(f"key '{raw.get('key')}' could not be read as a key")
+                return None
+            out.update({"key": str(raw.get("key")).strip()})
+            return out
+        if kind == "automation":
+            track = str(raw.get("track") or "").strip().lower()
+            parameter = str(raw.get("parameter") or "").strip().lower()
+            if track != "master" and track not in track_ids:
+                self.model_dropped.append(f"automation on unknown track '{raw.get('track')}'")
+                return None
+            # The sentence has to name the track it is about: 'chords.filter
+            # 0.2->0.55' must not be filed under some other lane that exists.
+            names = [track, f"{track}.{parameter}"]
+            if track != "master":
+                names.append(str(tracks_by_id(self.project)[track].get("name") or "").strip().lower())
+            if not any(name and name in quote.lower() for name in names):
+                self.model_dropped.append(f"automation filed under '{track}' but its quote does not name that track")
+                return None
+            if not re.fullmatch(r"[a-z]+", parameter):
+                self.model_dropped.append(f"automation parameter '{raw.get('parameter')}' is not a plain word")
+                return None
+            values = [raw.get("from"), raw.get("to")]
+            bars = [raw.get("firstBar"), raw.get("lastBar")]
+            if any(not isinstance(v, (int, float)) or isinstance(v, bool) for v in values + bars):
+                self.model_dropped.append(f"automation {track}.{parameter} with non-numeric values")
+                return None
+            start_value, end_value = float(values[0]), float(values[1])
+            first, last = int(bars[0]), int(bars[1])
+            if not (0.0 <= start_value <= 1.0 and 0.0 <= end_value <= 1.0 and 1 <= first <= last <= 999):
+                self.model_dropped.append(f"automation {track}.{parameter} with values outside 0-1 or bad bars")
+                return None
+            out.update({"track": track, "parameter": parameter, "from": start_value, "to": end_value,
+                        "firstBar": first, "lastBar": last})
+            return out
+        if kind == "transpose":
+            key = self.resolve_section(raw.get("section"), keys)
+            semis = raw.get("semitones")
+            if key is None or not isinstance(semis, (int, float)) or isinstance(semis, bool) or not -24 <= int(semis) <= 24:
+                self.model_dropped.append(f"transpose in '{raw.get('section')}' by '{semis}'")
+                return None
+            reference = self.resolve_section(raw.get("reference"), keys) if raw.get("reference") else None
+            out.update({"section": key, "semitones": int(semis), "reference": reference})
+            return out
+        if kind == "octaveDouble":
+            key = self.resolve_section(raw.get("section"), keys)
+            if key is None:
+                self.model_dropped.append(f"octave double in unknown section '{raw.get('section')}'")
+                return None
+            out.update({"section": key})
+            return out
+        self.model_dropped.append(f"unknown claim kind '{kind}'")
+        return None
+
+    def check_model_claims(self) -> None:
+        """Measure the model's claims with the same code paths as the spec's.
+        Anything the regexes already produced is dropped later as a duplicate,
+        so the model only ever adds claims - it never replaces a measurement."""
+        claims = self.extract_model_claims()
+        spec_roles = {str(role) for section in self.spec.get("sections", []) or [] if isinstance(section, dict)
+                      for role in (section.get("trackRoles") or [])}
+        for item in claims:
+            self._model_context = {"quote": item["quote"], "reason": "stated in the transcript; the parser did not carry it"}
+            try:
+                self.check_one_model_claim(item, spec_roles)
+            finally:
+                self._model_context = None
+
+    def check_one_model_claim(self, item: dict[str, Any], spec_roles: set[str]) -> None:
+        kind = item["kind"]
+        if kind == "technique":
+            key = item["section"]
+            if key is None:
+                pseudo = {"id": "model", "type": "production_notes", "trackRoles": [], "techniques": [item["technique"]]}
+                self.check_technique(pseudo, item["technique"], "the whole track", self.span_for(pseudo))
+                return
+            pseudo = {"id": "model", "type": "second_drop" if key == ("drop", 2) else key[0],
+                      "ordinalWithinType": key[1], "trackRoles": [], "techniques": [item["technique"]]}
+            self.check_technique(pseudo, item["technique"], self.label(key), self.spans.get(key))
+            return
+        if kind == "role":
+            role = item["role"]
+            if role in spec_roles:
+                return   # check_track_roles already measured it
+            label = self.label(item["section"])
+            for track_id in ROLE_TO_TRACKS.get(role, ()):
+                has_content, why = track_has_content(self.root, self.project, track_id)
+                article = "An" if role[:1] in "aeiou" else "A"
+                self.add("tracks", f"{article} {role} part plays in {label}.", "transcript",
+                         "matched" if has_content else "missing", f"track '{track_id}': {why}", "project",
+                         f"Give the '{track_id}' track ({role}) audio, notes, or steps in {label} - it is named but silent.")
+            return
+        if kind == "tempo":
+            hint = self.spec.get("tempoHint")
+            if isinstance(hint, (int, float)) and hint > 0:
+                return   # check_tempo already measured it
+            bpm = item["bpm"]
+            status = "matched" if abs(bpm - self.bpm) <= 1.0 else "contradicted"
+            self.add("tempo", f"The track runs at {int(bpm)} BPM.", "transcript", status,
+                     f"project bpm is {self.bpm:g}", "project",
+                     f"Set the project tempo to {int(bpm)} BPM (it is {self.bpm:g}).")
+            return
+        if kind == "key":
+            if [h for h in self.spec.get("keyHints", []) or [] if isinstance(h, str)]:
+                return   # check_key already measured it
+            stated = normalize_key(item["key"])
+            actual_raw = self.project.get("keyCenter")
+            actual = normalize_key(actual_raw)
+            if actual is None:
+                status, evidence = "missing", f"project has no key centre (keyCenter={actual_raw!r})"
+            elif actual == stated:
+                status, evidence = "matched", f"project keyCenter is {actual_raw}"
+            else:
+                status, evidence = "contradicted", f"project keyCenter is {actual_raw}"
+            self.add("key", f"The key is {item['key']}.", "transcript", status, evidence, "project",
+                     f"Set the project key centre to {item['key']}.")
+            return
+        if kind == "automation":
+            self.check_automation_move(str(item["firstBar"]), str(item["lastBar"]), item["track"], item["parameter"],
+                                       item["from"], item["to"])
+            return
+        if kind == "transpose":
+            self.check_transpose(item["quote"], item["section"], item["semitones"], item.get("reference"))
+            return
+        if kind == "octaveDouble":
+            self.check_octave_double(item["section"], "transcript")
+
+    # -- the model: fixes and the summary ----------------------------------
+
+    def report_facts(self, result: dict[str, Any]) -> dict[str, Any]:
+        tracks = []
+        for track_id, track in tracks_by_id(self.project).items():
+            tracks.append({
+                "id": track_id,
+                "name": str(track.get("name") or track_id),
+                "kind": str(track.get("kind") or ""),
+                "effects": [{"name": str(e.get("name") or ""), "active": bool(e.get("active")), "amount": e.get("amount")}
+                            for e in (track.get("effects") or []) if isinstance(e, dict)],
+            })
+        lanes = [f"{lane.get('trackId')}.{lane.get('parameter')}" for lane in self.snapshot.get("automationLanes", []) or []
+                 if isinstance(lane, dict)]
+        return {
+            "score": result["score"],
+            "scoreWithoutModelClaims": result["scoreWithoutModelClaims"],
+            "modelClaimCount": result["modelClaimCount"],
+            "measured": result["summary"],
+            "claims": [{k: c.get(k) for k in ("id", "area", "claim", "status", "evidence", "verifiedBy")} for c in result["claims"]],
+            "heuristicNextActions": result["nextActions"],
+            "tracks": tracks,
+            "automationLanes": lanes,
+            "sections": [self.label(key) for key in self.known_section_keys()],
+            "bpm": self.bpm,
+        }
+
+    def humanize(self, result: dict[str, Any]) -> None:
+        """The summary and one ranked fix per missed claim, in the project's
+        own track and effect names. The score and every claim's status are
+        already final; the model only writes words about them."""
+        if not self.model_available or not result["claims"]:
+            return
+        facts = self.report_facts(result)
+        facts_text = json.dumps(facts, indent=1)
+        fixable = [c["id"] for c in result["claims"] if c["status"] in ("missing", "contradicted")]
+        task = (
+            "Here is the measured fidelity report for one project. Write the summary, and for each claim "
+            f"with status missing or contradicted ({', '.join(fixable) or 'none'}) one concrete fix, ranked "
+            "most valuable first. Name tracks by id from the track list and effects by their exact names on "
+            "that track; use section names from the section list. The summary may describe ONLY the claims "
+            "listed with status missing or contradicted, in their own words; it must not mention lengths, "
+            "timecodes, or any gap that is not a listed claim, and when every claim matched it says so. "
+            "Section lengths were set by the arrangement rules on purpose and are never a gap.\n\nREPORT:\n" + facts_text
+        )
+        answer = self.assist.ask(task, system=FIX_ROLE, schema=FIX_SCHEMA, expect=dict)
+        if not isinstance(answer, dict):
+            return
+        dropped: list[str] = []
+        summary = answer.get("summary")
+        if isinstance(summary, str) and summary.strip() and len(summary) <= 900 and numbers_are_grounded(summary, facts_text):
+            result["summary"] = result["summary"] + ". " + collapse_ws(summary)
+            result["summarySource"] = "model"
+        else:
+            dropped.append("summary")
+        by_id = {c["id"]: c for c in result["claims"]}
+        track_map = {t["id"]: t for t in facts["tracks"]}
+        section_names = {name.lower(): name for name in facts["sections"]}
+        fixes: list[dict[str, Any]] = []
+        used: set[str] = set()
+        raw_fixes = answer.get("fixes")
+        for raw in raw_fixes if isinstance(raw_fixes, list) else []:
+            if not isinstance(raw, dict):
+                dropped.append("fix that was not an object")
+                continue
+            claim_id = str(raw.get("claimId") or "")
+            claim = by_id.get(claim_id)
+            if claim is None or claim["status"] not in ("missing", "contradicted"):
+                dropped.append(f"fix for '{claim_id}' (not a missed claim)")
+                continue
+            action = raw.get("action")
+            if not isinstance(action, str) or not action.strip() or len(action) > 300 or not numbers_are_grounded(action, facts_text):
+                dropped.append(f"fix for {claim_id} (empty, too long, or ungrounded number)")
+                continue
+            track = raw.get("track")
+            track = str(track).strip() if isinstance(track, str) and track.strip() else None
+            if track is not None and track not in track_map:
+                dropped.append(f"fix for {claim_id} naming unknown track '{track}'")
+                continue
+            effect = raw.get("effect")
+            effect = str(effect).strip() if isinstance(effect, str) and effect.strip() else None
+            if effect is not None:
+                names = {e["name"].lower(): e["name"] for e in track_map[track]["effects"]} if track else {}
+                if effect.lower() not in names:
+                    dropped.append(f"fix for {claim_id} naming unknown effect '{effect}' on '{track}'")
+                    continue
+                effect = names[effect.lower()]
+            section = raw.get("section")
+            section = section_names.get(collapse_ws(section).lower()) if isinstance(section, str) and section.strip() else None
+            if isinstance(raw.get("section"), str) and raw.get("section").strip() and section is None:
+                dropped.append(f"fix for {claim_id} naming unknown section '{raw.get('section')}'")
+                continue
+            if claim_id in used:
+                dropped.append(f"second fix for {claim_id} (one per claim)")
+                continue
+            why = raw.get("why")
+            why = collapse_ws(why) if isinstance(why, str) and numbers_are_grounded(why, facts_text) else ""
+            fix = {"claimId": claim_id, "action": collapse_ws(action), "track": track, "effect": effect,
+                   "section": section, "why": why, "source": "model"}
+            claim["fix"] = fix
+            fixes.append(fix)
+            used.add(claim_id)
+        if fixes:
+            result["nextActions"] = [fix["action"] for fix in fixes][:10]
+            result["nextActionDetails"] = fixes[:10]
+        else:
+            dropped.append("nextActions")
+        if dropped:
+            self.assist.note = "kept the heuristic text for: " + "; ".join(dropped[:6])
+
+    # -- driver ------------------------------------------------------------
+
     def run(self) -> dict[str, Any]:
         self.check_tempo()
         self.check_key()
@@ -1634,6 +2147,7 @@ class Checker:
         self.check_octave_relations()
         self.check_automation_statements()
         self.check_explicit_numbers()
+        self.check_model_claims()
         matched = sum(1 for c in self.claims if c["status"] == "matched")
         unverifiable = sum(1 for c in self.claims if c["status"] == "unverifiable")
         # The parser can chunk one described section into two spec sections, so
@@ -1652,15 +2166,28 @@ class Checker:
         matched = sum(1 for claim in self.claims if claim.get("status") == "matched")
         checkable = len(self.claims) - unverifiable
         score = int(round(100.0 * matched / checkable)) if checkable else 0
+        # Claims the model read add to the denominator, so the score with
+        # them is not the score `--ai off` gives. Both are reported: the
+        # second is what the regex-and-measurement path alone would say.
+        own = [claim for claim in self.claims if claim.get("source") != "model"]
+        model_claim_count = len(self.claims) - len(own)
+        own_matched = sum(1 for claim in own if claim.get("status") == "matched")
+        own_checkable = sum(1 for claim in own if claim.get("status") != "unverifiable")
+        score_without_model = int(round(100.0 * own_matched / own_checkable)) if own_checkable else 0
         summary = f"{matched} of {checkable} checkable claims match"
         if unverifiable:
             summary += f" ({unverifiable} unverifiable)"
+        if model_claim_count:
+            summary += (f"; {model_claim_count} claim{'s' if model_claim_count != 1 else ''} came from the model"
+                        f" (without them: {own_matched} of {own_checkable}, score {score_without_model})")
         if not self.claims:
             summary = "No claims could be extracted from the transcript."
-        return {
+        result = {
             "ok": True,
             "projectId": str(self.project.get("id") or self.spec.get("projectId") or "project"),
             "score": score,
+            "scoreWithoutModelClaims": score_without_model,
+            "modelClaimCount": model_claim_count,
             "summary": summary,
             "claims": self.claims,
             "matched": matched,
@@ -1668,14 +2195,28 @@ class Checker:
             "unverifiable": unverifiable,
             "stemsUsed": sorted(t for t, loaded in self.stems._cache.items() if loaded is not None),
             "nextActions": self.actions[:10],
+            "nextActionDetails": [{"action": action, "source": "heuristic"} for action in self.actions[:10]],
+            "summarySource": "heuristic",
         }
+        self.humanize(result)
+        if self.assist is not None:
+            report = self.assist.report()
+            if self.model_dropped:
+                report["dropped"] = self.model_dropped[:12]
+            result["ai"] = report
+        return result
 
 
-def build_report(root: Path, project_path: Path, spec_path: Path, transcript_path: Optional[str] = None) -> dict[str, Any]:
+def build_report(root: Path, project_path: Path, spec_path: Path, transcript_path: Optional[str] = None,
+                 assist: Any = None) -> dict[str, Any]:
+    """The report. `assist` is an llm.Assist; None (the library default) means
+    the model is off and the report is exactly the regex-and-measurement one."""
     project = read_json(project_path)
     spec = read_json(spec_path)
     transcript = transcript_text_for(spec_path, spec, transcript_path)
-    return Checker(root, project, spec, transcript).run()
+    if assist is None and llm is not None:
+        assist = llm.Assist(enabled=False)
+    return Checker(root, project, spec, transcript, assist).run()
 
 
 def render_markdown(report: dict[str, Any]) -> str:
@@ -1683,6 +2224,10 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"# Transcript Fidelity: {report['projectId']}",
         "",
         f"**Score:** {report['score']}/100 - {report['summary']}",
+    ]
+    if report.get("modelClaimCount"):
+        lines.append(f"**Score without the model's claims:** {report.get('scoreWithoutModelClaims')}/100")
+    lines += [
         "",
         "| # | Area | Claim | Status | Evidence |",
         "|---|------|-------|--------|----------|",
@@ -1694,11 +2239,24 @@ def render_markdown(report: dict[str, Any]) -> str:
         cell = lambda text: str(text).replace("|", "\\|")  # noqa: E731
         lines.append(f"| {claim['id'].replace('claim-', '')} | {claim['area']} | {cell(claim['claim'])} | {status} | {cell(claim['evidence'])} |")
     lines.extend(["", "## Next Actions", ""])
+    details = report.get("nextActionDetails") or []
     if report["nextActions"]:
-        lines.extend(f"- {item}" for item in report["nextActions"])
+        for index, item in enumerate(report["nextActions"]):
+            detail = details[index] if index < len(details) and isinstance(details[index], dict) else {}
+            tail = ""
+            if detail.get("claimId"):
+                tail += f" [{str(detail['claimId']).replace('claim-', '#')}]"
+            if detail.get("why"):
+                tail += f" - {detail['why']}"
+            lines.append(f"- {item}{tail}")
     else:
         lines.append("- Nothing stated in the description is missing from the project.")
     lines.append("")
+    ai = report.get("ai") or {}
+    if ai:
+        lines.append(f"_Claims and fixes: {'via ' + str(ai.get('provider')) if ai.get('used') else 'offline rules'}"
+                     + (f" - {ai['note']}" if ai.get("note") else "") + "_")
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -1710,13 +2268,16 @@ def main() -> int:
     parser.add_argument("--spec", help="Path to a transcript_spec.json file.")
     parser.add_argument("--transcript", help="Path to the transcript text (defaults to the spec's sibling transcript.txt).")
     parser.add_argument("--format", choices=("json", "markdown"), default="json")
+    if llm is not None:
+        llm.add_ai_argument(parser)
     args = parser.parse_args()
 
     try:
         root = Path(args.root).expanduser().resolve()
         project_path = project_path_for(root, args.project_id, args.project)
         spec_path = spec_path_for(root, args.project_id, args.spec)
-        report = build_report(root, project_path, spec_path, args.transcript)
+        assist = llm.assist_from_args(args) if llm is not None else None
+        report = build_report(root, project_path, spec_path, args.transcript, assist)
     except Exception as exc:  # the caller parses the last line, so it must be JSON
         if args.format == "markdown":
             print(f"Transcript fidelity failed: {exc}")

@@ -1229,6 +1229,9 @@ public final class DocumentWindowController: NSWindowController, EditorHost, Too
             executable: python,
             arguments: arguments,
             currentDirectory: store.rootURL,
+            // The AI key and on/off switch reach the tools only this way; see
+            // docs/ai.md. Every tool works without them.
+            environment: AppEnvironment.shared.toolEnvironment(),
             onOutputLine: { line in
                 // A tool's JSON result line is for the caller, not the status bar.
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -1365,7 +1368,7 @@ public final class DocumentWindowController: NSWindowController, EditorHost, Too
             // A project built from a description gets the second question too:
             // not just "is it good" but "is it what was asked for".
             guard self.specURLIfPresent() != nil else {
-                StatusCenter.shared.success("Sound check: \(score)/100.")
+                StatusCenter.shared.success(AIProvenance.annotate("Sound check: \(score)/100.", from: analysis))
                 ReportWindowController.present(
                     report: ReportBuilder.combined(sound: analysis, fidelity: nil, projectName: self.project.name),
                     relativeTo: self.window
@@ -1384,7 +1387,11 @@ public final class DocumentWindowController: NSWindowController, EditorHost, Too
             ) { fidelityResult in
                 let fidelity = fidelityResult.lastJSONObject
                 let summary = fidelity["summary"] as? String ?? ""
-                StatusCenter.shared.success("Sound check: \(score)/100." + (summary.isEmpty ? "" : " Matches the description: \(summary)."))
+                let message = "Sound check: \(score)/100." + (summary.isEmpty ? "" : " Matches the description: \(summary).")
+                // The sound check's provenance speaks for the whole line; the
+                // fidelity check's is in the report window's footer.
+                let provenanceSource = analysis["ai"] != nil ? analysis : fidelity
+                StatusCenter.shared.success(AIProvenance.annotate(message, from: provenanceSource))
                 ReportWindowController.present(
                     report: ReportBuilder.combined(
                         sound: analysis,
@@ -1447,7 +1454,7 @@ public final class DocumentWindowController: NSWindowController, EditorHost, Too
             self.transport.load(project: self.project, store: self.store)
             let applied = (report["actions"] as? [[String: Any]])?.count ?? 0
             StatusCenter.shared.success(
-                "Applied \(applied) suggestion\(applied == 1 ? "" : "s"). ⌘Z reverts all of them."
+                AIProvenance.annotate("Applied \(applied) suggestion\(applied == 1 ? "" : "s"). ⌘Z reverts all of them.", from: report)
             )
             ReportWindowController.present(
                 report: ReportBuilder.agent(report, projectName: self.project.name),
@@ -1523,7 +1530,10 @@ public final class DocumentWindowController: NSWindowController, EditorHost, Too
                     "--transcript-file", url.path,
                     "--force-materialize"
                 ]
-            ) { _ in
+            ) { result in
+                // songlab.py may finish with a JSON line carrying an `ai` block
+                // and the inferred steps; older builds print none, which is fine.
+                let summary = result.lastJSONObject
                 guard let built = self.store.loadProjects().first(where: { $0.id == settings.projectId }) else {
                     StatusCenter.shared.warning("The description was processed but no project came back.")
                     return
@@ -1535,7 +1545,11 @@ public final class DocumentWindowController: NSWindowController, EditorHost, Too
                     )
                     NSDocumentController.shared.addDocument(document)
                     document.showWindows()
-                    StatusCenter.shared.success("Built “\(built.name)” from your description.")
+                    var message = "Built “\(built.name)” from your description."
+                    if let inferred = summary["inferred"] as? [Any], !inferred.isEmpty {
+                        message = "Built “\(built.name)” from your description (\(inferred.count) step\(inferred.count == 1 ? "" : "s") inferred)."
+                    }
+                    StatusCenter.shared.success(AIProvenance.annotate(message, from: summary))
                 } catch {
                     StatusCenter.shared.failure("Couldn't open the new project", error: error, window: self.window)
                 }

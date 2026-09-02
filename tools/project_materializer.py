@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import pprint
 import re
+import sys
+import time
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -360,12 +362,15 @@ def choose_track_ids(spec: dict[str, Any]) -> list[str]:
     return chosen
 
 
-def make_track(blueprint: TrackBlueprint) -> dict[str, Any]:
+def make_track(blueprint: TrackBlueprint, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+    """A track from its blueprint. `overrides` (from the musical plan) may rename
+    the lane and its instrument; the id, kind, colour, gain and effects stay."""
+    overrides = overrides or {}
     return {
         "id": blueprint.id,
-        "name": blueprint.name,
+        "name": str(overrides.get("name") or blueprint.name),
         "kind": blueprint.kind,
-        "instrument": blueprint.instrument,
+        "instrument": str(overrides.get("instrument") or blueprint.instrument),
         "gain": blueprint.gain,
         "pan": blueprint.pan,
         "steps": list(blueprint.steps),
@@ -505,7 +510,7 @@ def enrich_effects(track: dict[str, Any], section: dict[str, Any], global_plugin
                 break
 
 
-def make_recipe(section_layout: list[dict[str, Any]], all_track_ids: list[str], spec: dict[str, Any]) -> list[dict[str, Any]]:
+def make_recipe(section_layout: list[dict[str, Any]], all_track_ids: list[str], spec: dict[str, Any], plan_decisions: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     recipe = [
         {
             "id": "transcript-project",
@@ -565,6 +570,29 @@ def make_recipe(section_layout: list[dict[str, Any]], all_track_ids: list[str], 
                 "detail": f"{item.get('detail', '')} Reason: {item.get('reason', '')}",
                 "status": "inferred",
                 "trackIds": all_track_ids[:4],
+            }
+        )
+
+    # What the model decided about the music itself (tempo, chords, drums, lane
+    # names) is listed the same way, marked as inferred so a person can disagree.
+    tracks_by_section = {section["id"]: section.get("sectionTrackIds", []) for section in section_layout}
+    for index, item in enumerate((plan_decisions or [])[:16], start=1):
+        section_id = item.get("sectionId")
+        if section_id:
+            track_ids = tracks_by_section.get(section_id) or all_track_ids[:4]
+        elif item.get("area") == "track":
+            track_ids = [tid for tid in all_track_ids if str(item.get("detail", "")).startswith(f"{tid}:")] or all_track_ids[:4]
+        else:
+            track_ids = all_track_ids[:4]
+        reason = item.get("reason") or ""
+        recipe.append(
+            {
+                "id": f"plan-{index:02d}",
+                "section": "Musical Plan",
+                "label": f"{item.get('area', 'plan')}: {item.get('detail', '')}"[:96],
+                "detail": f"{item.get('detail', '')}" + (f" Reason: {reason}" if reason else "") + " (via model)",
+                "status": "inferred",
+                "trackIds": track_ids,
             }
         )
 
@@ -637,10 +665,20 @@ def infer_loop_range(section_layout: list[dict[str, Any]]) -> tuple[int, int]:
     return 0, 16
 
 
-def build_project_materialization(spec: dict[str, Any], project_id: str, prompt: str | None = None) -> dict[str, Any]:
+def build_project_materialization(spec: dict[str, Any], project_id: str, prompt: str | None = None, assist: Any = None) -> dict[str, Any]:
+    """The project for a spec.
+
+    `assist` is an llm.Assist. With none (or one that is off, has no key, or
+    answers something that does not validate) every decision below comes from
+    the same tables and substring rules as before; with one, the musical plan it
+    proposes is applied to a copy of the spec first and recorded on the project
+    under "materialization", with "ai" saying what happened."""
+    plan, extras = propose_musical_plan(spec, project_id, prompt, assist)
+    spec = apply_materialization_plan(spec, plan)
     project_name = infer_title_from_project(project_id, spec)
     chosen_track_ids = choose_track_ids(spec)
-    tracks = [make_track(TRACK_BLUEPRINTS[track_id]) for track_id in chosen_track_ids]
+    lane_names = plan.get("tracks") or {}
+    tracks = [make_track(TRACK_BLUEPRINTS[track_id], lane_names.get(track_id)) for track_id in chosen_track_ids]
     track_by_id = {track["id"]: track for track in tracks}
 
     section_layout = section_bar_layout(normalized_sections(spec))
@@ -666,8 +704,9 @@ def build_project_materialization(spec: dict[str, Any], project_id: str, prompt:
             enrich_effects(track, section, global_plugins)
 
     loop_start, loop_end = infer_loop_range(section_layout)
-    recipe = make_recipe(section_layout, chosen_track_ids, spec)
+    recipe = make_recipe(section_layout, chosen_track_ids, spec, extras["materialization"]["decisions"])
     bpm = infer_bpm(spec, prompt)
+    groove = plan.get("groove") or {}
     project = {
         "format": "neon-studio-project",
         "formatVersion": 1,
@@ -679,13 +718,15 @@ def build_project_materialization(spec: dict[str, Any], project_id: str, prompt:
         "updatedAt": now_iso(),
         "projectFile": None,
         "assets": None,
-        "description": infer_description(project_name, spec, prompt),
+        "description": plan.get("description") or infer_description(project_name, spec, prompt),
         "keyCenter": infer_key_center(spec),
+        "ai": extras["ai"],
+        "materialization": extras["materialization"],
         "snapshot": {
             "version": 3,
             "bpm": bpm,
-            "swing": infer_swing(spec),
-            "snap": infer_snap(spec),
+            "swing": groove["swing"] if "swing" in groove else infer_swing(spec),
+            "snap": groove["snap"] if "snap" in groove else infer_snap(spec),
             "loopEnabled": True,
             "loopStartBar": loop_start,
             "loopEndBar": loop_end,
@@ -702,6 +743,778 @@ def build_project_materialization(spec: dict[str, Any], project_id: str, prompt:
         },
     }
     return project
+
+
+# ---------------------------------------------------------------------------
+# The musical plan
+#
+# Everything above guesses musical decisions from tables keyed by section type
+# and a few substrings. When a model is available, one call asks it for the
+# same decisions - tempo, key, groove, a progression per section, drum and
+# lane rhythms, a lead motif, transition FX, automation, lane names, an
+# arrangement when the spec has none, and a one-line description. The answer
+# is validated against what exists (chord symbols through the parser above,
+# beats inside the bar, section and track ids in the project) and dropped
+# where it does not fit. What survives is written into a copy of the spec in
+# the exact shapes the inference hooks already read (tempoHint, keyHints,
+# laneEvents, laneTransforms), and the plan is stored on the project. The
+# renderer emission only ever reads project + spec, so it stays byte-identical
+# for the same pair whether the plan came from the model or from nowhere.
+# ---------------------------------------------------------------------------
+
+try:
+    from llm import Assist  # noqa: E402
+except ImportError:  # pragma: no cover - the adapter ships beside this file
+    Assist = None  # type: ignore[assignment,misc]
+
+PLAN_TEXT_CAP = 24_000
+PLAN_SECTIONS_PER_CALL = 25
+PLAN_SNAP_CHOICES = ("1/4", "1/8", "1/16", "1/32")
+PLAN_TECHNIQUES = ("sidechain", "reverb", "delay", "filtering", "automation", "distortion", "stereo", "layering", "eq", "compression", "reverse")
+PLAN_AUTOMATION_PARAMETERS = ("filter", "cutoff", "macro", "volume", "reverb", "delay", "pan", "width", "distortion")
+PLAN_CURVES = {"linear": "linear", "exp": "exp", "exponential": "exp", "ease_in": "ease_in", "ease_out": "ease_out", "ease_in_out": "ease_in_out", "step": "step"}
+PLAN_DRUM_LANES = ("kick", "snare", "clap", "hat", "ride", "crash")
+PLAN_DRUM_LIST_KEYS = (("kicks", "kick"), ("snares", "snare"), ("claps", "clap"), ("hats", "hat"), ("rides", "ride"), ("crashes", "crash"))
+PLAN_FX_KEYS = ("noiseBed", "riser", "downlifter", "crash")
+DIATONIC_MAJOR = (0, 2, 4, 5, 7, 9, 11)
+DIATONIC_MINOR = (0, 2, 3, 5, 7, 8, 10, 11)
+KEY_CENTER_RE = re.compile(r"^\s*([A-Ga-g])\s*-?\s*(#|b|sharp|flat)?\s*-?\s*(major|minor|maj|min|m)?\s*$", re.IGNORECASE)
+KEY_ACCIDENTALS = {"#": "#", "b": "b", "sharp": "#", "flat": "b"}
+
+PLAN_SYSTEM_PROMPT = """You are the musical planner inside Neon Studio, a tool that turns a producer's walkthrough into a starter project. You get the walkthrough, what the transcript already pinned down, the lanes in the project and the sections. You propose the musical decisions the walkthrough leaves open, so the starter render sounds like the song being described rather than a generic default.
+
+Rules:
+- Stay in the stated key and style. If the walkthrough states a tempo or key, do not contradict it.
+- Chord symbols: a root letter A-G, optional # or b, optional suffix from: maj7 maj9 m m7 m9 min min7 add9 sus2 sus4 dim aug 7 9 5. Examples: Em7, Cmaj7, F#m, Bb, Gadd9. Two to eight chords, one per bar, cycling.
+- Beats are zero-based inside one 4/4 bar: 0 is the downbeat, 1 the second beat, 3.5 the last eighth. Every beat is in [0, 4). A four-on-the-floor kick is [0, 1, 2, 3]; a trap half-time snare is [2]; a backbeat is [1, 3].
+- Use only the section ids and track ids you are given. Leave out any field you have no opinion on. Do not restate lanes listed as alreadyPinned for a section - those come from the walkthrough and win.
+- leadMotifKey: sparse (a few long notes), dense (a busy hook), tease (two-note fragments), dark (lower, minor-leaning). leadTransposeSemitones moves the motif; 12 is up an octave.
+- energy scales the section's level: 0.7 quiet intro, 1.0 verse, 1.25 a full drop, never outside 0.5-1.5.
+- fxProfile says which transition effects the section actually calls for; automation envelopes run from start to end (0-1) over the given bars.
+- tracks: a display name and instrument for each lane that fits this song (e.g. chords -> Rhodes / Electric Piano for lo-fi, Supersaw for future bass). Keep the ids as given.
+- When asked for an arrangement, propose 4 to 9 sections in order with ids section-01, section-02, ... using only the listed section types and track roles.
+- Every reason is one short sentence in plain words, under 20 words.
+Reply with JSON only."""
+
+
+def _plan_schema(*, first: bool, need_arrangement: bool) -> dict[str, Any]:
+    section_shape = {
+        "progressionSymbols": ["Em7", "Cmaj7", "G", "D"],
+        "progressionReason": "short sentence",
+        "chordEvents": [{"beat": 0.0, "duration": 0.8, "stab": True, "bright": 0.9}],
+        "bassEvents": [{"beat": 0.0, "duration": 1.45}],
+        "leadMotifKey": "sparse | dense | tease | dark",
+        "leadTransposeSemitones": 0,
+        "drums": {"kicks": [0.0, 2.0], "snares": [1.0, 3.0], "claps": [1.0, 3.0], "hats": [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5], "hatSpacing": 0.5, "ride": False, "clapRoll": False, "crashBars": [0]},
+        "fxProfile": {"noiseBed": False, "riser": True, "downlifter": False, "crash": True},
+        "automation": {"envelopes": [{"parameter": "filter", "targetLane": "chords", "start": 0.2, "end": 0.95, "barOffset": 0, "bars": 8, "curve": "linear"}]},
+        "energy": 1.0,
+        "reason": "short sentence",
+    }
+    schema: dict[str, Any] = {}
+    if first:
+        schema.update({
+            "tempo": {"bpm": 128, "reason": "short sentence"},
+            "key": {"center": "E minor", "reason": "short sentence"},
+            "groove": {"swing": 0, "snap": "1/16", "reason": "short sentence"},
+            "description": "one sentence about the song: style, tempo, key, the standout move",
+            "tracks": {"<track id>": {"name": "Rhodes", "instrument": "Electric Piano"}},
+        })
+        if need_arrangement:
+            schema["arrangement"] = [{"id": "section-01", "type": "intro", "label": "Intro", "bars": 8, "summary": "what happens here", "trackRoles": ["chords", "fx"], "techniques": ["filtering"]}]
+    schema["sections"] = {"<section id>": section_shape}
+    return schema
+
+
+def parse_key_center(value: Any) -> tuple[int, str, str] | None:
+    """'E minor' / 'F# major' / 'Bbm' -> (semitone, mode, 'E minor'); None when it is not a key."""
+    if not isinstance(value, str):
+        return None
+    match = KEY_CENTER_RE.match(value.replace("♭", "b").replace("♯", "#"))
+    if not match:
+        return None
+    letter, accidental, mode = match.groups()
+    root = letter.upper() + KEY_ACCIDENTALS.get((accidental or "").lower(), "")
+    semitone = NOTE_TO_SEMITONE.get(root)
+    if semitone is None:
+        return None
+    mode_name = "minor" if (mode or "").lower() in {"minor", "min", "m"} else "major"
+    return semitone, mode_name, f"{root} {mode_name}"
+
+
+def spec_key_center(spec: dict[str, Any]) -> tuple[int, str, str] | None:
+    for hint in spec.get("keyHints") or []:
+        parsed = parse_key_center(hint)
+        if parsed:
+            return parsed
+    return None
+
+
+def musical_sections(spec: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        section for section in (spec.get("sections") or [])
+        if isinstance(section, dict) and SECTION_BAR_HINTS.get(str(section.get("type")), 0) > 0
+    ]
+
+
+def section_inference_text(section: dict[str, Any]) -> str:
+    """The same text infer_section_starter_defaults reads, so the plan defers to exactly what it would."""
+    return lower_join(
+        section.get("summary"),
+        section.get("excerpt"),
+        section.get("transcriptText"),
+        " ".join(section.get("trackRoles", []) or []),
+        " ".join(section.get("techniques", []) or []),
+    )
+
+
+def _clean_text(value: Any, limit: int) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.split())[:limit].strip()
+
+
+def _as_float(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if number == number else None
+
+
+def _as_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None
+
+
+def _clean_beats(value: Any, limit: int = 16) -> list[float] | None:
+    if not isinstance(value, list):
+        return None
+    beats: list[float] = []
+    for item in value:
+        beat = _as_float(item)
+        if beat is None:
+            continue
+        beat = round(beat, 2)  # round first: 3.999 is beat 4, which is the next bar
+        if not 0.0 <= beat < 4.0:
+            continue
+        if beat not in beats:
+            beats.append(beat)
+    beats.sort()
+    return beats[:limit] if beats else None
+
+
+def _clean_rhythm_events(value: Any, *, bars: int, chord_flags: bool) -> list[dict[str, Any]] | None:
+    if not isinstance(value, list):
+        return None
+    events: list[dict[str, Any]] = []
+    seen: set[tuple[int, float]] = set()
+    for item in value[:48]:
+        if not isinstance(item, dict):
+            continue
+        beat = _as_float(item.get("beat"))
+        duration = _as_float(item.get("duration"))
+        if beat is None or duration is None:
+            continue
+        beat, duration = round(beat, 2), round(duration, 2)  # range-check what will be kept, not the raw value
+        if not 0.0 <= beat < 4.0 or not 0.0 < duration <= 4.0:
+            continue
+        event: dict[str, Any] = {"beat": beat, "duration": duration}
+        bar_offset = -1
+        if "barOffset" in item:
+            offset = _as_int(item.get("barOffset"))
+            if offset is None or not 0 <= offset < max(1, bars):
+                continue
+            event["barOffset"] = offset
+            bar_offset = offset
+        if chord_flags:
+            if isinstance(item.get("stab"), bool):
+                event["stab"] = item["stab"]
+            bright = _as_float(item.get("bright"))
+            if bright is not None and 0.0 <= bright <= 1.0:
+                event["bright"] = round(bright, 2)
+        key = (bar_offset, event["beat"])
+        if key in seen:
+            continue
+        seen.add(key)
+        events.append(event)
+    events.sort(key=lambda event: (event.get("barOffset", -1), event["beat"]))
+    return events[:16] if events else None
+
+
+def _clean_drums(value: Any, *, bars: int) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    drums: dict[str, Any] = {}
+    for list_key, _lane in PLAN_DRUM_LIST_KEYS:
+        beats = _clean_beats(value.get(list_key))
+        if beats:
+            drums[list_key] = beats
+    spacing = _as_float(value.get("hatSpacing"))
+    if spacing is not None and 0.125 <= spacing <= 2.0:
+        drums["hatSpacing"] = round(spacing, 3)
+    for flag in ("ride", "clapRoll"):
+        if isinstance(value.get(flag), bool):
+            drums[flag] = value[flag]
+    crash_bars = value.get("crashBars")
+    if isinstance(crash_bars, list):
+        cleaned = sorted({offset for offset in (_as_int(item) for item in crash_bars) if offset is not None and 0 <= offset < max(1, bars)})
+        if cleaned or not crash_bars:
+            drums["crashBars"] = cleaned
+    return drums or None
+
+
+def _clean_envelopes(value: Any, *, bars: int) -> list[dict[str, Any]] | None:
+    raw = value.get("envelopes") if isinstance(value, dict) else value
+    if not isinstance(raw, list):
+        return None
+    envelopes: list[dict[str, Any]] = []
+    for item in raw[:6]:
+        if not isinstance(item, dict):
+            continue
+        parameter = str(item.get("parameter") or "filter").strip().lower()
+        if parameter not in PLAN_AUTOMATION_PARAMETERS:
+            continue
+        start = _as_float(item.get("start"))
+        end = _as_float(item.get("end"))
+        if start is None or end is None or not (0.0 <= start <= 1.0 and 0.0 <= end <= 1.0):
+            continue
+        offset = _as_int(item.get("barOffset", 0)) or 0
+        if not 0 <= offset < max(1, bars):
+            continue
+        length = _as_int(item.get("bars", bars - offset))
+        if length is None or length < 1:
+            continue
+        length = min(length, max(1, bars - offset))
+        envelope: dict[str, Any] = {
+            "parameter": parameter,
+            "start": round(start, 2),
+            "end": round(end, 2),
+            "barOffset": offset,
+            "bars": length,
+            "curve": PLAN_CURVES.get(str(item.get("curve") or "linear").strip().lower(), "linear"),
+        }
+        target = item.get("targetLane") or item.get("targetTrackId")
+        if isinstance(target, str) and (target in ROLE_TO_TRACKS or target in TRACK_BLUEPRINTS):
+            envelope["targetLane"] = target
+        envelopes.append(envelope)
+    return envelopes or None
+
+
+def _progression_fits_key(shapes: list[dict[str, Any]], key: tuple[int, str, str] | None) -> bool:
+    if key is None:
+        return True
+    tonic, mode, _label = key
+    scale = DIATONIC_MAJOR if mode == "major" else DIATONIC_MINOR
+    fitting = sum(1 for shape in shapes if (int(shape["root"]) - tonic) % 12 in scale)
+    return fitting * 2 >= len(shapes)
+
+
+def _reason(value: Any, *keys: str) -> str:
+    if isinstance(value, dict):
+        for key in keys or ("reason",):
+            text = _clean_text(value.get(key), 200)
+            if text:
+                return text
+    return ""
+
+
+def plan_section_digest(section: dict[str, Any]) -> dict[str, Any]:
+    lane_events = section.get("laneEvents") or {}
+    lane_transforms = section.get("laneTransforms") or {}
+    digest: dict[str, Any] = {
+        "id": section.get("id"),
+        "type": section.get("type"),
+        "label": section.get("label"),
+        "bars": section.get("bars") or SECTION_BAR_HINTS.get(str(section.get("type")), 8),
+        "summary": _clean_text(section.get("summary"), 600),
+        "trackRoles": list(section.get("trackRoles") or [])[:10],
+        "techniques": list(section.get("techniques") or [])[:8],
+    }
+    excerpt = _clean_text(section.get("excerpt") or section.get("transcriptText"), 400)
+    if excerpt and excerpt != digest["summary"]:
+        digest["excerpt"] = excerpt
+    pinned = sorted(
+        str(lane) for lane, payload in lane_events.items()
+        if isinstance(payload, dict) and (payload.get("events") or payload.get("progressionSymbols") or payload.get("envelopes"))
+    )
+    if pinned:
+        digest["alreadyPinned"] = pinned
+    if isinstance(lane_transforms, dict) and lane_transforms:
+        digest["transforms"] = sorted(str(lane) for lane in lane_transforms)
+    return digest
+
+
+def plan_project_digest(spec: dict[str, Any], project_id: str, prompt: str | None, lanes: list[str]) -> dict[str, Any]:
+    digest: dict[str, Any] = {
+        "id": project_id,
+        "title": infer_title_from_project(project_id, spec),
+        "prompt": _clean_text(prompt or spec.get("sourcePrompt"), 1500),
+        "derivedPrompt": _clean_text(spec.get("derivedPrompt"), 1000),
+        "tempoHint": spec.get("tempoHint"),
+        "keyHints": list(spec.get("keyHints") or [])[:3],
+        "arrangementNotes": [_clean_text(note, 200) for note in (spec.get("arrangementNotes") or [])[:6] if isinstance(note, str)],
+        "mixNotes": [_clean_text(note, 200) for note in (spec.get("mixNotes") or [])[:6] if isinstance(note, str)],
+        "lanes": [{"id": lane, "name": TRACK_BLUEPRINTS[lane].name, "instrument": TRACK_BLUEPRINTS[lane].instrument} for lane in lanes if lane in TRACK_BLUEPRINTS],
+    }
+    return {key: value for key, value in digest.items() if value not in (None, "", [])}
+
+
+def _chunk_digests(digests: list[dict[str, Any]], budget: int) -> list[list[dict[str, Any]]]:
+    chunks: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    current_size = 0
+    for digest in digests:
+        size = len(json.dumps(digest))
+        if current and (len(current) >= PLAN_SECTIONS_PER_CALL or current_size + size > budget):
+            chunks.append(current)
+            current, current_size = [], 0
+        current.append(digest)
+        current_size += size
+    if current or not chunks:
+        chunks.append(current)
+    return chunks
+
+
+def ask_musical_plan(spec: dict[str, Any], project_id: str, prompt: str | None, assist: Any) -> tuple[dict[str, Any] | None, list[str]]:
+    """One question, batched over every section (chunked when the text is very long). Raw answer, unvalidated."""
+    if assist is None or not getattr(assist, "available", False):
+        return None, []
+    sections = musical_sections(spec)
+    need_arrangement = not sections
+    lanes = list(TRACK_BLUEPRINTS) if need_arrangement and not spec.get("globalTracks") else choose_track_ids(spec)
+    project_digest = plan_project_digest(spec, project_id, prompt, lanes)
+    base_size = len(json.dumps(project_digest)) + len(PLAN_SYSTEM_PROMPT) + 2000
+    chunks = _chunk_digests([plan_section_digest(section) for section in sections], max(4000, PLAN_TEXT_CAP - base_size))
+    merged: dict[str, Any] = {}
+    notes: list[str] = []
+    for index, chunk in enumerate(chunks):
+        first = index == 0
+        context: dict[str, Any] = {"project": project_digest}
+        if need_arrangement:
+            context["sectionTypes"] = [kind for kind, bars in SECTION_BAR_HINTS.items() if bars > 0]
+            context["trackRoles"] = list(ROLE_TO_TRACKS)
+            context["techniques"] = list(PLAN_TECHNIQUES)
+        else:
+            context["sections"] = chunk
+            if not first:
+                context["settled"] = {key: merged[key] for key in ("tempo", "key", "groove") if key in merged}
+        asks = []
+        if first:
+            asks.append("tempo, key and groove (only where the walkthrough does not state them), a one-sentence description, and a name and instrument per lane")
+            if need_arrangement:
+                asks.append("an arrangement for this song, since the walkthrough gave no sections, and then the per-section plan for the sections you proposed")
+        if not need_arrangement:
+            asks.append(f"the per-section plan for the {len(chunk)} section(s) listed" + (f" (part {index + 1} of {len(chunks)})" if len(chunks) > 1 else ""))
+        task = "Plan this song. Give " + "; ".join(asks) + ".\n\n" + json.dumps(context, indent=1, ensure_ascii=False)
+        answer = assist.ask(task, system=PLAN_SYSTEM_PROMPT, schema=_plan_schema(first=first, need_arrangement=need_arrangement), max_tokens=8192, expect=dict)
+        if answer is None:
+            if first:
+                return None, notes  # assist.note already says why
+            notes.append(f"plan call {index + 1} of {len(chunks)} failed: {assist.note}")
+            continue
+        if first:
+            merged.update({key: value for key, value in answer.items() if key != "sections"})
+        answered_sections = answer.get("sections")
+        if isinstance(answered_sections, dict):
+            merged.setdefault("sections", {}).update(answered_sections)
+    return merged, notes
+
+
+def validate_musical_plan(raw: Any, spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Keep what fits the project; drop and name everything else."""
+    plan: dict[str, Any] = {}
+    dropped: list[str] = []
+    if not isinstance(raw, dict):
+        return plan, ["plan: the answer was not an object"]
+
+    tempo = raw.get("tempo")
+    if isinstance(tempo, dict) and tempo.get("bpm") is not None:
+        bpm = _as_int(tempo.get("bpm"))
+        if spec.get("tempoHint"):
+            pass  # the walkthrough stated it; the model's number is not used
+        elif bpm is None or not 60 <= bpm <= 220:
+            dropped.append(f"tempo: {tempo.get('bpm')!r} is not a whole number between 60 and 220")
+        else:
+            plan["tempo"] = {"bpm": bpm, "reason": _reason(tempo)}
+
+    key = raw.get("key")
+    stated_key = spec_key_center(spec)
+    if isinstance(key, dict) and key.get("center") is not None:
+        parsed = parse_key_center(key.get("center"))
+        if spec.get("keyHints"):
+            pass  # the walkthrough stated a key, in whatever words; the model's is not used
+        elif parsed is None:
+            dropped.append(f"key: {key.get('center')!r} is not a key name")
+        else:
+            plan["key"] = {"center": parsed[2], "reason": _reason(key)}
+    plan_key = stated_key or (parse_key_center(plan["key"]["center"]) if "key" in plan else None)
+
+    groove = raw.get("groove")
+    if isinstance(groove, dict):
+        cleaned: dict[str, Any] = {}
+        swing = _as_int(groove.get("swing"))
+        if groove.get("swing") is not None:
+            if swing is None or not 0 <= swing <= 60:
+                dropped.append(f"groove.swing: {groove.get('swing')!r} is not 0-60")
+            else:
+                cleaned["swing"] = swing
+        snap = groove.get("snap")
+        if snap is not None:
+            if snap in PLAN_SNAP_CHOICES:
+                cleaned["snap"] = snap
+            else:
+                dropped.append(f"groove.snap: {snap!r} is not one of {', '.join(PLAN_SNAP_CHOICES)}")
+        if cleaned:
+            cleaned["reason"] = _reason(groove)
+            plan["groove"] = cleaned
+
+    description = _clean_text(raw.get("description"), 200)
+    if description:
+        plan["description"] = description
+
+    arrangement_ids: dict[str, str] = {}
+    if not musical_sections(spec):
+        items = raw.get("arrangement")
+        if isinstance(items, list):
+            proposed: list[dict[str, Any]] = []
+            for item in items[:12]:
+                if not isinstance(item, dict):
+                    continue
+                kind = str(item.get("type") or "").strip().lower()
+                if SECTION_BAR_HINTS.get(kind, 0) <= 0:
+                    dropped.append(f"arrangement: section type {item.get('type')!r} is not one the renderer knows")
+                    continue
+                bars = _as_int(item.get("bars"))
+                if bars is None or not 1 <= bars <= 64:
+                    bars = SECTION_BAR_HINTS[kind]
+                canonical = f"section-{len(proposed) + 1:02d}"
+                if isinstance(item.get("id"), str):
+                    arrangement_ids[item["id"]] = canonical
+                roles = [role for role in (item.get("trackRoles") or []) if isinstance(role, str) and role in ROLE_TO_TRACKS][:8] if isinstance(item.get("trackRoles"), list) else []
+                techniques = [str(t).lower() for t in (item.get("techniques") or []) if isinstance(t, str) and str(t).lower() in PLAN_TECHNIQUES][:6] if isinstance(item.get("techniques"), list) else []
+                proposed.append({
+                    "id": canonical,
+                    "type": kind,
+                    "label": _clean_text(item.get("label"), 40) or kind.replace("_", " ").title(),
+                    "bars": bars,
+                    "summary": _clean_text(item.get("summary"), 300) or f"Proposed {kind.replace('_', ' ')}",
+                    "trackRoles": roles,
+                    "plugins": [],
+                    "techniques": techniques,
+                    "inferred": True,
+                    "source": "model",
+                })
+            if len(proposed) >= 2:
+                plan["arrangement"] = proposed
+            elif items:
+                dropped.append("arrangement: fewer than two usable sections came back")
+
+    if "arrangement" in plan:
+        sections_by_id = {section["id"]: section for section in plan["arrangement"]}
+    else:
+        sections_by_id = {str(section.get("id")): section for section in musical_sections(spec) if section.get("id")}
+
+    raw_sections = raw.get("sections")
+    if isinstance(raw_sections, dict):
+        planned_sections: dict[str, Any] = {}
+        for raw_id, hints in raw_sections.items():
+            section_id = arrangement_ids.get(str(raw_id), str(raw_id))
+            section = sections_by_id.get(section_id)
+            if section is None or not isinstance(hints, dict):
+                dropped.append(f"sections.{raw_id}: not a section in this project")
+                continue
+            cleaned_section = _validate_section_plan(hints, section, plan_key, dropped)
+            if cleaned_section:
+                planned_sections[section_id] = cleaned_section
+        if planned_sections:
+            plan["sections"] = planned_sections
+
+    tracks = raw.get("tracks")
+    if isinstance(tracks, dict):
+        lanes = choose_track_ids(apply_materialization_plan(spec, plan))
+        named: dict[str, Any] = {}
+        for track_id, value in tracks.items():
+            if track_id not in lanes:
+                dropped.append(f"tracks.{track_id}: not a lane in this project")
+                continue
+            if not isinstance(value, dict):
+                continue
+            entry = {key: text for key, text in (("name", _clean_text(value.get("name"), 40)), ("instrument", _clean_text(value.get("instrument"), 48))) if text}
+            blueprint = TRACK_BLUEPRINTS.get(track_id)
+            if blueprint is not None:
+                # Echoing the lane's own name or instrument decides nothing; do not record it as a decision.
+                entry = {key: text for key, text in entry.items() if text.lower() != getattr(blueprint, key).lower()}
+            if entry:
+                named[track_id] = entry
+        if named:
+            plan["tracks"] = named
+    return plan, dropped
+
+
+def _validate_section_plan(hints: dict[str, Any], section: dict[str, Any], key: tuple[int, str, str] | None, dropped: list[str]) -> dict[str, Any]:
+    section_id = str(section.get("id"))
+    bars = int(section.get("bars") or SECTION_BAR_HINTS.get(str(section.get("type")), 8) or 8)
+    text = section_inference_text(section)
+    lane_events = section.get("laneEvents") or {}
+    lane_transforms = section.get("laneTransforms") or {}
+    chords_pinned = lane_events.get("chords") or {}
+    lead_transform = lane_transforms.get("lead") or {}
+    drums_transform = lane_transforms.get("drums") or {}
+    cleaned: dict[str, Any] = {}
+
+    symbols = hints.get("progressionSymbols")
+    if isinstance(symbols, list) and symbols:
+        if chords_pinned.get("progressionSymbols") or extract_explicit_progression(text) or (lane_transforms.get("chords") or {}).get("copyFrom"):
+            dropped.append(f"{section_id}.progressionSymbols: the walkthrough already states the chords here")
+        else:
+            shapes = [chord_symbol_to_shape(str(symbol).strip()) for symbol in symbols[:8] if isinstance(symbol, str)]
+            kept = [shape for shape in shapes if shape]
+            if len(kept) < 2:
+                dropped.append(f"{section_id}.progressionSymbols: {symbols!r} did not parse as two or more chords")
+            elif not _progression_fits_key(kept, key):
+                dropped.append(f"{section_id}.progressionSymbols: {[s['name'] for s in kept]!r} is mostly outside {key[2] if key else 'the key'}")
+            else:
+                cleaned["progressionSymbols"] = [shape["name"] for shape in kept]
+                cleaned["progressionReason"] = _reason(hints, "progressionReason", "reason")
+
+    if "chordEvents" in hints:
+        if chords_pinned.get("events"):
+            dropped.append(f"{section_id}.chordEvents: the walkthrough already states the chord rhythm")
+        else:
+            events = _clean_rhythm_events(hints.get("chordEvents"), bars=bars, chord_flags=True)
+            if events:
+                cleaned["chordEvents"] = events
+            else:
+                dropped.append(f"{section_id}.chordEvents: no event had a beat in [0, 4) and a duration in (0, 4]")
+
+    if "bassEvents" in hints:
+        bass_transform = lane_transforms.get("bass") or {}
+        if (lane_events.get("bass") or {}).get("events") or bass_transform.get("followChords") or bass_transform.get("copyFrom"):
+            dropped.append(f"{section_id}.bassEvents: the walkthrough already states the bass rhythm")
+        else:
+            events = _clean_rhythm_events(hints.get("bassEvents"), bars=bars, chord_flags=False)
+            if events:
+                cleaned["bassEvents"] = events
+            else:
+                dropped.append(f"{section_id}.bassEvents: no event had a beat in [0, 4) and a duration in (0, 4]")
+
+    motif_key = hints.get("leadMotifKey")
+    if motif_key is not None:
+        if lead_transform.get("copyFrom"):
+            dropped.append(f"{section_id}.leadMotifKey: the lead here is copied from another section")
+        elif motif_key in LEAD_MOTIF_LIBRARY:
+            cleaned["leadMotifKey"] = motif_key
+        else:
+            dropped.append(f"{section_id}.leadMotifKey: {motif_key!r} is not one of {', '.join(LEAD_MOTIF_LIBRARY)}")
+
+    if hints.get("leadTransposeSemitones") is not None:
+        shift = _as_int(hints.get("leadTransposeSemitones"))
+        if lead_transform.get("transposeSemitones") or parse_transpose_instruction(text):
+            dropped.append(f"{section_id}.leadTransposeSemitones: the walkthrough already states a transposition")
+        elif shift is None or not -24 <= shift <= 24:
+            dropped.append(f"{section_id}.leadTransposeSemitones: {hints.get('leadTransposeSemitones')!r} is not -24..24")
+        elif shift != 0 or section.get("type") == "second_drop":
+            cleaned["leadTransposeSemitones"] = shift
+
+    drums = hints.get("drums", hints.get("drumOverrides"))
+    if drums is not None:
+        if any(lane_events.get(lane) for lane in PLAN_DRUM_LANES) or drums_transform.get("copyFrom") or drums_transform.get("overrides"):
+            dropped.append(f"{section_id}.drums: the walkthrough already states the drum pattern")
+        elif extract_lane_beat_overrides(text):
+            dropped.append(f"{section_id}.drums: the walkthrough names drum beats in words; those win")
+        else:
+            cleaned_drums = _clean_drums(drums, bars=bars)
+            if cleaned_drums:
+                cleaned["drums"] = cleaned_drums
+            else:
+                dropped.append(f"{section_id}.drums: nothing usable (beats must be in [0, 4))")
+
+    fx = hints.get("fxProfile")
+    if isinstance(fx, dict):
+        profile = {name: fx[name] for name in PLAN_FX_KEYS if isinstance(fx.get(name), bool)}
+        if profile:
+            cleaned["fxProfile"] = profile
+
+    if "automation" in hints:
+        if (lane_events.get("automation") or {}).get("envelopes"):
+            dropped.append(f"{section_id}.automation: the walkthrough already states the automation")
+        else:
+            envelopes = _clean_envelopes(hints.get("automation"), bars=bars)
+            if envelopes:
+                cleaned["automation"] = {"envelopes": envelopes}
+            else:
+                dropped.append(f"{section_id}.automation: no envelope had a known parameter, 0-1 values and bars inside the section")
+
+    if hints.get("energy") is not None:
+        energy = _as_float(hints.get("energy"))
+        if energy is None or not 0.5 <= energy <= 1.5:
+            dropped.append(f"{section_id}.energy: {hints.get('energy')!r} is not 0.5-1.5")
+        else:
+            cleaned["energy"] = round(energy, 2)
+
+    if cleaned:
+        reason = _reason(hints)
+        if reason:
+            cleaned["reason"] = reason
+    return cleaned
+
+
+def apply_materialization_plan(spec: dict[str, Any], plan: dict[str, Any] | None) -> dict[str, Any]:
+    """A copy of the spec with the plan written in where the inference hooks read.
+
+    Deterministic: the same spec and plan always give the same result, which is
+    what keeps the emitted renderer identical between runs."""
+    planned = deep_copy_jsonish(spec)
+    if not plan:
+        return planned
+    if plan.get("tempo") and not planned.get("tempoHint"):
+        planned["tempoHint"] = int(plan["tempo"]["bpm"])
+    if plan.get("key") and not planned.get("keyHints"):
+        planned["keyHints"] = [plan["key"]["center"]]
+    if plan.get("arrangement") and not musical_sections(planned):
+        extra = [section for section in (planned.get("sections") or []) if isinstance(section, dict)]
+        planned["sections"] = deep_copy_jsonish(plan["arrangement"]) + extra
+        if not planned.get("globalTracks"):
+            roles: list[str] = []
+            for section in plan["arrangement"]:
+                for role in section.get("trackRoles") or []:
+                    if role not in roles:
+                        roles.append(role)
+            planned["globalTracks"] = [
+                {"name": role, "mentions": 1, "sections": [s["id"] for s in plan["arrangement"] if role in (s.get("trackRoles") or [])]}
+                for role in roles
+            ]
+    by_id = {str(section.get("id")): section for section in (planned.get("sections") or []) if isinstance(section, dict)}
+    for section_id, hints in (plan.get("sections") or {}).items():
+        section = by_id.get(section_id)
+        if section is None:
+            continue
+        lane_events = dict(section.get("laneEvents") or {})
+        lane_transforms = dict(section.get("laneTransforms") or {})
+        if hints.get("progressionSymbols"):
+            chords = lane_events.setdefault("chords", {})
+            chords.setdefault("kind", "progressionSymbols")
+            chords["progressionSymbols"] = list(hints["progressionSymbols"])
+            chords["progressionSource"] = "model"
+        if hints.get("chordEvents"):
+            chords = lane_events.setdefault("chords", {})
+            chords.setdefault("kind", "rhythm")
+            chords["events"] = deep_copy_jsonish(hints["chordEvents"])
+            chords["source"] = "model"
+        if hints.get("bassEvents"):
+            lane_events["bass"] = {"kind": "rhythm", "events": deep_copy_jsonish(hints["bassEvents"]), "source": "model"}
+        if hints.get("leadMotifKey"):
+            lead = lane_transforms.setdefault("lead", {})
+            lead["motifKey"] = hints["leadMotifKey"]
+            lead["motifSource"] = "model"
+        if hints.get("leadTransposeSemitones") is not None:
+            lead = lane_transforms.setdefault("lead", {})
+            lead["transposeSemitones"] = int(hints["leadTransposeSemitones"])
+            lead["transposeSource"] = "model"
+        drums = hints.get("drums") or {}
+        for list_key, lane in PLAN_DRUM_LIST_KEYS:
+            if drums.get(list_key):
+                lane_events[lane] = {"kind": "beatPattern", "events": [{"beat": beat} for beat in drums[list_key]], "source": "model"}
+                if lane == "hat" and drums.get("hatSpacing") is not None:
+                    lane_events[lane]["spacingBeats"] = drums["hatSpacing"]
+        overrides = {key: drums[key] for key in ("hatSpacing", "ride", "clapRoll", "crashBars") if key in drums}
+        if overrides:
+            drum_transform = lane_transforms.setdefault("drums", {})
+            drum_transform["overrides"] = overrides
+            drum_transform["overridesSource"] = "model"
+        if hints.get("fxProfile"):
+            fx = lane_transforms.setdefault("fx", {})
+            fx["profile"] = dict(hints["fxProfile"])
+            fx["profileSource"] = "model"
+        if hints.get("automation"):
+            lane_events["automation"] = {"envelopes": deep_copy_jsonish(hints["automation"]["envelopes"]), "source": "model"}
+        if hints.get("energy") is not None:
+            block = lane_transforms.setdefault("section", {})
+            block["energy"] = float(hints["energy"])
+            block["energySource"] = "model"
+        if lane_events:
+            section["laneEvents"] = lane_events
+        if lane_transforms:
+            section["laneTransforms"] = lane_transforms
+    return planned
+
+
+def plan_decisions(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    """What the model decided, one line each, the way fillInBlanks records its decisions."""
+    decisions: list[dict[str, Any]] = []
+
+    def add(area: str, detail: str, reason: str = "", section_id: str | None = None) -> None:
+        entry: dict[str, Any] = {"area": area, "detail": detail, "reason": reason, "source": "model"}
+        if section_id:
+            entry["sectionId"] = section_id
+        decisions.append(entry)
+
+    if plan.get("tempo"):
+        add("tempo", f"{plan['tempo']['bpm']} BPM", plan["tempo"].get("reason", ""))
+    if plan.get("key"):
+        add("key", plan["key"]["center"], plan["key"].get("reason", ""))
+    if plan.get("groove"):
+        groove = plan["groove"]
+        parts = [f"swing {groove['swing']}%" if "swing" in groove else "", f"snap {groove['snap']}" if "snap" in groove else ""]
+        add("groove", ", ".join(part for part in parts if part), groove.get("reason", ""))
+    if plan.get("description"):
+        add("description", plan["description"])
+    if plan.get("arrangement"):
+        add("arrangement", " > ".join(f"{s['label']} ({s['bars']} bars)" for s in plan["arrangement"]), "the walkthrough gave no sections")
+    for track_id, entry in (plan.get("tracks") or {}).items():
+        add("track", f"{track_id}: {entry.get('name') or TRACK_BLUEPRINTS[track_id].name} / {entry.get('instrument') or TRACK_BLUEPRINTS[track_id].instrument}")
+    for section_id, hints in (plan.get("sections") or {}).items():
+        reason = hints.get("reason", "")
+        if hints.get("progressionSymbols"):
+            add("progression", " ".join(hints["progressionSymbols"]), hints.get("progressionReason") or reason, section_id)
+        if hints.get("chordEvents"):
+            add("chord rhythm", "beats " + " ".join(str(e["beat"]) for e in hints["chordEvents"]), reason, section_id)
+        if hints.get("bassEvents"):
+            add("bass rhythm", "beats " + " ".join(str(e["beat"]) for e in hints["bassEvents"]), reason, section_id)
+        if hints.get("leadMotifKey"):
+            add("lead motif", hints["leadMotifKey"] + (f", {hints['leadTransposeSemitones']:+d} st" if hints.get("leadTransposeSemitones") else ""), reason, section_id)
+        elif hints.get("leadTransposeSemitones") is not None:
+            add("lead transpose", f"{hints['leadTransposeSemitones']:+d} st", reason, section_id)
+        if hints.get("drums"):
+            drums = hints["drums"]
+            bits = [f"{key} {' '.join(str(b) for b in drums[key])}" for key, _lane in PLAN_DRUM_LIST_KEYS if drums.get(key)]
+            bits += [f"{key} {drums[key]}" for key in ("hatSpacing", "ride", "clapRoll", "crashBars") if key in drums]
+            add("drums", "; ".join(bits), reason, section_id)
+        if hints.get("fxProfile"):
+            add("fx", ", ".join(f"{name} {'on' if on else 'off'}" for name, on in hints["fxProfile"].items()), reason, section_id)
+        if hints.get("automation"):
+            add("automation", "; ".join(f"{e['parameter']} {e['start']}->{e['end']} over {e['bars']} bar(s)" + (f" on {e['targetLane']}" if e.get("targetLane") else "") for e in hints["automation"]["envelopes"]), reason, section_id)
+        if hints.get("energy") is not None:
+            add("energy", str(hints["energy"]), reason, section_id)
+    return decisions
+
+
+def propose_musical_plan(spec: dict[str, Any], project_id: str, prompt: str | None, assist: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Ask, validate, and describe. Returns (plan, materialization block for the project)."""
+    if assist is None and Assist is not None:
+        assist = Assist(enabled=False)
+    raw, notes = ask_musical_plan(spec, project_id, prompt, assist)
+    plan, dropped = validate_musical_plan(raw, spec) if raw is not None else ({}, [])
+    report = assist.report() if assist is not None else {"used": False, "provider": None, "model": None, "note": "no model adapter"}
+    extra = list(notes)
+    if raw is not None and not plan:
+        extra.append("the model answered, but nothing in the answer fit this project")
+    if dropped:
+        extra.append(f"{len(dropped)} answer(s) dropped in validation")
+    if extra:
+        report["note"] = "; ".join(part for part in [report.get("note") or ""] + extra if part)
+    materialization = {
+        "source": "model" if plan else "heuristic",
+        "plan": plan,
+        "decisions": plan_decisions(plan),
+        "dropped": dropped,
+    }
+    return plan, {"ai": report, "materialization": materialization}
 
 
 # The filter moves the generated renderer performs, as automation lanes in the
@@ -831,6 +1644,12 @@ def whole_track_techniques(spec: dict[str, Any]) -> list[str]:
 
 
 def render_section_plan(project: dict[str, Any], spec: dict[str, Any]) -> list[dict[str, Any]]:
+    # The musical plan lives on the project, never in the renderer: applying it
+    # here (deterministically) is what keeps the emitted file identical for the
+    # same project + spec, with or without a model in the loop.
+    plan = (project.get("materialization") or {}).get("plan") or {}
+    if plan:
+        spec = apply_materialization_plan(spec, plan)
     tracks = {track["id"]: track for track in project["snapshot"]["tracks"]}
     recipe_by_section = {item["section"]: item for item in project["snapshot"].get("recipe", [])[1:]}
     sections = normalized_sections(spec)
@@ -1605,12 +2424,20 @@ def infer_drum_pattern(section: dict[str, Any]) -> dict[str, Any]:
 
 def infer_fx_profile(section: dict[str, Any]) -> dict[str, bool]:
     text = lower_join(section.get("summary"), " ".join(section.get("trackRoles", [])), " ".join(section.get("techniques", [])))
-    return {
+    profile = {
         "noiseBed": any(keyword in text for keyword in ("white noise", "noise", "breath")) or section["type"] in {"intro", "pre_intro"},
         "riser": any(keyword in text for keyword in ("riser", "uplifter", "rise")) or section["type"] == "build",
         "downlifter": any(keyword in text for keyword in ("downlifter", "down lifter", "reverse")) or section["type"] in {"build", "drop", "outro"},
         "crash": "crash" in text or section["type"] in {"drop", "second_drop"},
     }
+    # laneTransforms.fx.profile is where the musical plan says which transition
+    # effects this section actually calls for; only booleans for known keys land.
+    stated = ((section.get("laneTransforms") or {}).get("fx") or {}).get("profile")
+    if isinstance(stated, dict):
+        for name in profile:
+            if isinstance(stated.get(name), bool):
+                profile[name] = stated[name]
+    return profile
 
 
 def infer_section_starter_defaults(
@@ -1649,6 +2476,9 @@ def infer_section_starter_defaults(
     drum_reference_defaults = prior_defaults.get(drum_reference_section["id"], {}) if drum_reference_section else {}
     progression = choose_progression_template(spec, section)
     lead_motif_key = choose_lead_motif_key(section)
+    stated_motif_key = (section_lane_transforms.get("lead") or {}).get("motifKey")
+    if stated_motif_key in LEAD_MOTIF_LIBRARY:
+        lead_motif_key = str(stated_motif_key)
     lead_soft = section["type"] in {"intro", "verse", "break", "outro"} and lead_motif_key != "dense"
     chord_lane_events = section_lane_events.get("chords") or {}
     explicit_progression = progression_from_symbols(chord_lane_events.get("progressionSymbols") or [])
@@ -1659,7 +2489,9 @@ def infer_section_starter_defaults(
     lead_shift = int((section_lane_transforms.get("lead") or {}).get("transposeSemitones") or 0)
     if lead_shift == 0:
         lead_shift = parse_transpose_instruction(text)
-    if section["type"] == "second_drop" and lead_shift == 0:
+    # A second drop jumps an octave unless the plan said, in so many words, not to.
+    plan_kept_octave = (section_lane_transforms.get("lead") or {}).get("transposeSource") == "model" and (section_lane_transforms.get("lead") or {}).get("transposeSemitones") == 0
+    if section["type"] == "second_drop" and lead_shift == 0 and not plan_kept_octave:
         lead_shift = 12
     lead_motif = deep_copy_jsonish(LEAD_MOTIF_LIBRARY[lead_motif_key])
     reference_notes: dict[str, Any] = {}
@@ -1759,6 +2591,11 @@ def infer_section_starter_defaults(
     automation_profile = infer_automation_profile(section, section_lane_events)
     if automation_profile.get("envelopes"):
         reference_notes["automationSource"] = automation_profile.get("source", "spec")
+    energy = 1.25 if section["type"] in {"drop", "second_drop"} else (1.05 if section["type"] == "build" else 0.85)
+    stated_energy = (section_lane_transforms.get("section") or {}).get("energy")
+    if isinstance(stated_energy, (int, float)) and not isinstance(stated_energy, bool) and 0.5 <= float(stated_energy) <= 1.5:
+        energy = round(float(stated_energy), 2)
+        reference_notes["energySource"] = str((section_lane_transforms.get("section") or {}).get("energySource") or "spec")
     defaults = {
         "progression": progression,
         "chordEvents": chord_events,
@@ -1770,7 +2607,7 @@ def infer_section_starter_defaults(
         "drumPattern": drum_pattern,
         "fxProfile": infer_fx_profile(section),
         "automationProfile": automation_profile,
-        "energy": 1.25 if section["type"] in {"drop", "second_drop"} else (1.05 if section["type"] == "build" else 0.85),
+        "energy": energy,
     }
     if reference_notes:
         defaults["references"] = reference_notes
@@ -3541,3 +4378,60 @@ def write_project_files(root: Path, project: dict[str, Any], project_id: str) ->
     data_path.write_text(payload, encoding="utf-8")
     factory_path.write_text(payload, encoding="utf-8")
     return {"data": data_path, "factory": factory_path}
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Materialize a transcript spec into a Neon Studio project, with a musical plan from a model when one is available.")
+    parser.add_argument("spec", help="path to a transcript_spec.json")
+    parser.add_argument("--project-id", help="project id (default: the spec's projectId, else the title)")
+    parser.add_argument("--prompt", help="the original brief (default: the spec's sourcePrompt)")
+    parser.add_argument("--out-root", help="write data/projects, factory/projects and render_<id>.py under this root instead of printing the project")
+    parser.add_argument("--spec-out", help="also write the spec with the plan applied to this path")
+    parser.add_argument("--overwrite", action="store_true", help="replace an existing renderer under --out-root")
+    if Assist is not None:
+        from llm import add_ai_argument, assist_from_args
+        add_ai_argument(parser)
+    args = parser.parse_args(argv)
+
+    spec_path = Path(args.spec)
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    project_id = args.project_id or spec.get("projectId") or slugify(str(spec.get("titleHint") or spec_path.parent.name))
+    prompt = args.prompt or spec.get("sourcePrompt")
+    assist = assist_from_args(args) if Assist is not None else None
+    started = time.time()
+    project = build_project_materialization(spec, project_id, prompt=prompt, assist=assist)
+    seconds = round(time.time() - started, 2)
+    plan = project["materialization"]["plan"]
+    layout = section_bar_layout(normalized_sections(apply_materialization_plan(spec, plan)))
+    report: dict[str, Any] = {
+        "projectId": project_id,
+        "name": project["name"],
+        "bpm": project["snapshot"]["bpm"],
+        "keyCenter": project["keyCenter"],
+        "swing": project["snapshot"]["swing"],
+        "snap": project["snapshot"]["snap"],
+        "description": project["description"],
+        "tracks": [{"id": t["id"], "name": t["name"], "instrument": t["instrument"]} for t in project["snapshot"]["tracks"]],
+        "sections": [{"id": s["id"], "type": s["type"], "label": s["label"], "bars": s["bars"]} for s in layout],
+        "seconds": seconds,
+        "ai": project["ai"],
+        "materialization": project["materialization"],
+    }
+    if args.out_root:
+        root = Path(args.out_root)
+        written = write_project_files(root, project, project_id)
+        renderer = ensure_project_renderer(root, project_id, project["name"], project, spec, prompt=prompt, overwrite=args.overwrite)
+        report["written"] = {"data": str(written["data"]), "factory": str(written["factory"]), "renderer": str(renderer)}
+    else:
+        report["project"] = project
+    if args.spec_out:
+        Path(args.spec_out).write_text(json.dumps(apply_materialization_plan(spec, plan), indent=2) + "\n", encoding="utf-8")
+        report["specOut"] = args.spec_out
+    print(json.dumps(report, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

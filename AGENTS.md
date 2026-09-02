@@ -245,6 +245,15 @@ Rules for editing the app:
 - For user-facing UI changes, launch with `npm run open:mac` and run a targeted
   Computer Use smoke test before marking a TODO verified.
 
+## AI Assistance
+
+`docs/ai.md` is the contract for any tool that asks a language model something.
+The short version: the heuristic stays as the offline fallback; every answer is
+validated against what exists; transcript tags carry a quote that must appear
+in the text; measurement never goes through the model; every output carries an
+`ai` block; tests inject a fake transport and never touch the network. Keys
+live in `~/.config/neon-studio/` or the Keychain, never in the repo.
+
 ## Sound Check Skill
 
 The repo-local `does-this-sound-good` skill lives at `skills/does-this-sound-good/SKILL.md`. It is backed by `tools/does_this_sound_good.py`.

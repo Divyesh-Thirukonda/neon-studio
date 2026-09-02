@@ -113,11 +113,32 @@ Standalone inspection:
 npm run fill-blanks -- --input-json songlab/projects/<project-id>/transcript_spec.json --format markdown
 ```
 
+## AI assistance
+
+The pipeline measures sound and follows a script deterministically. A language
+model handles the *language and judgement* in between, wherever the code used
+to guess from a keyword table: reading a raw YouTube tutorial into sections,
+tags, tempo and key (with a quote for every tag); choosing musically sensible
+defaults for the song actually described instead of one fixed style; turning
+"make the drop hit harder" into edits and asking a clarifying question when it
+cannot; writing song-specific questions for a listening session and a why next
+to every inferred step; putting a plain-English verdict and ranked next actions
+on the sound and fidelity reports; and driving `songlab.py iterate --ai`, the
+loop that reads the reports, proposes the next change, applies it, re-renders
+and re-checks until nothing improves.
+
+It is optional everywhere. With no key, every tool does exactly what it did
+before and says so in its `ai` block. Turn it on with a Gemini key in
+`~/.config/neon-studio/gemini_api_key` (or `GEMINI_API_KEY`), or in the app
+under Settings ▸ AI assistance. The contract every tool follows - fallbacks,
+validation, evidence quotes, no measurement through the model, no network in
+tests - is `docs/ai.md`; the adapter is `tools/llm.py`.
+
 ## Using it from Cursor or another coding agent
 
 `tools/mcp_server.py` exposes the whole pipeline over MCP, so a user can build a
 song from inside their editor: paste a tutorial, get a project, render it, check
-it, act on the check. Fifteen tools, no dependencies beyond the standard library,
+it, act on the check. Sixteen tools, no dependencies beyond the standard library,
 and it calls the same functions the CLI and the Mac app call.
 
 ```bash

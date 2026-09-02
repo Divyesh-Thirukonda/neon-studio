@@ -6,10 +6,28 @@ Run with:  /usr/bin/python3 -m unittest tools/test_fill_in_blanks.py
 
 from __future__ import annotations
 
+import os
 import sys
 import unittest
+import unittest.mock
 from copy import deepcopy
 from pathlib import Path
+
+# Everything in this file exercises the deterministic path. A real key on the
+# machine must not turn it into a network test, so the model is off before
+# fill_in_blanks is imported; test_fill_in_blanks_ai.py covers the model layer
+# with an injected transport.
+_PINNED_ENV = unittest.mock.patch.dict(os.environ, {"NEON_AI": "off", "NEON_CONFIG_DIR": "/nonexistent"})
+
+
+def setUpModule() -> None:
+    """The model stays off and no real key file is visible while these run;
+    the environment is restored when the module finishes."""
+    _PINNED_ENV.start()
+
+
+def tearDownModule() -> None:
+    _PINNED_ENV.stop()
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -466,6 +484,53 @@ class FillInBlanksIntegrationTests(unittest.TestCase):
     def test_an_empty_spec_does_not_crash(self):
         enriched = fill_in_blanks({})
         self.assertIn("fillInBlanks", enriched)
+
+    def test_output_says_the_model_was_off(self):
+        # Pinned here as well as at import: other suites in a discovery run
+        # restore or pop NEON_AI at module teardown.
+        previous = os.environ.get("NEON_AI")
+        os.environ["NEON_AI"] = "off"
+        try:
+            enriched = fill_in_blanks(spec_from(sections=[section("drop")]), prompt="future bass")
+        finally:
+            if previous is None:
+                os.environ.pop("NEON_AI", None)
+            else:
+                os.environ["NEON_AI"] = previous
+        self.assertEqual(enriched["ai"]["used"], False)
+        self.assertIn("NEON_AI=off", enriched["ai"]["note"])
+        self.assertEqual(enriched["ai"]["dropped"], [])
+        for item in enriched["fillInBlanks"]["decisions"]:
+            self.assertNotEqual(item.get("source"), "model")
+        self.assertIn("AI: offline rules", render_markdown(enriched))
+
+
+class TalkTimeTests(unittest.TestCase):
+    """A walkthrough's timecodes are how long the producer talks, not how long
+    the part plays."""
+
+    def timed_spec(self, spans):
+        sections = []
+        for index, (kind, start, end) in enumerate(spans, start=1):
+            sections.append({"id": f"s{index}", "type": kind, "label": kind.title(), "startSeconds": start, "endSeconds": end,
+                             "trackRoles": ["drums"], "techniques": [], "laneEvents": {}, "summary": "", "excerpt": "", "transcriptText": ""})
+        return {"sections": sections, "tempoHint": 150}
+
+    def test_song_length_timecodes_are_used(self) -> None:
+        spec = self.timed_spec([("intro", 0, 12.8), ("drop", 12.8, 38.4), ("outro", 38.4, 51.2)])  # 8 / 16 / 8 bars at 150
+        decisions = []
+        from fill_in_blanks import assign_section_bars
+        assign_section_bars(spec, decisions, "dark_bass")
+        self.assertEqual([s["bars"] for s in spec["sections"]], [8, 16, 8])
+        self.assertTrue(any("timecodes" in d.get("summary", d.get("detail", "")) for d in decisions))
+
+    def test_tutorial_timecodes_fall_back_to_style_lengths(self) -> None:
+        spec = self.timed_spec([("intro", 105, 385), ("build", 680, 954), ("drop", 985, 2470), ("outro", 3054, 3194)])
+        decisions = []
+        from fill_in_blanks import assign_section_bars
+        assign_section_bars(spec, decisions, "dark_bass")
+        self.assertEqual([s["bars"] for s in spec["sections"]], [8, 8, 16, 8])
+        self.assertTrue(any("talk" in (d.get("reason") or "") for d in decisions), decisions)
 
 
 if __name__ == "__main__":

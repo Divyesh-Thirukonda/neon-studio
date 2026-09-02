@@ -32,11 +32,12 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import subprocess
 import sys
 import traceback
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 TOOLS = ROOT / "tools"
@@ -60,15 +61,71 @@ def _python() -> str:
     return sys.executable or "/usr/bin/python3"
 
 
-def _run(args: list[str], timeout: int = 900) -> tuple[int, str, str]:
+def _env(ai: bool = True, base: Optional[dict[str, str]] = None) -> dict[str, str]:
+    """The environment a helper script runs with.
+
+    It is the server's own environment, whole: whatever the MCP client put in
+    its `env` block (`GEMINI_API_KEY`, `NEON_AI_MODEL`, `NEON_CONFIG_DIR`, ...)
+    is inherited by every script, and `tools/llm.py` reads it from there. No
+    variable is singled out, so there is nothing to keep in step with the
+    adapter's list.
+
+    `ai=False` sets NEON_AI=off. The adapter (`llm.detect`) checks that variable
+    before anything else, so it turns the model off for every script regardless
+    of whether the script takes `--ai`, and regardless of where on its command
+    line a flag would have to go (some scripts declare `--ai` only before a
+    subcommand). That is why no flag is ever appended to argv.
+    """
+    env = dict(os.environ if base is None else base)
+    if not ai:
+        env["NEON_AI"] = "off"
+    return env
+
+
+def _ai_line(payload: Any) -> str:
+    """One trailing line saying which path produced the answer, from the `ai`
+    block every model-capable tool prints. Empty when the tool printed none."""
+    if not isinstance(payload, dict):
+        return ""
+    block = payload.get("ai")
+    if not isinstance(block, dict):
+        return ""
+    if block.get("used"):
+        who = block.get("model") or block.get("provider") or "a language model"
+        return f"\n(via {who})"
+    note = str(block.get("note") or "").strip()
+    return f"\n(offline rules - {note})" if note else "\n(offline rules)"
+
+
+def _wants_ai(args: dict[str, Any]) -> bool:
+    return args.get("ai", True) is not False
+
+
+def _run(args: list[str], timeout: int = 900, ai: bool = True) -> tuple[int, str, str]:
+    """Run one helper script. argv is passed through untouched; `ai=False`
+    is expressed only as NEON_AI=off in the environment (see `_env`)."""
     proc = subprocess.run(
-        [_python(), *args],
+        [_python(), *list(args)],
         cwd=str(ROOT),
         capture_output=True,
         text=True,
         timeout=timeout,
+        env=_env(ai=ai),
     )
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def _last_json(out: str) -> Optional[dict[str, Any]]:
+    for line in reversed(out.strip().splitlines()):
+        line = line.strip()
+        if line.startswith("{"):
+            try:
+                parsed = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+    return None
 
 
 def _safe_id(value: str) -> str:
@@ -125,12 +182,13 @@ def tool_build_song(args: dict[str, Any]) -> str:
         "--prompt", str(brief),
         "--transcript-file", str(transcript_path),
         "--force-materialize",
-    ])
+    ], ai=_wants_ai(args))
     if code != 0:
         return f"Build failed (exit {code}).\n\n{(err or out).strip()[-1500:]}"
 
     paths = _project_paths(project_id)
     lines = [f"Built `{project_id}`."]
+    summary = _last_json(out)
     if paths["spec"].exists():
         spec = _read_json(paths["spec"])
         lines.append(f"\nArrangement:\n{_describe_arrangement(spec)}")
@@ -144,7 +202,7 @@ def tool_build_song(args: dict[str, Any]) -> str:
                 lines.append(f"  ... and {len(gaps) - 8} more")
     lines.append(f"\nFiles:\n  project:  {paths['project']}\n  spec:     {paths['spec']}\n  renderer: {paths['renderer']}")
     lines.append("\nNext: `songlab_render` to produce audio, then `songlab_sound_check`.")
-    return "\n".join(lines)
+    return "\n".join(lines) + _ai_line(summary)
 
 
 def tool_render(args: dict[str, Any]) -> str:
@@ -166,7 +224,7 @@ def tool_sound_check(args: dict[str, Any]) -> str:
         "--root", str(ROOT),
         "--project-id", project_id,
         "--format", "json",
-    ])
+    ], ai=_wants_ai(args))
     if code != 0:
         return f"Sound check failed (exit {code}).\n\n{(err or out).strip()[-1200:]}"
     try:
@@ -193,7 +251,7 @@ def tool_sound_check(args: dict[str, Any]) -> str:
         " prevented it. Call `songlab_apply_sound_check` to turn them into concrete"
         " steps in the project's recipe."
     )
-    return "\n".join(lines)
+    return "\n".join(lines) + _ai_line(report)
 
 
 def tool_apply_sound_check(args: dict[str, Any]) -> str:
@@ -202,10 +260,11 @@ def tool_apply_sound_check(args: dict[str, Any]) -> str:
     if not paths["spec"].exists():
         return f"No spec for `{project_id}`. Run `songlab_build_song` first."
 
+    ai = _wants_ai(args)
     code, out, err = _run([
         str(TOOLS / "does_this_sound_good.py"),
         "--root", str(ROOT), "--project-id", project_id, "--format", "json",
-    ])
+    ], ai=ai)
     if code != 0:
         return f"Could not run the sound check (exit {code}).\n\n{(err or out).strip()[-1000:]}"
     report_path = ROOT / "songlab" / "projects" / project_id / "last_sound_check.json"
@@ -218,9 +277,10 @@ def tool_apply_sound_check(args: dict[str, Any]) -> str:
         "--output-json", str(paths["spec"]),
         "--output-md", str(paths["fill"]),
         "--format", "json",
-    ])
+    ], ai=ai)
     if code != 0:
         return f"Could not fold the findings back in (exit {code}).\n\n{(err or out).strip()[-1000:]}"
+    fill_report = _last_json(out)
 
     spec = _read_json(paths["spec"])
     gaps = (spec.get("fillInBlanks") or {}).get("gaps") or []
@@ -232,7 +292,7 @@ def tool_apply_sound_check(args: dict[str, Any]) -> str:
             lines.append(f"      {gap['evidence'][:150]}")
     lines.append(f"\nFull report: {paths['fill']}")
     lines.append("Re-materialise with `songlab_build_song` (same project_id) or edit the project directly, then render and check again.")
-    return "\n".join(lines)
+    return "\n".join(lines) + _ai_line(fill_report)
 
 
 def tool_suggest_improvements(args: dict[str, Any]) -> str:
@@ -246,9 +306,7 @@ def tool_suggest_improvements(args: dict[str, Any]) -> str:
         str(TOOLS / "daw_agent.py"), "--root", str(ROOT), "apply",
         "--project", str(paths["project"]), "--output", str(output), "--format", "json",
     ]
-    if args.get("apply") is True:
-        pass
-    code, out, err = _run(cmd)
+    code, out, err = _run(cmd, ai=_wants_ai(args))
     if code != 0:
         return f"Suggestion run failed (exit {code}).\n\n{(err or out).strip()[-1200:]}"
     try:
@@ -266,7 +324,7 @@ def tool_suggest_improvements(args: dict[str, Any]) -> str:
         lines.append(f"\nApplied to {paths['project']}.")
     else:
         lines.append(f"\nProposed only. The patched project is at {output}; pass apply=true to write it over the real one.")
-    return "\n".join(lines)
+    return "\n".join(lines) + _ai_line(report)
 
 
 def tool_list_projects(args: dict[str, Any]) -> str:
@@ -338,13 +396,20 @@ def tool_production_rubric(args: dict[str, Any]) -> str:
 
 def tool_fidelity(args: dict[str, Any]) -> str:
     project_id = _safe_id(args.get("project_id") or "")
+    # JSON, not markdown, so the report's `ai` block is available to say which
+    # path answered; the markdown is the tool's own renderer, run here.
     code, out, err = _run([
         str(TOOLS / "transcript_fidelity.py"),
-        "--root", str(ROOT), "--project-id", project_id, "--format", "markdown",
-    ])
+        "--root", str(ROOT), "--project-id", project_id, "--format", "json",
+    ], ai=_wants_ai(args))
     if code != 0:
         return f"Fidelity check failed (exit {code}).\n\n{(err or out).strip()[-1200:]}"
-    return out.strip()[-6000:]
+    report = _last_json(out)
+    if not report or "claims" not in report:
+        return out.strip()[-6000:]
+    import transcript_fidelity
+    text = transcript_fidelity.render_markdown(report).strip()[-6000:]
+    return text + _ai_line(report)
 
 
 def tool_hum_to_melody(args: dict[str, Any]) -> str:
@@ -483,9 +548,9 @@ def tool_describe_change(args: dict[str, Any]) -> str:
     output.parent.mkdir(parents=True, exist_ok=True)
     code, out, err = _run([
         str(TOOLS / "describe_change.py"), "--root", str(ROOT),
-        "--project", str(paths["project"]), "--request", request,
+        "--project", str(paths["project"]), f"--request={request}",
         "--output", str(output), "--format", "json",
-    ])
+    ], ai=_wants_ai(args))
     if code != 0:
         return f"Couldn't apply that (exit {code}).\n\n{(err or out).strip()[-1200:]}"
     try:
@@ -513,7 +578,7 @@ def tool_describe_change(args: dict[str, Any]) -> str:
     if result.get("tactics"):
         lines.append("\nBigger ideas that might fit:")
         lines += [f"  - {t.get('title')} (score {t.get('score')})" for t in result["tactics"][:3]]
-    return "\n".join(lines)
+    return "\n".join(lines) + _ai_line(result)
 
 
 def tool_listening_questions(args: dict[str, Any]) -> str:
@@ -523,8 +588,8 @@ def tool_listening_questions(args: dict[str, Any]) -> str:
         return f"No project at {paths['project']}."
     code, out, err = _run([
         str(TOOLS / "listening_session.py"), "--root", str(ROOT),
-        "--project", str(paths["project"]), "questions", "--format", "json",
-    ])
+        "--project", str(paths["project"]), "--format", "json", "questions",
+    ], ai=_wants_ai(args))
     if code != 0:
         return f"Couldn't build the questions (exit {code}).\n\n{(err or out).strip()[-1200:]}"
     try:
@@ -541,7 +606,7 @@ def tool_listening_questions(args: dict[str, Any]) -> str:
             else:
                 lines.append(f"  {q.get('id')}: {q.get('text')}  [{' / '.join(q.get('options') or [])}]")
         lines.append("")
-    return "\n".join(lines)
+    return "\n".join(lines) + _ai_line(result)
 
 
 def tool_listening_apply(args: dict[str, Any]) -> str:
@@ -561,11 +626,39 @@ def tool_listening_apply(args: dict[str, Any]) -> str:
     ]
     if paths["spec"].exists():
         cmd += ["--spec", str(paths["spec"])]
-    cmd += ["apply", "--answers", str(answers_path), "--project-id", project_id, "--format", "markdown"]
-    code, out, err = _run(cmd)
+    cmd += ["--project-id", project_id, "--format", "json", "apply", "--answers", str(answers_path)]
+    code, out, err = _run(cmd, ai=_wants_ai(args))
     if code != 0:
         return f"Couldn't apply the answers (exit {code}).\n\n{(err or out).strip()[-1200:]}"
-    return out.strip()[-4000:]
+    result = _last_json(out)
+    if not result or result.get("ok") is False:
+        return out.strip()[-4000:]
+    import listening_session
+    text = listening_session.render_apply_markdown(result).strip()[-4000:]
+    return text + _ai_line(result)
+
+
+def tool_ai_status(args: dict[str, Any]) -> str:
+    """Whether the tools would use a model right now, and why not if not.
+
+    Reads the server's own environment - the same one `_run` forwards - so the
+    answer is exactly what the next tool call will do. No network call.
+    """
+    try:
+        import llm
+    except Exception as exc:  # pragma: no cover
+        return f"Could not load the model adapter (tools/llm.py): {exc}"
+    found = llm.status()
+    if found.get("enabled"):
+        head = f"AI assistance is on: {found.get('provider')} / {found.get('model')} ({found.get('reason')})."
+    else:
+        head = f"AI assistance is off: {found.get('reason')}."
+    return (
+        head
+        + "\nEvery tool works without a model; with one, it reads descriptions and requests and writes the prose,"
+        " never the measurements. Pass ai=false to any tool to force the built-in rules for one call."
+        + "\n\n" + json.dumps(found)
+    )
 
 
 TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any]]] = {
@@ -581,6 +674,7 @@ TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any
                 "project_id": {"type": "string", "description": "Short slug, e.g. 'midnight-drive'."},
                 "transcript": {"type": "string", "description": "The description, tutorial, walkthrough or step-by-step. Longer and more specific is better."},
                 "brief": {"type": "string", "description": "One line on what the song should be."},
+                "ai": {"type": "boolean", "description": "Default true: use a language model when a key is configured. false forces the built-in rules for this call."},
             },
             "required": ["project_id", "transcript"],
         },
@@ -601,7 +695,7 @@ TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any
         "next. Each problem is tagged with the production requirements that would have prevented it.",
         {
             "type": "object",
-            "properties": {"project_id": {"type": "string"}},
+            "properties": {"project_id": {"type": "string"}, "ai": {"type": "boolean", "description": "Default true: use a language model when a key is configured. false forces the built-in rules for this call."}},
             "required": ["project_id"],
         },
     ),
@@ -611,7 +705,7 @@ TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any
         "measured production steps. Use this instead of reading a report and guessing at fixes.",
         {
             "type": "object",
-            "properties": {"project_id": {"type": "string"}},
+            "properties": {"project_id": {"type": "string"}, "ai": {"type": "boolean", "description": "Default true: use a language model when a key is configured. false forces the built-in rules for this call."}},
             "required": ["project_id"],
         },
     ),
@@ -624,6 +718,7 @@ TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any
             "properties": {
                 "project_id": {"type": "string"},
                 "apply": {"type": "boolean", "description": "Write the changes rather than only proposing them."},
+                "ai": {"type": "boolean", "description": "Default true: use a language model when a key is configured. false forces the built-in rules for this call."},
             },
             "required": ["project_id"],
         },
@@ -657,7 +752,7 @@ TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any
         "key, section order, every technique the text named (with audio evidence when stems exist), "
         "and explicit numbers. The counterpart to songlab_sound_check: that asks 'is it good', this "
         "asks 'is it what was asked for'.",
-        {"type": "object", "properties": {"project_id": {"type": "string"}}, "required": ["project_id"]},
+        {"type": "object", "properties": {"project_id": {"type": "string"}, "ai": {"type": "boolean", "description": "Default true: use a language model when a key is configured. false forces the built-in rules for this call."}}, "required": ["project_id"]},
     ),
     "songlab_hum_to_melody": (
         tool_hum_to_melody,
@@ -719,6 +814,7 @@ TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any
                 "project_id": {"type": "string"},
                 "request": {"type": "string"},
                 "apply": {"type": "boolean"},
+                "ai": {"type": "boolean", "description": "Default true: use a language model when a key is configured. false forces the built-in rules for this call."},
             },
             "required": ["project_id", "request"],
         },
@@ -728,7 +824,7 @@ TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any
         "The human sound check, part one: plain questions to ask the user about each section while "
         "it plays ('Does the drop land?', 'Can you hum the main tune?'). Returns questions with their "
         "options and the bar range to play for each.",
-        {"type": "object", "properties": {"project_id": {"type": "string"}}, "required": ["project_id"]},
+        {"type": "object", "properties": {"project_id": {"type": "string"}, "ai": {"type": "boolean", "description": "Default true: use a language model when a key is configured. false forces the built-in rules for this call."}}, "required": ["project_id"]},
     ),
     "songlab_listening_apply": (
         tool_listening_apply,
@@ -742,9 +838,17 @@ TOOLS_TABLE: dict[str, tuple[Callable[[dict[str, Any]], str], str, dict[str, Any
                     "type": "array",
                     "items": {"type": "object", "properties": {"questionId": {"type": "string"}, "option": {"type": "string"}, "text": {"type": "string"}}, "required": ["questionId"]},
                 },
+                "ai": {"type": "boolean", "description": "Default true: use a language model when a key is configured. false forces the built-in rules for this call."},
             },
             "required": ["project_id", "answers"],
         },
+    ),
+    "songlab_ai_status": (
+        tool_ai_status,
+        "Whether the tools would use a language model right now (provider, model) or why not (no key, "
+        "NEON_AI=off). Nothing needs a model: every tool falls back to its built-in rules and says so. "
+        "Makes no network call.",
+        {"type": "object", "properties": {}},
     ),
 }
 
@@ -858,6 +962,30 @@ def self_test() -> int:
     broken = handle({"jsonrpc": "2.0", "id": 6, "method": "tools/call",
                      "params": {"name": "songlab_inspect_project", "arguments": {}}})
     assert broken["result"]["content"][0]["text"]
+    checks += 1
+
+    # The AI status tool answers without a network call and without a key.
+    status = handle({"jsonrpc": "2.0", "id": 7, "method": "tools/call",
+                     "params": {"name": "songlab_ai_status", "arguments": {}}})
+    text = status["result"]["content"][0]["text"]
+    assert "AI assistance is" in text, text[:200]
+    checks += 1
+
+    # Every model-capable tool takes `ai`, and ai=false turns the model off
+    # in the environment the scripts are launched with.
+    for name in ("songlab_build_song", "songlab_sound_check", "songlab_apply_sound_check", "songlab_suggest_improvements",
+                 "songlab_fidelity", "songlab_describe_change", "songlab_listening_questions", "songlab_listening_apply"):
+        assert TOOLS_TABLE[name][2]["properties"]["ai"]["type"] == "boolean", name
+    assert _env(ai=False, base={"GEMINI_API_KEY": "k"})["NEON_AI"] == "off"
+    assert "NEON_AI" not in _env(ai=True, base={"GEMINI_API_KEY": "k"})
+    checks += 1
+
+    # ai=false must not change argv: daw_agent.py declares --ai before its
+    # subcommand, so a flag appended at the end made it exit 2. Prove the exact
+    # command shape `songlab_suggest_improvements` builds still parses with the
+    # model off (--help returns before any project is read).
+    code, out, _ = _run([str(TOOLS / "daw_agent.py"), "--root", str(ROOT), "apply", "--help"], ai=False)
+    assert code == 0 and "--project" in out, (code, out[-300:])
     checks += 1
 
     print(f"mcp_server self-test: {checks}/{checks} checks passed, {len(TOOLS_TABLE)} tools exposed")

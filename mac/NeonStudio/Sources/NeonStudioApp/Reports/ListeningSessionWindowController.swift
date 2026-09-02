@@ -974,7 +974,8 @@ public final class ListeningSessionWindowController: NSWindowController, NSWindo
             notes: notes,
             warnings: warnings,
             summary: summary,
-            addedToRecipe: addedToRecipe
+            addedToRecipe: addedToRecipe,
+            provenance: AIProvenance.read(from: json)
         )
 
         hasFinished = true
@@ -990,7 +991,7 @@ public final class ListeningSessionWindowController: NSWindowController, NSWindo
         } else {
             detail = "They're in the recipe as steps to do. Check My Mix will look for them next time."
         }
-        StatusCenter.shared.success(summary, detail: detail)
+        StatusCenter.shared.success(AIProvenance.annotate(summary, from: json), detail: detail)
     }
 
     /// Lands the tool's steps in the project's recipe as one undoable edit.
@@ -1040,7 +1041,8 @@ public final class ListeningSessionWindowController: NSWindowController, NSWindo
         notes: [String],
         warnings: [String],
         summary: String,
-        addedToRecipe: Int
+        addedToRecipe: Int,
+        provenance: AIProvenance? = nil
     ) -> Report {
         var toldUs: [String] = []
         for section in sections {
@@ -1106,7 +1108,8 @@ public final class ListeningSessionWindowController: NSWindowController, NSWindo
                 headline: headline,
                 caption: summary,
                 sections: sections
-            )
+            ),
+            footer: provenance?.footerLine
         )
     }
 

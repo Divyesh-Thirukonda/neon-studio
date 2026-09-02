@@ -5,19 +5,52 @@ import argparse
 import json
 import math
 import re
+import sys
 import wave
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:
     import production_rubric
 except ImportError:  # pragma: no cover - the checker still works standalone
     production_rubric = None  # type: ignore[assignment]
 
+try:
+    import llm
+except ImportError:  # pragma: no cover - the checker still works standalone
+    llm = None  # type: ignore[assignment]
+
 
 EPSILON = 1e-12
+
+# The verdict text is the only part of this report a model touches. The
+# score, every metric, every issue and every strength are measured above and
+# handed to the model as facts; it writes the words around them.
+VERDICT_ROLE = (
+    "You are a mix engineer reading the results of an automated sound check for a producer who "
+    "will act on what you say. The score, label, metrics, issues and strengths are measured and "
+    "final: do not change, soften, or contradict them, and do not invent a measurement. Every "
+    "number you write must appear in the facts you are given. Name tracks by the names in the "
+    "track list and sections by the names in the section list; never invent either. Write plainly, "
+    "in the second person, without hedging and without marketing language."
+)
+VERDICT_SCHEMA = {
+    "answer": "one line, under 90 characters, starting with the given label word(s), that says the verdict in a human voice",
+    "summary": "two to four sentences: what the readout means for this mix, what the biggest concern is (if any) and where it lives",
+    "nextActions": [
+        {
+            "action": "one concrete instruction naming the track (by name) and section (if any) to touch",
+            "track": "track id from the track list, or null",
+            "section": "section name from the section list, or null",
+            "why": "one sentence tying the action to a measured fact",
+        }
+    ],
+}
+MAX_MODEL_ACTIONS = 5
 
 
 def clamp(value: float, lower: float, upper: float) -> float:
@@ -544,13 +577,15 @@ def evaluate(metrics: dict[str, Any], checks: dict[str, Any], track_reports: lis
     }
 
 
-def build_report(root: Path, project_path: Path) -> dict[str, Any]:
+def build_report(root: Path, project_path: Path, assist: Any = None) -> dict[str, Any]:
+    """The report. `assist` is an llm.Assist; None (the library default) means
+    the model is off and the report is exactly the measured one."""
     project = read_json(project_path)
     mix, sample_rate, track_reports, missing = build_mix(root, project)
     metrics = audio_metrics(mix, sample_rate)
     checks = project_checks(project, missing, track_reports)
     verdict = evaluate(metrics, checks, track_reports)
-    return {
+    report = {
         "ok": True,
         "project": {
             "id": project.get("id") or safe_project_id(project_path.name),
@@ -562,6 +597,8 @@ def build_report(root: Path, project_path: Path) -> dict[str, Any]:
             "label": verdict["label"],
             "answer": verdict["answer"],
             "summary": verdict["summary"],
+            "source": "heuristic",
+            "sources": {field: "measured" for field in VERDICT_FIELDS},
         },
         "metrics": metrics,
         "projectChecks": checks,
@@ -569,7 +606,187 @@ def build_report(root: Path, project_path: Path) -> dict[str, Any]:
         "strengths": verdict["strengths"],
         "issues": verdict["issues"],
         "nextActions": verdict["nextActions"],
+        "nextActionDetails": [{"action": action, "source": "heuristic"} for action in verdict["nextActions"]],
     }
+    if assist is None and llm is not None:
+        assist = llm.Assist(enabled=False)
+    if assist is not None:
+        humanize_verdict(report, project, assist)
+        report["ai"] = assist.report()
+    return report
+
+
+# ---------------------------------------------------------------------------
+# The human voice: the model writes the words, never the numbers
+# ---------------------------------------------------------------------------
+
+NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
+# A number followed by one of these is a reading, not a count or a name.
+UNIT_AFTER_NUMBER_RE = re.compile(r"\s*(?:%|(?:dBFS|dB|kHz|Hz|ms|s|bars?|BPM|st|semitones?)\b)", re.IGNORECASE)
+# The parts of the verdict the model may write, each with its own provenance.
+VERDICT_FIELDS = ("answer", "summary", "nextActions")
+
+
+def numbers_in(text: str) -> list[float]:
+    out: list[float] = []
+    for token in NUMBER_RE.findall(text or ""):
+        try:
+            out.append(float(token))
+        except ValueError:
+            continue
+    return out
+
+
+def numbers_are_grounded(text: str, facts: str) -> bool:
+    """Every number the model wrote must be one it was given (within rounding).
+    A small integer with no unit passes: '2 sections', 'Drop 2' and 'beat 3'
+    are not readings. One with a unit ('cut 3 dB', '2 bars') is a reading and
+    must be in the facts like any other."""
+    allowed = numbers_in(facts)
+    text = text or ""
+    for match in NUMBER_RE.finditer(text):
+        try:
+            value = float(match.group())
+        except ValueError:
+            continue
+        unit_bearing = UNIT_AFTER_NUMBER_RE.match(text, match.end()) is not None
+        if 0 <= value <= 4 and value.is_integer() and not unit_bearing:
+            continue
+        if not any(abs(value - fact) <= max(0.05, abs(fact) * 0.01) for fact in allowed):
+            return False
+    return True
+
+
+def verdict_facts(report: dict[str, Any], project: dict[str, Any]) -> dict[str, Any]:
+    """What the model is told: the measured report plus the names it may use."""
+    tracks = []
+    for track in project.get("snapshot", {}).get("tracks", []) or []:
+        if isinstance(track, dict) and track.get("id"):
+            tracks.append({
+                "id": str(track["id"]),
+                "name": str(track.get("name") or track["id"]),
+                "kind": str(track.get("kind") or ""),
+                "instrument": str(track.get("instrument") or ""),
+            })
+    checks = report["projectChecks"]
+    return {
+        "project": report["project"]["name"],
+        "verdict": {key: report["verdict"][key] for key in ("score", "label", "answer", "summary")},
+        "metrics": report["metrics"],
+        "issues": [{k: issue[k] for k in ("severity", "area", "detail")} for issue in report["issues"]],
+        "strengths": report["strengths"],
+        "heuristicNextActions": report["nextActions"],
+        "projectChecks": {
+            "bpm": checks.get("bpm"),
+            "trackCount": checks.get("trackCount"),
+            "audibleTrackCount": checks.get("audibleTrackCount"),
+            "missingAudio": checks.get("missingAudio"),
+            "mutedTracks": checks.get("mutedTracks"),
+            "soloTracks": checks.get("soloTracks"),
+            "activeEffects": checks.get("activeEffects"),
+        },
+        "loudestTracks": [
+            {k: item[k] for k in ("id", "name", "rmsDb", "peakDb", "gain", "pan")} for item in report["trackReports"][:8]
+        ],
+        "tracks": tracks,
+        "sections": list(checks.get("sections") or []),
+    }
+
+
+def humanize_verdict(report: dict[str, Any], project: dict[str, Any], assist: Any) -> None:
+    """Ask the model for the answer line, the summary and ranked next actions,
+    keep only what validates, and leave the measured report alone otherwise."""
+    if not getattr(assist, "available", False):
+        return
+    if report["projectChecks"].get("audibleTrackCount", 0) == 0:
+        assist.note = "no audible tracks, nothing for the model to describe"
+        return
+    facts = verdict_facts(report, project)
+    facts_text = json.dumps(facts, indent=1)
+    task = (
+        "Here is the measured sound check for one project. Write the verdict a producer would want to "
+        "read: the answer line, a short summary, and up to five next actions ranked by how much they "
+        f"would improve the mix. The label is '{report['verdict']['label']}' and the answer line must "
+        "start with it. Prefer actions that name a specific track and, where the readout points at one, "
+        "a section. Do not restate every metric; say what matters.\n\nFACTS:\n" + facts_text
+    )
+    answer = assist.ask(task, system=VERDICT_ROLE, schema=VERDICT_SCHEMA, expect=dict)
+    if not isinstance(answer, dict):
+        return
+    dropped: list[str] = []
+    label = str(report["verdict"]["label"])
+    verdict = report["verdict"]
+    # Provenance per field: each part the model wrote validates on its own,
+    # so the report says which words are the model's and which stayed
+    # measured. The verdict as a whole is the model's only when all three are.
+    sources = {field: "measured" for field in VERDICT_FIELDS}
+
+    line = answer.get("answer")
+    if isinstance(line, str) and line.strip() and len(line.strip()) <= 140 \
+            and line.strip().lower().startswith(label.lower()) and numbers_are_grounded(line, facts_text):
+        verdict["answer"] = line.strip().rstrip(".")
+        sources["answer"] = "model"
+    else:
+        dropped.append("answer")
+
+    summary = answer.get("summary")
+    if isinstance(summary, str) and summary.strip() and len(summary.strip()) <= 900 \
+            and numbers_are_grounded(summary, facts_text):
+        verdict["summary"] = re.sub(r"\s+", " ", summary.strip())
+        sources["summary"] = "model"
+    else:
+        dropped.append("summary")
+
+    track_ids = {track["id"] for track in facts["tracks"]}
+    track_names = {track["name"].lower(): track["id"] for track in facts["tracks"]}
+    sections = {name.lower(): name for name in facts["sections"]}
+    actions: list[dict[str, Any]] = []
+    raw_actions = answer.get("nextActions")
+    for item in raw_actions if isinstance(raw_actions, list) else []:
+        if not isinstance(item, dict):
+            dropped.append("action (not an object)")
+            continue
+        text = item.get("action")
+        if not isinstance(text, str) or not text.strip() or len(text) > 300 or not numbers_are_grounded(text, facts_text):
+            dropped.append("action (empty, too long, or ungrounded number)")
+            continue
+        track = item.get("track")
+        if isinstance(track, str) and track.strip():
+            track = track_names.get(track.strip().lower(), track.strip())
+            if track not in track_ids:
+                dropped.append(f"action naming unknown track '{item.get('track')}'")
+                continue
+        else:
+            track = None
+        section = item.get("section")
+        if isinstance(section, str) and section.strip():
+            section = sections.get(section.strip().lower())
+            if section is None:
+                dropped.append(f"action naming unknown section '{item.get('section')}'")
+                continue
+        else:
+            section = None
+        why = item.get("why")
+        why = re.sub(r"\s+", " ", why.strip()) if isinstance(why, str) and numbers_are_grounded(why, facts_text) else ""
+        actions.append({
+            "action": text.strip(),
+            "track": track,
+            "section": section,
+            "why": why,
+            "source": "model",
+        })
+        if len(actions) >= MAX_MODEL_ACTIONS:
+            break
+    if actions:
+        report["nextActions"] = [action["action"] for action in actions]
+        report["nextActionDetails"] = actions
+        sources["nextActions"] = "model"
+    else:
+        dropped.append("nextActions")
+    verdict["sources"] = sources
+    verdict["source"] = "model" if all(value == "model" for value in sources.values()) else "heuristic"
+    if dropped:
+        assist.note = "kept the heuristic text for: " + "; ".join(dropped)
 
 
 def render_markdown(report: dict[str, Any]) -> str:
@@ -601,8 +818,19 @@ def render_markdown(report: dict[str, Any]) -> str:
             lines.append(f"- [{issue['severity']}] {issue['area']}: {issue['detail']}")
         lines.append("")
     lines.extend(["## Next Actions", ""])
-    lines.extend(f"- {item}" for item in report["nextActions"])
+    details = report.get("nextActionDetails") or []
+    for index, item in enumerate(report["nextActions"]):
+        why = details[index].get("why") if index < len(details) and isinstance(details[index], dict) else ""
+        lines.append(f"- {item}" + (f" ({why})" if why else ""))
     lines.append("")
+    ai = report.get("ai") or {}
+    if ai:
+        sources = verdict.get("sources") or {}
+        per_field = ", ".join(f"{field}: {sources[field]}" for field in VERDICT_FIELDS if field in sources)
+        lines.append(f"_Verdict text: {'via ' + str(ai.get('provider')) if ai.get('used') else 'offline rules'}"
+                     + (f" ({per_field})" if ai.get("used") and per_field else "")
+                     + (f" - {ai['note']}" if ai.get("note") else "") + "_")
+        lines.append("")
     loudest = report["trackReports"][:5]
     if loudest:
         lines.extend(["## Loudest Lanes", ""])
@@ -618,11 +846,14 @@ def main() -> int:
     parser.add_argument("--project-id", help="Project id, e.g. neon-solitude.")
     parser.add_argument("--project", help="Path to a .neon.json file.")
     parser.add_argument("--format", choices=("json", "markdown"), default="json")
+    if llm is not None:
+        llm.add_ai_argument(parser)
     args = parser.parse_args()
 
     root = Path(args.root).expanduser().resolve()
     project_path = project_path_for(root, args.project_id, args.project)
-    report = build_report(root, project_path)
+    assist = llm.assist_from_args(args) if llm is not None else None
+    report = build_report(root, project_path, assist)
     if args.format == "markdown":
         print(render_markdown(report))
     else:

@@ -1,4 +1,5 @@
 import AppKit
+import NeonStudioKit
 import UniformTypeIdentifiers
 
 // MARK: - Shared private chrome
@@ -564,7 +565,8 @@ public final class ShortcutsWindowController: NSWindowController {
         Group(title: "Working with a person in the loop", items: [
             Shortcut("⇧⌘H", "Hum a melody — sing it, and the notes land on the selected track.", term: "Piano roll"),
             Shortcut("⇧⌘K", "Ask for a change in your own words — \"make the drop hit harder\".", term: "Mix"),
-            Shortcut("—", "Listen With Me plays each part and asks plain questions; Try Alternatives plays three takes to pick from. Both are in the Tools menu and the toolbar.")
+            Shortcut("—", "Listen With Me plays each part and asks plain questions; Try Alternatives plays three takes to pick from. Both are in the Tools menu and the toolbar."),
+            Shortcut("—", "AI assistance is optional: with a Gemini key in Settings ▸ AI assistance these read your words with a language model; without one they use built-in rules and say so.")
         ]),
         Group(title: "Files", items: [
             Shortcut("⌘N", "Start a new song."),

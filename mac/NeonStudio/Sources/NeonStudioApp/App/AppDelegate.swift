@@ -90,6 +90,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] note in
             self?.mainWindowChanged(note.object as? NSWindow)
         })
+
+        // Coming back to the app is the moment a key changed elsewhere (in
+        // Keychain Access, or the CLI's config file) should start counting, so
+        // the next tool launch reads it fresh instead of a stale cached copy.
+        observers.append(center.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            AppEnvironment.shared.invalidateAIKeyCache()
+        })
     }
 
     // MARK: - Documents

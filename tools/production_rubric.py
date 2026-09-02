@@ -24,6 +24,7 @@ single sample is rendered.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
@@ -69,6 +70,74 @@ def _words(value: Any) -> str:
     if isinstance(value, (list, tuple, set)):
         return " ".join(_words(v) for v in value)
     return str(value)
+
+
+def quote_in(text: str, quote: Any) -> bool:
+    """True when ``quote`` appears verbatim in ``text`` (case and spacing aside).
+
+    This is the rule that keeps a model honest: it may only claim the author
+    said something if it can show the words, and the words have to be there.
+    """
+    if not isinstance(quote, str):
+        return False
+    needle = re.sub(r"\s+", " ", quote).strip().strip("\"'\u201c\u201d\u2018\u2019").lower()
+    if len(needle) < 4:
+        return False
+    return needle in re.sub(r"\s+", " ", text).lower()
+
+
+UNIT_WORDS = (
+    "hz", "khz", "hertz", "kilohertz", "db", "dbfs", "lufs", "decibel", "ms", "millisecond", "second",
+    "bpm", "bar", "bars", "beat", "beats", "%", "percent", "st", "semitone", "octave",
+)
+
+TECHNIQUE_WORDS = (
+    "sidechain", "duck", "pump", "high-pass", "highpass", "hpf", "low-cut", "lowcut", "low cut", "high pass",
+    "crossover", "mono", "stereo", "wide", "width", "narrow", "centre", "center", "reverb", "delay", "decay",
+    "tail", "pre-delay", "predelay", "send", "return", "compress", "limiter", "headroom", "ceiling", "gain",
+    "level", "filter", "eq", "band", "split", "phrase", "depth", "release", "attack", "root", "fundamental",
+)
+
+
+def values_evidence(quote: Any) -> bool:
+    """True when ``quote`` is substantial enough to show the author set a value.
+
+    ``quote_in`` proves the words exist; this proves they say something. A
+    requirement that asks for values (``Requirement.needs_values``) is not
+    covered by a four-letter quote like "kick" or "drop" that merely names a
+    part: the quote has to be at least three words or fifteen characters and
+    carry a digit, a unit or a technique word.
+    """
+    if not isinstance(quote, str):
+        return False
+    needle = re.sub(r"\s+", " ", quote).strip().strip("\"'\u201c\u201d\u2018\u2019").lower()
+    if len(needle.split()) < 3 and len(needle) < 15:
+        return False
+    if re.search(r"\d", needle):
+        return True
+    tokens = set(re.findall(r"[a-z%]+(?:-[a-z]+)?", needle))
+    if tokens & set(UNIT_WORDS):
+        return True
+    return any(word in needle for word in TECHNIQUE_WORDS)
+
+
+def chunk_text(text: str, size: int = 24000) -> list[str]:
+    """Split long prose at sentence or word boundaries into pieces of at most ``size``."""
+    text = text.strip()
+    if not text:
+        return []
+    chunks: list[str] = []
+    while len(text) > size:
+        cut = text.rfind(". ", 0, size)
+        if cut < size // 2:
+            cut = text.rfind(" ", 0, size)
+        if cut <= 0:
+            cut = size - 1
+        chunks.append(text[: cut + 1].strip())
+        text = text[cut + 1:].strip()
+    if text:
+        chunks.append(text)
+    return chunks
 
 
 class SpecView:
@@ -163,14 +232,7 @@ class SpecView:
 
     # -- free text --------------------------------------------------------
 
-    @property
-    def notes(self) -> str:
-        """Everything the author wrote as prose, lowercased.
-
-        Requirements check this as well as the structured fields, because a
-        walkthrough often states something in a sentence that the parser never
-        turned into a role or a technique.
-        """
+    def _prose_parts(self) -> list[str]:
         source = self.intent
         parts = [
             self.prompt,
@@ -190,7 +252,41 @@ class SpecView:
                 parts.append(_words(section.get("summary")))
                 parts.append(_words(section.get("excerpt")))
                 parts.append(_words(section.get("transcriptText")))
-        return re.sub(r"\s+", " ", " ".join(parts)).strip().lower()
+        return parts
+
+    @property
+    def notes(self) -> str:
+        """Everything the author wrote as prose, lowercased.
+
+        Requirements check this as well as the structured fields, because a
+        walkthrough often states something in a sentence that the parser never
+        turned into a role or a technique.
+        """
+        return re.sub(r"\s+", " ", " ".join(self._prose_parts())).strip().lower()
+
+    @property
+    def notes_raw(self) -> str:
+        """The same prose with its original casing, for a model to quote from."""
+        return re.sub(r"\s+", " ", " ".join(self._prose_parts())).strip()
+
+    def without_prose(self) -> "SpecView":
+        """The same spec with everything the author wrote blanked out.
+
+        Asking a requirement against this answers "is it satisfied by structure
+        alone?" - by the sections, roles and lane events - as opposed to by a
+        keyword the author happened to use. A model may argue with the keyword;
+        it may not argue with the structure.
+        """
+        intent = dict(self.intent)
+        for key in ("sourcePrompt", "arrangementNotes", "mixNotes", "automationNotes"):
+            intent[key] = ""
+        sections = intent.get("sections")
+        if isinstance(sections, list):
+            intent["sections"] = [
+                {**s, "summary": "", "excerpt": "", "transcriptText": ""} if isinstance(s, dict) else s
+                for s in sections
+            ]
+        return SpecView(self.spec, prompt=None, intent=intent)
 
     def mentions(self, *needles: str) -> bool:
         """True when the author said any of these words anywhere."""
@@ -346,6 +442,15 @@ class Requirement:
     #: clipping, headroom and over-compression as much as it does level, and the
     #: backward loop is only useful if a requirement can say so.
     also_prevents: tuple[str, ...] = ()
+    #: False when ``covered`` reads only the spec's structure (sections, roles,
+    #: lane events) and never the author's words. A model judging coverage is
+    #: not asked about those: no quote can make a missing lane event exist.
+    prose: bool = True
+    #: True when the requirement is only satisfied by values - a frequency, a
+    #: depth, a dB target, a bar count. A model may then only mark it covered
+    #: with a quote that carries a number, a unit or a technique word: "kick"
+    #: or "drop" is not evidence that the author set anything.
+    needs_values: bool = False
 
     def applies(self, style_lane: str) -> bool:
         return "all" in self.applies_to or style_lane in self.applies_to
@@ -416,6 +521,7 @@ def register(requirement: Requirement) -> Requirement:
 
 register(Requirement(
     id="low_end_ownership",
+    needs_values=True,
     label="Decide who owns the low end",
     why="With a sub and a bass both playing the fundamental, the two cancel and reinforce unpredictably and the low end reads as loud but shapeless.",
     step=(
@@ -435,6 +541,7 @@ register(Requirement(
 
 register(Requirement(
     id="duck_parameters",
+    needs_values=True,
     label="Say how the sidechain actually ducks",
     why="Naming sidechain without a source, depth or release leaves the generator to guess, and a guess is usually either inaudible or a pumping artefact.",
     step=(
@@ -453,6 +560,7 @@ register(Requirement(
 
 register(Requirement(
     id="hpf_ladder",
+    needs_values=True,
     label="High-pass everything that is not the low end",
     why="Every melodic and FX layer carries low rumble that adds up into the 200-500 Hz range, which is exactly where the checker reports mud.",
     step=(
@@ -468,6 +576,7 @@ register(Requirement(
 
 register(Requirement(
     id="mono_below_crossover",
+    needs_values=True,
     label="Keep the bottom mono",
     why="Widened low frequencies partially cancel when the track is played in mono, so the bass disappears on phones and club systems.",
     step=(
@@ -484,6 +593,7 @@ register(Requirement(
 
 register(Requirement(
     id="width_budget",
+    needs_values=True,
     label="Decide what is allowed to be wide",
     why="When every layer is widened, nothing sounds wide, the centre hollows out, and stereo correlation drops far enough for the checker to flag it.",
     step=(
@@ -499,6 +609,7 @@ register(Requirement(
 
 register(Requirement(
     id="fx_return_discipline",
+    needs_values=True,
     label="Shape the reverb and delay returns",
     why="Reverb and delay on every lane at default settings is the fastest way to fill 200-500 Hz with wash and lose the transients.",
     step=(
@@ -540,6 +651,7 @@ register(Requirement(
 
 register(Requirement(
     id="gain_ladder",
+    needs_values=True,
     label="Set a level ladder and a peak budget",
     why="With no target levels the render is balanced by whatever the generator's defaults happen to be, which is how a mix ends up either quiet or squashed.",
     step=(
@@ -664,6 +776,7 @@ register(Requirement(
 
 register(Requirement(
     id="per_bar_drum_variation",
+    prose=False,
     label="Stop the drums repeating bar for bar",
     why="The renderer reuses an unscoped pattern for every bar, so without bar-scoped events the sixteenth bar of a drop is identical to the first.",
     step=(
@@ -682,6 +795,7 @@ register(Requirement(
 
 register(Requirement(
     id="contrast_before_repeat",
+    prose=False,
     label="Put something between the two drops",
     why=(
         "A second drop that follows the first with nothing in between has no contrast to arrive "
@@ -900,6 +1014,7 @@ register(Requirement(
 
 register(Requirement(
     id="fx_band_split",
+    needs_values=True,
     label="Band-limit the transition FX",
     why="Risers, crashes, noise and impacts stacked on one full-range lane collide with the hook on top and the kick underneath at exactly the loudest moment.",
     step=(
@@ -922,6 +1037,7 @@ register(Requirement(
 
 register(Requirement(
     id="roles_need_content",
+    prose=False,
     label="Give every named part something to play",
     why="A role listed in a section but never given events becomes a track with no clips: the project looks fuller than it sounds, and the checker reports it as missing audio.",
     step=(
@@ -937,6 +1053,7 @@ register(Requirement(
 
 register(Requirement(
     id="explicit_section_lengths",
+    needs_values=True,
     label="Give every section a bar count",
     why=(
         "Without lengths the generator picks its own, so the arrangement the listener hears is not "
@@ -1021,6 +1138,7 @@ register(Requirement(
 
 register(Requirement(
     id="arrangement_length",
+    prose=False,
     label="Make the arrangement long enough to be a song",
     why="Two or three sections render to well under a minute, which is a loop rather than an arrangement, and there is nothing for a mix judgement to be about.",
     step=(
@@ -1035,6 +1153,218 @@ register(Requirement(
 ))
 
 
+# ---------------------------------------------------------------------------
+# The model's two jobs here (see docs/ai.md).
+#
+# 1. Judging coverage. The ``covered`` lambdas above are keyword matches, and
+#    keywords lie in both directions: "once the drop hits" covers nothing about
+#    ear candy, and "a soft rain recording under everything" is a texture bed
+#    that no keyword catches. A model reads the notes and answers per
+#    requirement - but it may only mark something covered if it can quote the
+#    words, and the quote has to be in the notes.
+# 2. Wording the step. The catalogue's steps carry numbers for a generic song.
+#    Given this song's sections, tempo and key the model rewrites step and why;
+#    the id, area and roles - the things the sound check maps back onto - are
+#    never its to change.
+#
+# Both take an ``asker(task, schema) -> answer | None`` so this module knows
+# nothing about providers; fill_in_blanks.py supplies one built on llm.Assist.
+# ---------------------------------------------------------------------------
+
+Asker = Callable[[str, dict[str, Any]], Any]
+
+CONFIDENCE_WORDS = ("low", "medium", "high")
+
+COVERAGE_SCHEMA: dict[str, Any] = {
+    "requirements": [
+        {
+            "id": "requirement id from the list",
+            "covered": False,
+            "quote": "the author's exact words that deal with it, copied verbatim and kept short - or null",
+            "reason": "one short sentence",
+        }
+    ],
+}
+
+GAP_TEXT_SCHEMA: dict[str, Any] = {
+    "gaps": [
+        {
+            "id": "gap id from the list",
+            "step": "the instruction rewritten for this song: name its sections, tempo, key and parts; keep any numbers realistic",
+            "why": "one or two sentences on why this particular song needs it",
+            "confidence": "low, medium or high",
+        }
+    ],
+}
+
+
+class CoverageJudge:
+    """Asks a model which requirements the author already dealt with.
+
+    ``verdicts`` maps requirement id to ``{"covered", "quote", "reason"}`` once
+    ``judge`` has run. A "covered" verdict is only recorded when its quote is
+    really in the notes; anything else is dropped and written to ``dropped``.
+    """
+
+    def __init__(self, asker: Asker, *, chunk_chars: int = 24000) -> None:
+        self.asker = asker
+        self.chunk_chars = chunk_chars
+        self.verdicts: dict[str, dict[str, Any]] = {}
+        self.dropped: list[str] = []
+        self.calls = 0
+
+    def judge(self, view: SpecView, requirements: list[Requirement]) -> dict[str, dict[str, Any]]:
+        notes = view.notes_raw
+        if not notes or not requirements:
+            return self.verdicts
+        requirements = [r for r in requirements if r.prose]
+        if not requirements:
+            return self.verdicts
+        ids = {r.id for r in requirements}
+        by_id = {r.id: r for r in requirements}
+        catalogue = [
+            {"id": r.id, "label": r.label, "needs": r.why, "commonlyOmitted": r.commonly_omitted}
+            for r in requirements
+        ]
+        chunks = chunk_text(notes, self.chunk_chars)
+        for index, chunk in enumerate(chunks, start=1):
+            task = (
+                "Below are production requirements a brief usually leaves out, and the notes an author "
+                "wrote about one song. For each requirement say whether the author already dealt with "
+                "it in these notes. Covered means the author actually addresses what the requirement "
+                "asks for - naming a technique with no detail does not cover a requirement that asks "
+                "for values. When covered, quote the exact words (verbatim, a short span) that cover it. "
+                "Do not guess: when the notes say nothing about it, covered is false and quote is null.\n\n"
+                f"Requirements:\n{json.dumps(catalogue, ensure_ascii=False)}\n\n"
+                f"Notes (part {index} of {len(chunks)}):\n{chunk}"
+            )
+            self.calls += 1
+            answer = self.asker(task, COVERAGE_SCHEMA)
+            if not isinstance(answer, dict):
+                continue
+            for item in answer.get("requirements") or []:
+                if not isinstance(item, dict):
+                    continue
+                requirement_id = str(item.get("id") or "")
+                if requirement_id not in ids:
+                    self.dropped.append(f"coverage: unknown requirement {requirement_id!r}")
+                    continue
+                reason = str(item.get("reason") or "").strip()[:300]
+                if item.get("covered") is True:
+                    quote = item.get("quote")
+                    if not quote_in(notes, quote):
+                        self.dropped.append(
+                            f"coverage: {requirement_id} marked covered without a quote from the notes; the rule decides"
+                        )
+                    elif by_id[requirement_id].needs_values and not values_evidence(quote):
+                        self.dropped.append(
+                            f"coverage: {requirement_id} asks for values and {str(quote).strip()!r} names none; the rule decides"
+                        )
+                    else:
+                        self.verdicts[requirement_id] = {
+                            "covered": True,
+                            "quote": re.sub(r"\s+", " ", str(quote)).strip(),
+                            "reason": reason,
+                        }
+                elif item.get("covered") is False:
+                    # A later chunk cannot un-cover what an earlier one quoted.
+                    self.verdicts.setdefault(requirement_id, {"covered": False, "quote": "", "reason": reason})
+        return self.verdicts
+
+
+#: One number, or a range of two ("120-500 Hz", "4 to 8 bars"), followed by a
+#: unit. The range has to be read as two numbers: taking "-500" as the second
+#: one would make every range with a hyphen look negative.
+_NUMBER_WITH_UNIT = re.compile(
+    r"(-?\d+(?:\.\d+)?)(?:\s*(?:-|\u2013|\u2014|to)\s*(-?\d+(?:\.\d+)?))?\s*(khz|hz|dbfs|lufs|db|ms|bpm|bars?|%)",
+    re.IGNORECASE,
+)
+
+#: The bands a number in a mix instruction can plausibly sit in. A step outside
+#: them ("high-pass the bass at 2 kHz", "hats at -40 dB") is a hallucination,
+#: and the catalogue's own wording is used instead.
+PLAUSIBLE_RANGES: dict[str, tuple[float, float]] = {
+    "hz": (20.0, 20000.0),
+    "khz": (0.02, 20.0),
+    "db": (-60.0, 12.0),
+    "dbfs": (-60.0, 0.0),
+    "lufs": (-40.0, 0.0),
+    "ms": (0.0, 5000.0),
+    "bpm": (60.0, 220.0),
+    "bar": (1.0, 64.0),
+    "bars": (1.0, 64.0),
+    "%": (0.0, 100.0),
+}
+
+
+def numbers_plausible(text: str) -> bool:
+    """False when any unit-bearing number in ``text`` is outside its plausible band."""
+    for first, second, unit in _NUMBER_WITH_UNIT.findall(text or ""):
+        low, high = PLAUSIBLE_RANGES[unit.lower()]
+        for value in (first, second):
+            if value and not low <= float(value) <= high:
+                return False
+    return True
+
+
+def personalise_gaps(
+    asker: Asker,
+    gaps: list[Gap],
+    context: dict[str, Any],
+    *,
+    batch: int = 12,
+) -> list[str]:
+    """Rewrite each gap's step and why for this song, in place. Returns what was dropped.
+
+    Ids, areas and roles are untouched: those are how measured findings map
+    back onto requirements. A rewritten step with an implausible number, or
+    for an id that was not asked about, is ignored and the catalogue text stays.
+    """
+    dropped: list[str] = []
+    if not gaps:
+        return dropped
+    by_id = {gap.id: gap for gap in gaps}
+    for start in range(0, len(gaps), batch):
+        group = gaps[start:start + batch]
+        items = [
+            {"id": g.id, "label": g.label, "area": g.area, "roles": list(g.roles), "templateStep": g.step, "templateWhy": g.why}
+            for g in group
+        ]
+        task = (
+            "These production steps were written for a generic song. Rewrite each one for THIS song: "
+            "name its actual sections, parts, tempo and key where they matter, keep the instruction "
+            "concrete and buildable, and keep every number inside a realistic range for the unit. "
+            "Do not add steps, drop steps, or change ids.\n\n"
+            f"Song:\n{json.dumps(context, ensure_ascii=False)}\n\n"
+            f"Steps:\n{json.dumps(items, ensure_ascii=False)}"
+        )
+        answer = asker(task, GAP_TEXT_SCHEMA)
+        if not isinstance(answer, dict):
+            continue
+        for item in answer.get("gaps") or []:
+            if not isinstance(item, dict):
+                continue
+            gap = by_id.get(str(item.get("id") or ""))
+            if gap is None:
+                dropped.append(f"gap-text: unknown gap {item.get('id')!r}")
+                continue
+            step = re.sub(r"\s+", " ", str(item.get("step") or "")).strip()[:700]
+            why = re.sub(r"\s+", " ", str(item.get("why") or "")).strip()[:500]
+            if len(step) < 30 or len(why) < 20:
+                dropped.append(f"gap-text: {gap.id} came back too thin; kept the catalogue wording")
+                continue
+            if not numbers_plausible(step) or not numbers_plausible(why):
+                dropped.append(f"gap-text: {gap.id} used an implausible number; kept the catalogue wording")
+                continue
+            gap.step = step
+            gap.why = why
+            gap.source = "model"
+            confidence = str(item.get("confidence") or "").strip().lower()
+            if confidence in CONFIDENCE_WORDS:
+                gap.confidence = confidence
+    return dropped
+
+
 def find_gaps(
     spec: dict[str, Any],
     style_lane: str,
@@ -1042,24 +1372,58 @@ def find_gaps(
     prompt: str | None = None,
     intent: dict[str, Any] | None = None,
     skip: Iterable[str] = (),
+    judge: CoverageJudge | None = None,
 ) -> list[Gap]:
     """Every requirement this brief does not already cover.
 
     ``spec`` is the arrangement being built; ``intent`` is what the author wrote.
     See ``SpecView`` for why those have to be different things.
+
+    With a ``judge`` the model's reading of the notes is used where it can be
+    trusted: a "covered" verdict backed by a quote hides the gap; a "not
+    covered" verdict overrides a keyword match, but never coverage that comes
+    from the structure of the spec itself. Without one, or wherever the model
+    said nothing usable, the ``covered`` lambdas decide exactly as before.
     """
     view = SpecView(spec, prompt, intent=intent)
     skipped = set(skip)
+    applicable = [r for r in REQUIREMENTS if r.id not in skipped and r.applies(style_lane)]
+    verdicts: dict[str, dict[str, Any]] = {}
+    if judge is not None:
+        try:
+            verdicts = dict(judge.judge(view, applicable) or {})
+        except Exception:
+            verdicts = {}
+    structural_view: SpecView | None = None
     gaps: list[Gap] = []
-    for requirement in REQUIREMENTS:
-        if requirement.id in skipped or not requirement.applies(style_lane):
-            continue
+    for requirement in applicable:
         try:
             covered = bool(requirement.covered(view))
         except Exception:
             # A malformed spec must never take the pipeline down. Treat an
             # unanswerable check as covered so we stay quiet rather than wrong.
             covered = True
+        source = "rubric"
+        evidence = ""
+        verdict = verdicts.get(requirement.id) if requirement.prose else None
+        if verdict is not None:
+            if verdict.get("covered"):
+                covered = True
+            elif covered:
+                # A keyword matched, the model read the same words and says they
+                # do not deal with it. That only stands if the coverage came
+                # from the words: structure is not up for debate.
+                if structural_view is None:
+                    structural_view = view.without_prose()
+                try:
+                    structural = bool(requirement.covered(structural_view))
+                except Exception:
+                    structural = True
+                if not structural:
+                    covered = False
+                    source = "model"
+                    reason = str(verdict.get("reason") or "").strip()
+                    evidence = f"The notes were read and this was not addressed{': ' + reason if reason else '.'}"
         if covered:
             continue
         gaps.append(
@@ -1071,6 +1435,8 @@ def find_gaps(
                 area=requirement.area,
                 roles=requirement.roles,
                 confidence=requirement.confidence,
+                source=source,
+                evidence=evidence,
             )
         )
     return gaps

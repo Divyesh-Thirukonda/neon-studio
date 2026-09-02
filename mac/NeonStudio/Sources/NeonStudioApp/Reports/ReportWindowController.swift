@@ -1,4 +1,5 @@
 import AppKit
+import NeonStudioKit
 import UniformTypeIdentifiers
 
 // MARK: - Report
@@ -38,6 +39,10 @@ public struct Report {
     public let sections: [Section]
     /// Exactly what the Copy button puts on the pasteboard.
     public let plainText: String
+    /// One line under the findings saying where the words came from — "via
+    /// gemini…" or "built-in rules only" — per docs/ai.md. Nil when the tool
+    /// said nothing about it.
+    public let footer: String?
 
     public init(
         title: String,
@@ -45,14 +50,22 @@ public struct Report {
         headline: String?,
         headlineCaption: String?,
         sections: [Section],
-        plainText: String
+        plainText: String,
+        footer: String? = nil
     ) {
         self.title = title
         self.subtitle = subtitle
         self.headline = headline
         self.headlineCaption = headlineCaption
         self.sections = sections
-        self.plainText = plainText
+        self.footer = footer
+        // The copied text carries the same provenance the window shows.
+        if let footer, !footer.isEmpty {
+            let base = plainText.hasSuffix("\n") ? plainText : plainText + "\n"
+            self.plainText = base + "\n" + footer + "\n"
+        } else {
+            self.plainText = plainText
+        }
     }
 }
 
@@ -226,7 +239,8 @@ public enum ReportBuilder {
                 headline: headline,
                 caption: caption,
                 sections: sections
-            )
+            ),
+            footer: AIProvenance.read(from: json)?.footerLine
         )
     }
 
@@ -333,7 +347,8 @@ public enum ReportBuilder {
                 headline: "\(actions.count)",
                 caption: caption,
                 sections: sections
-            )
+            ),
+            footer: AIProvenance.read(from: json)?.footerLine
         )
     }
 
@@ -860,12 +875,32 @@ public final class ReportWindowController: NSWindowController, NSWindowDelegate 
         spacer.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
         spacer.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(1), for: .horizontal)
 
-        let stack = NSStackView(views: [copyButton, saveButton, spacer, doneButton])
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.distribution = .fill
-        stack.spacing = 10
+        let buttons = NSStackView(views: [copyButton, saveButton, spacer, doneButton])
+        buttons.orientation = .horizontal
+        buttons.alignment = .centerY
+        buttons.distribution = .fill
+        buttons.spacing = 10
+        buttons.translatesAutoresizingMaskIntoConstraints = false
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
+
+        // Where the words came from, per docs/ai.md: shown with the report,
+        // never buried in a log, so "via gemini" and "built-in rules" are
+        // both something the reader can see and quote.
+        if let footerText = report.footer, !footerText.isEmpty {
+            let provenance = WrappingLabel(text: footerText, font: Theme.Font.caption(11), color: Theme.muted)
+            provenance.toolTip = "Which parts of this report a language model wrote, if any. The measurements never come from a model."
+            provenance.setAccessibilityLabel("Where this report's words came from")
+            provenance.setAccessibilityValue(footerText)
+            stack.addArrangedSubview(provenance)
+            provenance.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+        stack.addArrangedSubview(buttons)
+        buttons.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
 
         footer.addSubview(stack)
         NSLayoutConstraint.activate([

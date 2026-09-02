@@ -1,4 +1,5 @@
 import Foundation
+import NeonStudioKit
 
 // MARK: - Transcript fidelity
 
@@ -127,7 +128,8 @@ extension ReportBuilder {
                 headline: parsed.headline,
                 caption: parsed.caption,
                 sections: sections
-            )
+            ),
+            footer: AIProvenance.read(from: json)?.footerLine
         )
     }
 
@@ -238,8 +240,30 @@ extension ReportBuilder {
                 headline: headline,
                 caption: caption,
                 sections: sections
+            ),
+            footer: combinedFooter(
+                sound: sound.flatMap { AIProvenance.read(from: $0) },
+                fidelity: fidelity.flatMap { AIProvenance.read(from: $0) }
             )
         )
+    }
+
+    /// One provenance line for two tools. When both say the same thing it is
+    /// said once; otherwise each half is named.
+    private static func combinedFooter(sound: AIProvenance?, fidelity: AIProvenance?) -> String? {
+        switch (sound, fidelity) {
+        case (nil, nil):
+            return nil
+        case let (sound?, nil):
+            return "Sound check: \(sound.footerLine)"
+        case let (nil, fidelity?):
+            return "Description check: \(fidelity.footerLine)"
+        case let (sound?, fidelity?):
+            if sound.used == fidelity.used, sound.model == fidelity.model {
+                return sound.footerLine
+            }
+            return "Sound check: \(sound.statusSuffix). Description check: \(fidelity.statusSuffix)."
+        }
     }
 
     // MARK: Parsing
