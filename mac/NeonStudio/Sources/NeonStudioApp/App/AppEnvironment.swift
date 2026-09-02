@@ -145,6 +145,9 @@ public final class AppEnvironment {
         copySeed("factory", from: seed, to: support, replaceExistingFiles: false, warnings: &warnings)
         copySeed("data", from: seed, to: support, replaceExistingFiles: false, warnings: &warnings)
         copySeed("exports", from: seed, to: support, replaceExistingFiles: false, warnings: &warnings)
+        // The transcript a factory song was built from, so Check My Mix can
+        // also ask whether the song matches its description.
+        copySeed("songlab", from: seed, to: support, replaceExistingFiles: false, warnings: &warnings)
         // Code: always refresh, so an app update can't leave stale Python behind.
         copySeed("tools", from: seed, to: support, replaceExistingFiles: true, warnings: &warnings)
         copySeed("skills", from: seed, to: support, replaceExistingFiles: true, warnings: &warnings)

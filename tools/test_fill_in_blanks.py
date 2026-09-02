@@ -470,3 +470,22 @@ class FillInBlanksIntegrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProductionNotesMergeTests(unittest.TestCase):
+    def test_production_notes_fold_into_one_section(self) -> None:
+        spec = spec_from(sections=[section("intro", roles=["chords"]), section("drop", roles=["drums", "bass"])])
+        for index, (technique, text) in enumerate((("eq", "cut the pad"), ("compression", "glue the drums"), ("eq", "cut the pad"))):
+            spec["sections"].append({"id": f"notes-{index}", "type": "production_notes", "label": "Production Notes",
+                                     "techniques": [technique], "plugins": [f"plugin-{index}"], "trackRoles": [],
+                                     "transcriptText": text, "summary": text, "excerpt": text, "bars": None})
+        from fill_in_blanks import resolve_duplicate_sections
+        decisions: list = []
+        resolve_duplicate_sections(spec, decisions)
+        notes = [s for s in spec["sections"] if s.get("type") == "production_notes"]
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(sorted(notes[0]["techniques"]), ["compression", "eq"])
+        self.assertEqual(notes[0]["plugins"], ["plugin-0", "plugin-1", "plugin-2"])
+        self.assertEqual(notes[0]["transcriptText"], "cut the pad glue the drums")
+        self.assertEqual([s["type"] for s in spec["sections"]][:2], ["intro", "drop"])
+        self.assertTrue(any("production note" in str(d.get("summary", d)) for d in decisions), decisions)

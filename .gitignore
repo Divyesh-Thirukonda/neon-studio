@@ -32,3 +32,10 @@ pnpm-debug.log*
 mac/NeonStudio/.build/
 mac/NeonStudio/Resources/AppIcon.iconset/
 *.xcworkspace/xcuserdata/
+
+# Per-project scratch the tools write next to a session (preview WAVs, temp edits)
+songlab/projects/*/variations/
+songlab/projects/*/describe_change_output.neon.json
+songlab/projects/*/listening_answers.json
+songlab/projects/*/last_sound_check.json
+songlab/projects/*/agent_output.neon.json

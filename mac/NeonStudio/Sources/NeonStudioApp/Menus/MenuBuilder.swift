@@ -448,6 +448,25 @@ final class MenuBuilder: NSObject {
             modifiers: [.command, .option],
             help: "Ask for concrete suggestions about what this song needs next.")
 
+        menu.addItem(.separator())
+
+        add("Listen With Me…", to: menu,
+            action: #selector(DocumentWindowController.startListeningSession(_:)),
+            help: "Play each part and answer a few plain questions. Your answers become steps to do.")
+        add("Ask for a Change…", to: menu,
+            action: #selector(DocumentWindowController.askForChange(_:)),
+            key: "k",
+            modifiers: [.command, .shift],
+            help: "Say what should change in your own words and it happens. ⌘Z undoes it.")
+        add("Hum a Melody…", to: menu,
+            action: #selector(DocumentWindowController.humMelody(_:)),
+            key: "h",
+            modifiers: [.command, .shift],
+            help: "Sing or hum, and the notes land on the selected track.")
+        add("Try Alternatives…", to: menu,
+            action: #selector(DocumentWindowController.tryAlternatives(_:)),
+            help: "Hear three different takes on the selected track and pick one.")
+
         return menu
     }
 

@@ -104,6 +104,13 @@ discovered rather than hardcoded, and is configurable in Settings.
   on, the loop range becomes the punch range and recording stops itself.
 - Imports audio and exports a mixdown
 - Runs sound check, the DAW agent, transcript materialization and Vocal Lab
+- A person in the loop, four ways: **Hum a Melody** records you with a count-in
+  and puts the notes on the selected track; **Ask for a Change** turns "make the
+  drop hit harder" into an undoable edit; **Try Alternatives** plays three takes
+  on a track and lets you pick; **Listen With Me** plays each section and asks
+  plain questions, and your answers become steps in the recipe.
+- Check My Mix answers two questions: does it sound good (measured), and does it
+  match what the description said (a fidelity check against the transcript).
 - First-run welcome window, a guided tour, empty states everywhere, and a
   plain-language mode that explains music jargon in place
 

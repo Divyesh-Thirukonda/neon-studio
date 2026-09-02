@@ -56,7 +56,7 @@ cp "$BINARY" "$MACOS_DIR/NeonStudio"
 # Seed content the app copies into ~/Library/Application Support on launch.
 # __pycache__ is excluded so stale bytecode never ships.
 mkdir -p "$RESOURCES_DIR/seed"
-for seed_dir in factory data exports tools skills; do
+for seed_dir in factory data exports songlab tools skills; do
   if [ -e "$REPO_ROOT/$seed_dir" ]; then
     rm -rf "$RESOURCES_DIR/seed/$seed_dir"
     mkdir -p "$RESOURCES_DIR/seed/$seed_dir"
